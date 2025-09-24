@@ -179,41 +179,8 @@ I believe that knowledge should be accessible to everyone, and through Interview
 - [YouTube - Let's Program](https://youtube.com/@letsprogram30)
 - [Blog](https://letsprogram.in)
 - [Portfolio](https://sashikumar.dev)
-
-### Shubham Agnihotri
-**Senior Data Scientist at IDFC First Bank**
-
-Hi! I'm Shubham Agnihotri, and I'm powering Interview Helper with AI to empower developers with state-of-the-art technology and experience. My motivation is to democratize AI and make it accessible to everyone.
-
-I want to integrate AI into the Interview Helper platform to create a scalable, intelligent system that helps developers prepare effectively for technical interviews. By leveraging AI, I aim to provide personalized guidance, real-world insights, and interactive learning experiences.
-
-**Connect with me:**
-- [YouTube - The Beginning of Infinity](https://youtube.com/@beginningofinfinity)
-- [Blog](https://shubham-agnihotri.medium.com/)
-- [Portfolio](https://killerstrike17.github.io/)
-- [LinkedIn](https://linkedin.com/in/shubhamagnihotri17/)
-
-## 🌟 Getting Started
-
-Ready to begin your interview preparation journey? Here's how to get started:
-
-1. **Explore Technologies**: Browse through our comprehensive coverage of different technologies
-2. **Start with Basics**: Begin with fundamental concepts in your area of interest
-3. **Practice Regularly**: Work through questions progressively from basic to advanced
-4. **Join the Community**: Contribute and learn from other developers
-
-## 🤝 Join Our Community
-
-Interview Helper is an open-source platform. We welcome contributions from developers worldwide to help create the most comprehensive interview preparation resource.
-
-**Ways to contribute:**
-- Add new questions and answers
-- Improve existing content
-- Share your interview experiences
-- Report issues and suggest improvements
-
-Visit our [GitHub repository](https://github.com/sashikumaryadav/interview-helper) to get involved!
+- [LinkedIn](https://linkedin.com/in/sashikumar-yadav/)
 
 ---
 
-**Ready to master your tech interview journey?** Let's get started! 🚀
+**Ready to master your Angular journey?** Let's get started! 🚀
