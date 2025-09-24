@@ -1,11 +1,9 @@
 ---
-title: Development Environment
+title: Development Environment 🛠️
 description: Complete setup guide for Angular development with latest tools and best practices
 sidebar:
   order: 3
 ---
-
-# Development Environment Setup 🛠️
 
 Let's set up your development environment to build modern Angular applications with the latest features, tools, and best practices. This guide ensures you have everything needed for our comprehensive Angular tutorial.
 

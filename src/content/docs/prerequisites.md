@@ -1,11 +1,9 @@
 ---
-title: Prerequisites & Setup
+title: Prerequisites & Setup 📋
 description: Everything you need to know before starting your Angular learning journey
 sidebar:
   order: 2
 ---
-
-# Prerequisites & Setup 📋
 
 Before diving into Angular development, let's ensure you have the foundational knowledge and tools needed to get the most out of this comprehensive tutorial.
 

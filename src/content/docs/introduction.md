@@ -1,11 +1,9 @@
 ---
-title: Welcome & Course Overview
+title: Welcome & Course Overview 🚀
 description: Your comprehensive guide to mastering Angular from beginner to expert
 sidebar:
   order: 1
 ---
-
-# Welcome to Complete Angular Guide! 🚀
 
 Welcome to the most comprehensive Angular tutorial available! Whether you're completely new to Angular or a seasoned developer looking to master the latest features, this guide will take you from zero to hero with modern Angular development.
 
