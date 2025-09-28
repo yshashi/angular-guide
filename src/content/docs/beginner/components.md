@@ -297,51 +297,6 @@ interface Product {
       </div>
     </div>
   `,
-  styles: [`
-    .product-card {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 16px;
-      max-width: 250px;
-      text-align: center;
-    }
-    
-    .product-card.out-of-stock {
-      opacity: 0.6;
-    }
-    
-    img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-      border-radius: 4px;
-    }
-    
-    .price {
-      font-size: 1.2em;
-      font-weight: bold;
-      color: #007bff;
-    }
-    
-    .stock {
-      color: #dc3545;
-      font-weight: bold;
-    }
-    
-    .add-btn {
-      background: #28a745;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    
-    .add-btn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-  `]
 })
 export class ProductCard {
   @Input() product!: Product;

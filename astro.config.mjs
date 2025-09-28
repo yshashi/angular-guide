@@ -51,11 +51,11 @@ export default defineConfig({
 						{ label: 'State Management', slug: 'intermediate/state-management' },
 						{ label: 'Pipes & Custom Pipes', slug: 'intermediate/pipes' },
 						{ label: 'Angular Material', slug: 'intermediate/material' },
-						{ label: 'Testing Fundamentals', slug: 'intermediate/testing' },
+						// { label: 'Testing Fundamentals', slug: 'intermediate/testing' },
 					],
 				},
 				{
-					label: '⚡ Modern Angular (Latest Features)',
+					label: '⚡ Modern Angular',
 					collapsed: true,
 					items: [
 						{ label: 'Standalone Components', slug: 'modern/standalone-components' },
@@ -63,11 +63,13 @@ export default defineConfig({
 						{ label: 'Computed Signals', slug: 'modern/computed-signals' },
 						{ label: 'Effects API', slug: 'modern/effects' },
 						{ label: 'Linked Signals (v19)', slug: 'modern/linked-signals' },
-						{ label: 'Resource API (Experimental)', slug: 'modern/resource-api' },
+						{ label: 'Resource API', slug: 'modern/resource-api' },
 						{ label: 'Control Flow (@if, @for, @switch)', slug: 'modern/control-flow' },
 						{ label: 'Zoneless Angular', slug: 'modern/zoneless' },
 						{ label: 'New Template Syntax (@let)', slug: 'modern/template-syntax' },
 						{ label: 'Incremental Hydration', slug: 'modern/incremental-hydration' },
+						{ label: 'HttpResource API', slug: 'modern/http-resource-api' },
+						{ label: 'Signal Forms (V21)', slug: 'modern/signal-forms' },
 					],
 				},
 				{
