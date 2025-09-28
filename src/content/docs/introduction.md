@@ -23,8 +23,8 @@ Angular is a powerful, full-featured framework for building dynamic web applicat
 This isn't just another tutorial. We provide:
 
 - **Complete Learning Path**: From absolute beginner to Angular expert
-- **Latest Features**: Angular 18, 19, and upcoming Angular 20 features
-- **Real-World Projects**: Build production-ready applications
+- **Latest Features**: Angular 18, 19, 20 and upcoming Angular 21 features
+- **Real-World Projects**: Build production-ready applications (Coming soon)
 - **Best Practices**: Industry-standard patterns and techniques
 - **Modern Angular**: Standalone components, signals, and latest APIs
 
@@ -67,7 +67,7 @@ This isn't just another tutorial. We provide:
 
 ## 🏆 Real-World Projects
 
-Throughout this course, you'll build:
+Throughout this course, you'll build below apps (Youtube Videos and Docs will be added soon):
 
 ### 📱 **Todo Application**
 - Master component basics and state management
@@ -127,23 +127,6 @@ Throughout this course, you'll build:
 - **TypeScript** and **Angular** VS Code extensions
 - **Chrome/Firefox** with developer tools
 
-## 📈 Learning Journey
-
-### 🌱 **Phase 1: Foundation (4 weeks)**
-Build a solid foundation with Angular fundamentals and core concepts.
-
-### 🚀 **Phase 2: Intermediate Skills (4 weeks)**
-Master advanced patterns, forms, routing, and state management.
-
-### ⚡ **Phase 3: Modern Angular (4 weeks)**
-Learn cutting-edge features like signals, standalone components, and new APIs.
-
-### 🏗️ **Phase 4: Advanced Mastery (4 weeks)**
-Dive into performance optimization, testing, and production deployment.
-
-### 🎯 **Phase 5: Real-World Applications (4 weeks)**
-Build complete, production-ready applications using everything you've learned.
-
 ## 🎉 Ready to Start Your Journey?
 
 This comprehensive course is designed to take you from beginner to Angular expert in 20 weeks. Each week includes:
@@ -159,15 +142,6 @@ This comprehensive course is designed to take you from beginner to Angular exper
 2. **[Development Environment](/setup/)** - Set up your coding environment
 3. **[Learning Path Guide](/learning-path/)** - Plan your learning journey
 4. **[What is Angular?](/beginner/what-is-angular/)** - Begin your Angular adventure
-
-## 💬 Community & Support
-
-Join our thriving community of Angular developers:
-
-- **GitHub Repository**: Access all course code and examples
-- **Discussion Forums**: Get help and connect with other learners
-- **Discord Community**: Real-time chat and support
-- **Weekly Office Hours**: Live Q&A sessions with instructors
 
 ---
 

@@ -199,7 +199,7 @@ If you need to strengthen any prerequisites:
 ### Learning Support
 - **Struggling with concepts?** Each section includes additional resources
 - **Need practice?** Every lesson has hands-on exercises
-- **Want community help?** Join our Discord for real-time support
+- **Want community help?** Join our Telegram channel for real-time support
 
 ## 🚀 Ready to Start?
 

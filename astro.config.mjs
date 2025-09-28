@@ -14,7 +14,7 @@ export default defineConfig({
 			// ],
 			sidebar: [
 				{
-					label: 'Getting Started',
+					label: '🚀 Getting Started',
 					items: [
 						{ label: 'Welcome & Course Overview', slug: 'introduction' },
 						{ label: 'Prerequisites & Setup', slug: 'prerequisites' },

@@ -309,8 +309,7 @@ Now that your environment is ready, choose your learning path:
 If you encounter any setup issues:
 
 - **Common Problems**: Check our [troubleshooting section](#-troubleshooting) above
-- **Community Support**: Join our [Discord community](https://discord.gg/angular-learners)
-- **GitHub Issues**: Report problems in our [repository](https://github.com/complete-angular-guide)
+- **Community Support**: Join our [Telegram community](https://t.me/letsprogramYt/1)
 - **Documentation**: Visit [Angular.dev](https://angular.dev/) for official docs
 
 ---

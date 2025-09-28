@@ -250,7 +250,7 @@ Throughout your journey, build these portfolio projects:
 - [Angular Blog](https://blog.angular.dev/) - Latest updates and features
 
 ### Community Resources
-- [Angular Community](https://community.angular.dev/) - Official community
+- [Angular Community](https://angular.dev/) - Official community
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/angular) - Q&A
 - [Reddit r/Angular2](https://www.reddit.com/r/Angular2/) - Discussions
 
@@ -258,57 +258,6 @@ Throughout your journey, build these portfolio projects:
 - [StackBlitz](https://stackblitz.com/) - Online IDE
 - [CodeSandbox](https://codesandbox.io/) - Online development
 - [Plunker](https://plnkr.co/) - Prototyping
-
-## 🏆 **Certification & Recognition**
-
-### Angular Certifications
-- **Google Developer Expert (GDE)** - Angular track
-- **Angular Certified Developer** - Official certification (when available)
-
-### Portfolio Building
-- GitHub repositories with clean code
-- Live demos on Netlify/Vercel
-- Technical blog posts
-- Conference talks or meetup presentations
-
-## 🤝 **Community Engagement**
-
-### Join Communities
-- Angular Discord servers
-- Local Angular meetups
-- Angular conferences (ng-conf, AngularConnect)
-- Twitter Angular community
-
-### Contribute Back
-- Open source contributions
-- Answer questions on Stack Overflow
-- Write technical blog posts
-- Mentor other developers
-
-## 📈 **Progress Tracking**
-
-### Weekly Checkpoints
-- [ ] Completed assigned readings
-- [ ] Finished coding exercises
-- [ ] Built weekly project
-- [ ] Reviewed and understood concepts
-
-### Monthly Reviews
-- [ ] Assess skill improvement
-- [ ] Update portfolio projects
-- [ ] Seek feedback from community
-- [ ] Plan next month's focus areas
-
-## 🎉 **Graduation Criteria**
-
-You've mastered Angular when you can:
-- [ ] Build complex applications from scratch
-- [ ] Implement all modern Angular features
-- [ ] Optimize for performance and scalability
-- [ ] Write comprehensive tests
-- [ ] Deploy to production
-- [ ] Mentor other developers
-- [ ] Contribute to open source projects
 
 ## 🚀 **Ready to Start?**
 
