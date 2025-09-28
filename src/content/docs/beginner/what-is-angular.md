@@ -55,21 +55,8 @@ Angular is designed for large-scale applications:
 
 ## 🏗️ Angular Architecture Overview
 
-```mermaid
-graph TD
-    A[Angular Application] --> B[Modules]
-    B --> C[Components]
-    B --> D[Services]
-    B --> E[Directives]
-    B --> F[Pipes]
-    
-    C --> G[Template]
-    C --> H[Component Class]
-    C --> I[Styles]
-    
-    D --> J[Business Logic]
-    D --> K[Data Access]
-```
+<!-- Show svg image from public folder -->
+<img src="/public/ng-arch.svg" alt="Angular Architecture">
 
 ### Core Building Blocks
 
@@ -115,6 +102,9 @@ graph TD
 - **Angular 18** - Material 3, control flow stable, experimental esbuild
 - **Angular 19** - Linked signals, incremental hydration, @let syntax
 - **Angular 20** - Zoneless change detection stable
+
+**Angular Can I Use Explorer:**
+https://www.dolmen.tools/en/angular/caniuse/explorer
 
 ### Latest Features (Angular 18-20)
 - **Signals** - New reactivity model
@@ -180,19 +170,6 @@ Throughout this guide, you'll create:
 - Real-time updates
 - Interactive charts
 - Export functionality
-
-## 🛠️ Angular Development Workflow
-
-```mermaid
-graph LR
-    A[Plan] --> B[Generate]
-    B --> C[Develop]
-    C --> D[Test]
-    D --> E[Build]
-    E --> F[Deploy]
-    F --> G[Monitor]
-    G --> A
-```
 
 ### Typical Development Process
 1. **Plan** - Define requirements and architecture
