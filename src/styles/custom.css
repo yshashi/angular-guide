@@ -1,0 +1,24 @@
+/* Reduce gap between logo and title */
+.site-title {
+  gap: 0.5rem !important;
+}
+
+/* Alternative selector if the above doesn't work */
+[data-starlight-logo] + .site-title {
+  margin-left: 0.5rem !important;
+}
+
+/* Another approach - target the header container */
+.header .site-title {
+  gap: 0.5rem !important;
+}
+
+/* Most specific approach - target the logo container */
+.sl-flex[data-starlight-logo] {
+  gap: 0.5rem !important;
+}
+
+/* If logo is in a flex container with title */
+.sl-flex:has([data-starlight-logo]) {
+  gap: 0.5rem !important;
+}
