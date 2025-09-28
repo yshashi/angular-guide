@@ -7,7 +7,7 @@ export default defineConfig({
 	site: 'https://learn-angular.dev',
 	integrations: [
 		starlight({
-			title: 'Complete Angular Guide',
+			title: 'NG Guide',
 			description: 'Master Angular from beginner to advanced - comprehensive guide covering all latest features including Angular 18, 19, and 20',
 			// social: [
 			// 	{ icon: 'github', label: 'GitHub', href: 'https://github.com/yshashi' }
