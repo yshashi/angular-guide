@@ -10,12 +10,15 @@ Directives are classes that add behavior to elements in your Angular application
 ## 🎯 Types of Directives
 
 ### 1. **Attribute Directives**
+
 Change the appearance or behavior of an element, component, or another directive.
 
 ### 2. **Structural Directives**
+
 Change the DOM layout by adding or removing elements (less common with modern `@if`, `@for`).
 
 ### 3. **Host Directives** (Angular 15+)
+
 Compose directives together for powerful reusability.
 
 ## 🚀 Attribute Directives
@@ -39,6 +42,7 @@ export class HighlightDirective {
 ```
 
 **Usage:**
+
 ```html
 <p appHighlight>This text will be highlighted!</p>
 ```
@@ -67,6 +71,7 @@ export class HighlightDirective {
 ```
 
 **Usage:**
+
 ```html
 <p appHighlight="lightblue">Custom color highlight</p>
 <p [appHighlight]="dynamicColor">Dynamic color</p>
@@ -106,6 +111,7 @@ export class HoverHighlightDirective {
 ```
 
 **Usage:**
+
 ```html
 <div appHoverHighlight [highlightColor]="'lightgreen'">
   Hover over me!
@@ -113,6 +119,10 @@ export class HoverHighlightDirective {
 ```
 
 ## 🎨 Real-World Examples
+
+<blockquote>
+<p><strong>Warning:</strong> For Angular versions 19 and above, you can remove the <code>standalone: true</code> property from your dynamic component directives.</p>
+</blockquote>
 
 ### 1. **Click Outside Directive**
 
@@ -140,6 +150,7 @@ export class ClickOutsideDirective {
 ```
 
 **Usage:**
+
 ```typescript
 @Component({
   selector: 'app-dropdown',
@@ -198,6 +209,7 @@ export class AutoFocusDirective {
 ```
 
 **Usage:**
+
 ```html
 <input appAutoFocus [delay]="300" placeholder="Auto-focused after 300ms">
 ```
@@ -278,6 +290,7 @@ export class TooltipDirective {
 ```
 
 **CSS:**
+
 ```css
 .tooltip {
   position: fixed;
@@ -292,6 +305,7 @@ export class TooltipDirective {
 ```
 
 **Usage:**
+
 ```html
 <button appTooltip="Click to save" [position]="'top'">
   Save
@@ -346,6 +360,7 @@ export class LazyLoadDirective {
 ```
 
 **Usage:**
+
 ```html
 <img appLazyLoad="/assets/large-image.jpg" 
      [placeholder]="'data:image/svg+xml;base64,...'"
@@ -393,6 +408,7 @@ export class HasPermissionDirective {
 ```
 
 **Usage:**
+
 ```html
 <button *appHasPermission="'admin'">Admin Only</button>
 <div *appHasPermission="['editor', 'admin']">Editor or Admin</div>
@@ -433,6 +449,7 @@ export class DebounceClickDirective {
 ```
 
 **Usage:**
+
 ```html
 <button appDebounceClick (debounceClick)="save()">
   Save (debounced)
@@ -469,6 +486,7 @@ export class UnlessDirective {
 ```
 
 **Usage:**
+
 ```html
 <div *appUnless="isHidden">
   This shows when isHidden is false
@@ -507,6 +525,7 @@ export class RepeatDirective {
 ```
 
 **Usage:**
+
 ```html
 <div *appRepeat="5; let i = index">
   Item {{ i }}
@@ -558,6 +577,7 @@ export class FancyButtonComponent {}
 ```
 
 **Usage:**
+
 ```html
 <app-fancy-button 
   tooltip="Click me!" 
@@ -717,6 +737,7 @@ export class MinValueDirective implements Validator {
 ```
 
 **Usage:**
+
 ```html
 <input type="number" [appMinValue]="18" [(ngModel)]="age">
 ```
