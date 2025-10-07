@@ -10,6 +10,7 @@ Containerize your Angular applications with Docker for consistent, portable, and
 ## 🎯 Why Docker for Angular?
 
 **Benefits:**
+
 - **🔄 Consistency** - Same environment everywhere
 - **📦 Portability** - Run anywhere Docker runs
 - **⚡ Isolation** - No dependency conflicts
@@ -17,6 +18,7 @@ Containerize your Angular applications with Docker for consistent, portable, and
 - **🔧 DevOps Ready** - CI/CD integration
 
 **Use Cases:**
+
 - Production deployments
 - Development environments
 - Microservices architecture

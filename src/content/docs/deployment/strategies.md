@@ -10,6 +10,7 @@ Deploy your Angular applications to production with confidence. Learn various de
 ## 🎯 Deployment Options
 
 **Hosting Types:**
+
 - **Static Hosting** - Netlify, Vercel, GitHub Pages
 - **Cloud Platforms** - AWS, Azure, Google Cloud
 - **Traditional Servers** - Apache, Nginx
@@ -17,6 +18,7 @@ Deploy your Angular applications to production with confidence. Learn various de
 - **Container Platforms** - Docker, Kubernetes
 
 **Rendering Strategies:**
+
 - **Client-Side Rendering (CSR)** - Traditional SPA
 - **Server-Side Rendering (SSR)** - Angular Universal
 - **Static Site Generation (SSG)** - Pre-rendered pages

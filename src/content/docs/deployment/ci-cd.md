@@ -10,18 +10,21 @@ Automate your Angular application deployments with CI/CD pipelines. Learn to set
 ## 🎯 CI/CD Fundamentals
 
 **Continuous Integration (CI):**
+
 - Automated testing on every commit
 - Code quality checks
 - Build verification
 - Dependency scanning
 
 **Continuous Deployment (CD):**
+
 - Automated deployments
 - Environment management
 - Rollback capabilities
 - Release automation
 
 **Benefits:**
+
 - **⚡ Faster Releases** - Deploy multiple times per day
 - **🛡️ Quality Assurance** - Automated testing
 - **🔄 Consistency** - Repeatable deployments
