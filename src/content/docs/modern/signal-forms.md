@@ -91,7 +91,7 @@ interface Contact {
     <form class="contact-form">
       <div class="form-group">
         <label for="name">Name</label>
-        <input [control]="contactForm.name" id="name" />
+        <input [field]="contactForm.name" id="name" />
         @if (contactForm.name().errors().length > 0) {
           <div class="error">{{ contactForm.name().errors()[0].message }}</div>
         }
@@ -99,7 +99,7 @@ interface Contact {
 
       <div class="form-group">
         <label for="email">Email</label>
-        <input [control]="contactForm.email" id="email" type="email" />
+        <input [field]="contactForm.email" id="email" type="email" />
         @if (contactForm.email().errors().length > 0) {
           <div class="error">{{ contactForm.email().errors()[0].message }}</div>
         }
@@ -107,7 +107,7 @@ interface Contact {
 
       <div class="form-group">
         <label for="message">Message</label>
-        <textarea [control]="contactForm.message" id="message"></textarea>
+        <textarea [field]="contactForm.message" id="message"></textarea>
         @if (contactForm.message().errors().length > 0) {
           <div class="error">{{ contactForm.message().errors()[0].message }}</div>
         }
@@ -213,20 +213,20 @@ const todoItemSchema = schema<TodoItem>((path) => {
     <form class="todo-form">
       <div class="form-group">
         <label>List Title</label>
-        <input [control]="todoForm.title" />
+        <input [field]="todoForm.title" />
       </div>
 
       <fieldset>
         <legend>Todo Items</legend>
         @for (item of todoForm.items; track item; let i = $index) {
           <div class="todo-item">
-            <input [control]="item.text" placeholder="Todo text" />
-            <select [control]="item.priority">
+            <input [field]="item.text" placeholder="Todo text" />
+            <select [field]="item.priority">
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
             </select>
-            <input type="checkbox" [control]="item.completed" />
+            <input type="checkbox" [field]="item.completed" />
             <button type="button" (click)="removeItem(i)">Remove</button>
           </div>
         }
@@ -309,16 +309,16 @@ const addressSchema = schema<Address>((path) => {
     <form class="company-form">
       <fieldset>
         <legend>Company Information</legend>
-        <input [control]="companyForm.name" placeholder="Company Name" />
-        <input [control]="companyForm.employees" type="number" placeholder="Employees" />
+        <input [field]="companyForm.name" placeholder="Company Name" />
+        <input [field]="companyForm.employees" type="number" placeholder="Employees" />
       </fieldset>
 
       <fieldset>
         <legend>Address</legend>
-        <input [control]="companyForm.address.street" placeholder="Street" />
-        <input [control]="companyForm.address.city" placeholder="City" />
-        <input [control]="companyForm.address.country" placeholder="Country" />
-        <input [control]="companyForm.address.zipCode" placeholder="ZIP Code" />
+        <input [field]="companyForm.address.street" placeholder="Street" />
+        <input [field]="companyForm.address.city" placeholder="City" />
+        <input [field]="companyForm.address.country" placeholder="Country" />
+        <input [field]="companyForm.address.zipCode" placeholder="ZIP Code" />
       </fieldset>
     </form>
   `

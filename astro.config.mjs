@@ -98,6 +98,22 @@ export default defineConfig({
 					],
 				},
 				{
+					label: '🔄 RxJS for Angular',
+					collapsed: true,
+					items: [
+						{ label: 'RxJS Fundamentals', slug: 'rxjs/fundamentals' },
+						{ label: 'Observables & Observers', slug: 'rxjs/observables' },
+						{ label: 'Subjects & BehaviorSubject', slug: 'rxjs/subjects' },
+						{ label: 'Operators - Transformation', slug: 'rxjs/transformation-operators' },
+						{ label: 'Operators - Filtering', slug: 'rxjs/filtering-operators' },
+						{ label: 'Operators - Combination', slug: 'rxjs/combination-operators' },
+						{ label: 'Error Handling', slug: 'rxjs/error-handling' },
+						{ label: 'Higher-Order Observables', slug: 'rxjs/higher-order-observables' },
+						{ label: 'Schedulers & Testing', slug: 'rxjs/schedulers' },
+						{ label: 'RxJS Patterns in Angular', slug: 'rxjs/angular-patterns' },
+					],
+				},
+				{
 					label: '🧪 Testing & Quality',
 					collapsed: true,
 					items: [
