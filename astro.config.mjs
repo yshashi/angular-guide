@@ -1,11 +1,13 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
-	site: 'https://learn-angular.dev',
+	site: 'https://ng-guide.letsprogram.in',
 	integrations: [
+		sitemap(),
 		starlight({
 			title: 'Guide',
 			description: 'Master Angular from beginner to advanced - comprehensive guide covering all latest features including Angular 18, 19, and 20',
