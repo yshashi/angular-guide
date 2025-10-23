@@ -151,6 +151,16 @@ export default defineConfig({
 						// { label: 'Monitoring & Analytics', slug: 'deployment/monitoring' },
 					],
 				},
+				{
+					label: '💼 Projects',
+					collapsed: true,
+					items: [
+						{ label: 'Todo App with Signals', slug: 'projects/todo-app' },
+						{ label: 'Blog Platform - Part 1', slug: 'projects/blog' },
+						{ label: 'Blog Platform - Part 2', slug: 'projects/blog-part2' },
+						{ label: 'Blog Platform - Part 3', slug: 'projects/blog-part3' },
+					],
+				},
 			],
 		}),
 	],
