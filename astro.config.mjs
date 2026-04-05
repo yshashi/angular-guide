@@ -9,7 +9,7 @@ export default defineConfig({
 	integrations: [
 		sitemap(),
 		starlight({
-			title: 'Guide',
+			title: 'NG Guide',
 			description: 'Master Angular from beginner to advanced - comprehensive guide covering all latest features including Angular 19, 20, and 21',
 			favicon: '/favicon.svg',
 			logo: {
@@ -17,9 +17,41 @@ export default defineConfig({
 				alt: 'NG Guide',
 				replacesTitle: false,
 			},
+			head: [
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'preconnect',
+						href: 'https://fonts.googleapis.com',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'preconnect',
+						href: 'https://fonts.gstatic.com',
+						crossorigin: '',
+					},
+				},
+				{
+					tag: 'meta',
+					attrs: {
+						name: 'theme-color',
+						content: '#dd0031',
+					},
+				},
+			],
 			customCss: [
 				'./src/styles/custom.css',
 			],
+			expressiveCode: {
+				themes: ['dracula', 'github-light'],
+				styleOverrides: {
+					borderRadius: '0.75rem',
+					codePaddingBlock: '0.875rem',
+					codePaddingInline: '1rem',
+				},
+			},
 			// social: [
 			// 	{ icon: 'github', label: 'GitHub', href: 'https://github.com/yshashi' }
 			// ],
