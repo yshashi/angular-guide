@@ -43,7 +43,7 @@ npm install -g @angular/cli
 # Check version
 ng version
 
-# Should show Angular CLI 17+ for latest features
+# Should show Angular CLI 21+ for latest features
 ```
 
 ### Package Manager
@@ -92,8 +92,7 @@ Download from [code.visualstudio.com](https://code.visualstudio.com/)
   "editor.codeActionsOnSave": {
     "source.organizeImports": true
   },
-  "typescript.suggest.autoImports": true,
-  "angular.experimental-ivy": true
+  "typescript.suggest.autoImports": true
 }
 ```
 
@@ -200,10 +199,9 @@ npm install -g eslint
 
 ### Performance Tools
 
-```bash
-# Bundle analyzer
-npm install -g webpack-bundle-analyzer
+> **Note:** Since Angular 17, esbuild is the default build tool (replacing Webpack). You no longer need `webpack-bundle-analyzer` for most use cases. Use `ng build --stats-json` and the built-in bundle budgets in `angular.json` to monitor bundle sizes.
 
+```bash
 # Lighthouse CLI
 npm install -g lighthouse
 

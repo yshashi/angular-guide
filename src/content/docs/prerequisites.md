@@ -49,7 +49,7 @@ You should be comfortable with:
 - **Components**: Basic component structure
 - **Templates**: Data binding and event handling
 - **Services**: Dependency injection basics
-- **Modules**: NgModules (we'll transition to standalone)
+- **Standalone**: Components are standalone by default (no NgModules needed since Angular 19)
 - **CLI**: Angular CLI commands
 
 **Advanced Concepts (We'll Cover These):**

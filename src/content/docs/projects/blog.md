@@ -40,7 +40,7 @@ Before starting this project, make sure you have:
 ### Step 1: Create New Angular Project
 
 ```bash
-ng new blog-platform --standalone --routing --style=css --strict
+ng new blog-platform --routing --style=css --strict
 cd blog-platform
 ```
 

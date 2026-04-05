@@ -31,7 +31,6 @@ import { BlogService } from '../../services/blog.service';
 
 @Component({
   selector: 'app-post-detail',
-  standalone: true,
   imports: [DatePipe, RouterLink],
   template: `
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -161,7 +160,6 @@ import { CreatePostDto } from '../../models/blog.model';
 
 @Component({
   selector: 'app-post-form',
-  standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
   template: `
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -405,7 +403,6 @@ import { provideHttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [RouterOutlet, HeaderComponent],
   template: `
     <div class="min-h-screen bg-gray-50">

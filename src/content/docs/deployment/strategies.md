@@ -20,7 +20,7 @@ Deploy your Angular applications to production with confidence. Learn various de
 **Rendering Strategies:**
 
 - **Client-Side Rendering (CSR)** - Traditional SPA
-- **Server-Side Rendering (SSR)** - Angular Universal
+- **Server-Side Rendering (SSR)** - Built-in Angular SSR (v17+; replaces the legacy Angular Universal / `@nguniversal` package)
 - **Static Site Generation (SSG)** - Pre-rendered pages
 - **Incremental Static Regeneration (ISR)** - Hybrid approach
 
@@ -485,8 +485,10 @@ const apiUrl = 'https://api.example.com';
 
 ### 2. **Enable Production Mode**
 
+> **Note:** In modern Angular (v17+ with esbuild), production mode is automatically enabled when you build with `--configuration production`. You no longer need to call `enableProdMode()` manually in `main.ts`. The snippet below is only needed for older projects.
+
 ```typescript
-// main.ts
+// main.ts (legacy pattern — not needed in Angular 17+)
 import { enableProdMode } from '@angular/core';
 import { environment } from './environments/environment';
 

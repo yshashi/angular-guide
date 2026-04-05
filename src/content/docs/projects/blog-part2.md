@@ -28,7 +28,6 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 
 @Component({
   selector: 'app-header',
-  standalone: true,
   imports: [RouterLink, RouterLinkActive],
   template: `
     <header class="bg-white shadow-sm">
@@ -82,7 +81,6 @@ import { BlogService } from '../../services/blog.service';
 
 @Component({
   selector: 'app-search-bar',
-  standalone: true,
   imports: [FormsModule],
   template: `
     <div class="flex flex-col sm:flex-row gap-4 mb-8">
@@ -144,7 +142,6 @@ import { BlogPost } from '../../models/blog.model';
 
 @Component({
   selector: 'app-post-card',
-  standalone: true,
   imports: [RouterLink, DatePipe],
   template: `
     <article class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
@@ -222,7 +219,6 @@ import { SearchBarComponent } from '../../components/search-bar/search-bar.compo
 
 @Component({
   selector: 'app-home',
-  standalone: true,
   imports: [PostCardComponent, SearchBarComponent],
   template: `
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

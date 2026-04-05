@@ -38,12 +38,11 @@ Before starting this project, make sure you have:
 ### Step 1: Create New Angular Project
 
 ```bash
-ng new todo-app --standalone --routing=false --style=css --strict
+ng new todo-app --routing=false --style=css --strict
 cd todo-app
 ```
 
 **Options explained:**
-- `--standalone` - Use standalone components (modern approach)
 - `--routing=false` - We don't need routing for this simple app
 - `--style=css` - Use CSS for styling
 - `--strict` - Enable strict TypeScript checking
@@ -221,7 +220,6 @@ import { TodoService } from '../../services/todo.service';
 
 @Component({
   selector: 'app-todo-form',
-  standalone: true,
   imports: [FormsModule],
   template: `
     <form (submit)="onSubmit($event)" class="todo-form">
@@ -290,7 +288,6 @@ import { TodoService } from '../../services/todo.service';
 
 @Component({
   selector: 'app-todo-item',
-  standalone: true,
   imports: [FormsModule],
   template: `
     <li [class.completed]="todo().completed" [class.editing]="isEditing()">
@@ -439,7 +436,6 @@ import { FilterType } from '../../models/todo.model';
 
 @Component({
   selector: 'app-todo-filters',
-  standalone: true,
   template: `
     <footer class="footer">
       <span class="todo-count">
@@ -557,7 +553,6 @@ import { TodoItemComponent } from '../todo-item/todo-item.component';
 
 @Component({
   selector: 'app-todo-list',
-  standalone: true,
   imports: [TodoItemComponent],
   template: `
     <section class="main">
@@ -648,7 +643,6 @@ import { TodoService } from './services/todo.service';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [
     TodoFormComponent,
     TodoListComponent,
@@ -814,7 +808,7 @@ Enhance your Todo app with:
 6. **Add dark mode** toggle
 7. **Add backend API** integration
 8. **Add user authentication**
-9. **Add unit tests** with Jasmine/Karma
+9. **Add unit tests** with Vitest (the default test runner since Angular 19)
 10. **Deploy to production** (Netlify, Vercel, etc.)
 
 ## 📚 Related Topics
