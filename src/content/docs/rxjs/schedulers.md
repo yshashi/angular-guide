@@ -53,7 +53,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-smooth-animation',
-  standalone: true,
   template: `
     <div [style.transform]="'translateX(' + position() + 'px)'">
       Animated Box
@@ -90,7 +89,6 @@ import { debounceTime } from 'rxjs/operators';
 
 @Component({
   selector: 'app-search',
-  standalone: true,
   template: ''
 })
 class SearchComponent {

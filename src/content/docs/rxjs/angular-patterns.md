@@ -86,7 +86,6 @@ export class CartService {
 // Usage in component
 @Component({
   selector: 'app-cart-summary',
-  standalone: true,
   imports: [AsyncPipe, CurrencyPipe],
   template: `
     <div class="cart-summary">
@@ -126,7 +125,6 @@ interface Product {
 
 @Component({
   selector: 'app-product-list',
-  standalone: true,
   imports: [ReactiveFormsModule, AsyncPipe],
   template: `
     <div class="filters">
@@ -193,7 +191,6 @@ interface Todo {
 
 @Component({
   selector: 'app-todo-list',
-  standalone: true,
   template: `
     <input #input (keyup.enter)="addTodo(input.value); input.value=''">
     
@@ -266,27 +263,25 @@ export class TodoListComponent {
 // Dumb Component - Pure presentation
 @Component({
   selector: 'app-user-card',
-  standalone: true,
   template: `
     <div class="user-card">
-      <img [src]="user.avatar" [alt]="user.name">
-      <h3>{{ user.name }}</h3>
-      <p>{{ user.email }}</p>
-      <button (click)="edit.emit(user)">Edit</button>
-      <button (click)="delete.emit(user.id)">Delete</button>
+      <img [src]="user().avatar" [alt]="user().name">
+      <h3>{{ user().name }}</h3>
+      <p>{{ user().email }}</p>
+      <button (click)="edit.emit(user())">Edit</button>
+      <button (click)="delete.emit(user().id)">Delete</button>
     </div>
   `
 })
 export class UserCardComponent {
-  @Input({ required: true }) user!: User;
-  @Output() edit = new EventEmitter<User>();
-  @Output() delete = new EventEmitter<number>();
+  user = input.required<User>();
+  edit = output<User>();
+  delete = output<number>();
 }
 
 // Smart Component - Handles data and logic
 @Component({
   selector: 'app-user-list-container',
-  standalone: true,
   imports: [UserCardComponent, AsyncPipe],
   template: `
     @if (users$ | async; as users) {

@@ -49,7 +49,6 @@ interface User {
 
 @Component({
   selector: 'app-users',
-  standalone: true,
   template: `
     @for (user of users(); track user.id) {
       <div class="user">
@@ -99,7 +98,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-search',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <input [formControl]="searchControl" placeholder="Search...">
@@ -160,7 +158,6 @@ import { mergeMap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-file-upload',
-  standalone: true,
   template: `
     <input type="file" multiple (change)="onFilesSelected($event)">
     
@@ -222,7 +219,6 @@ import { concatMap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-batch-processor',
-  standalone: true,
   template: `<button (click)="processBatch()">Process Batch</button>`
 })
 export class BatchProcessorComponent {
@@ -268,7 +264,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-form',
-  standalone: true,
   template: `
     <form (submit)="onSubmit()">
       <input [(ngModel)]="name" name="name">

@@ -91,7 +91,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-product-search',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <input [formControl]="searchControl" placeholder="Search products...">
@@ -142,7 +141,6 @@ interface UploadProgress {
 
 @Component({
   selector: 'app-multi-upload',
-  standalone: true,
   template: `
     <input type="file" multiple (change)="onFilesSelected($event)">
     
@@ -220,7 +218,6 @@ import { concatMap, delay } from 'rxjs/operators';
 
 @Component({
   selector: 'app-task-processor',
-  standalone: true,
   template: `
     <button (click)="processTasks()">Process Tasks</button>
     
@@ -275,7 +272,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-payment-form',
-  standalone: true,
   template: `
     <form (submit)="onSubmit($event)">
       <input [(ngModel)]="amount" type="number" placeholder="Amount">

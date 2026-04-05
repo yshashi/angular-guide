@@ -38,7 +38,6 @@ import { catchError, of } from 'rxjs';
 
 @Component({
   selector: 'app-user-list',
-  standalone: true,
   template: `
     @for (user of users(); track user.id) {
       <div>{{ user.name }}</div>
@@ -76,7 +75,6 @@ import { catchError, of } from 'rxjs';
 
 @Component({
   selector: 'app-posts',
-  standalone: true,
   template: `
     @if (error()) {
       <div class="error">{{ error() }}</div>
@@ -119,7 +117,6 @@ import { retry, catchError, of } from 'rxjs';
 
 @Component({
   selector: 'app-data-loader',
-  standalone: true,
   template: `
     @if (loading()) {
       <p>Loading...</p>
@@ -170,7 +167,6 @@ import { retryWhen, delay, take, catchError, of } from 'rxjs';
 
 @Component({
   selector: 'app-smart-retry',
-  standalone: true,
   template: `
     <p>Attempt: {{ attempt() }}</p>
     <p>Status: {{ status() }}</p>
@@ -217,7 +213,6 @@ import { catchError, throwError } from 'rxjs';
 
 @Component({
   selector: 'app-error-handler',
-  standalone: true,
   template: `
     @if (errorMessage()) {
       <div class="alert alert-{{ errorType() }}">
@@ -271,7 +266,6 @@ import { finalize, catchError, of } from 'rxjs';
 
 @Component({
   selector: 'app-with-loading',
-  standalone: true,
   template: `
     @if (loading()) {
       <div class="spinner">Loading...</div>
@@ -364,8 +358,7 @@ export class ErrorHandlerService {
 
 // Usage in component
 @Component({
-  selector: 'app-data',
-  standalone: true
+  selector: 'app-data'
 })
 export class DataComponent {
   private http = inject(HttpClient);

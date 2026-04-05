@@ -184,7 +184,6 @@ export class MessageService {
 // Usage in component
 @Component({
   selector: 'app-message-display',
-  standalone: true,
   imports: [AsyncPipe],
   template: `
     @if (message$ | async; as message) {

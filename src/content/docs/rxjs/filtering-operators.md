@@ -37,7 +37,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-email-input',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <input [formControl]="emailControl" placeholder="Enter email">
@@ -74,7 +73,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-search',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <input [formControl]="searchControl" placeholder="Search...">
@@ -116,7 +114,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-filter',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <select [formControl]="categoryControl">
@@ -158,7 +155,6 @@ import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-countdown',
-  standalone: true,
   template: `<p>Count: {{ count() }}</p>`
 })
 export class CountdownComponent {
@@ -191,7 +187,6 @@ import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-timer',
-  standalone: true,
   template: `
     <p>Timer: {{ count() }}</p>
     <button (click)="stop()">Stop</button>
@@ -230,7 +225,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-scroll-tracker',
-  standalone: true,
   template: `
     <div #scrollContainer style="height: 400px; overflow-y: scroll;">
       <div style="height: 2000px;">
@@ -274,7 +268,6 @@ import { map, first } from 'rxjs/operators';
 
 @Component({
   selector: 'app-user-finder',
-  standalone: true,
   template: `<p>Admin: {{ admin() }}</p>`
 })
 export class UserFinderComponent {

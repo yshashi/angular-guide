@@ -239,7 +239,6 @@ export class StockService {
 // Component usage
 @Component({
   selector: 'app-stock-ticker',
-  standalone: true,
   imports: [AsyncPipe, DecimalPipe, DatePipe],
   template: `
     <div class="stock-ticker">
@@ -279,7 +278,6 @@ interface Post {
 
 @Component({
   selector: 'app-infinite-scroll',
-  standalone: true,
   template: `
     <div class="posts" #scrollContainer>
       @for (post of posts(); track post.id) {
@@ -372,7 +370,6 @@ interface SearchResult {
 
 @Component({
   selector: 'app-autocomplete',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <div class="autocomplete">
@@ -464,8 +461,7 @@ import { Component, OnDestroy } from '@angular/core';
 import { Subscription, interval } from 'rxjs';
 
 @Component({
-  selector: 'app-timer',
-  standalone: true
+  selector: 'app-timer'
 })
 export class TimerComponent implements OnDestroy {
   private subscriptions = new Subscription();

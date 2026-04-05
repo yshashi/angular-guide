@@ -22,7 +22,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-price-calculator',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <div>
@@ -76,7 +75,6 @@ interface Settings {
 
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
   template: `
     <div>
       <h2>Welcome {{ user()?.name }}</h2>
@@ -115,7 +113,6 @@ import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-data-loader',
-  standalone: true,
   template: `
     @if (loading()) {
       <p>Loading...</p>
@@ -160,7 +157,6 @@ import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-batch-delete',
-  standalone: true,
   template: `<button (click)="deleteSelected()">Delete Selected</button>`
 })
 export class BatchDeleteComponent {
@@ -194,7 +190,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-activity-tracker',
-  standalone: true,
   template: `
     <div>
       <p>Last activity: {{ lastActivity() }}</p>
@@ -234,7 +229,6 @@ import { delay } from 'rxjs/operators';
 
 @Component({
   selector: 'app-quiz',
-  standalone: true,
   template: `
     @for (qa of questionsAndAnswers(); track $index) {
       <div>
@@ -281,7 +275,6 @@ interface User {
 
 @Component({
   selector: 'app-action-logger',
-  standalone: true,
   template: `
     <button (click)="performAction('save')">Save</button>
     <button (click)="performAction('delete')">Delete</button>

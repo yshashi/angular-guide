@@ -110,7 +110,6 @@ interface User {
 
 @Component({
   selector: 'app-users',
-  standalone: true,
   template: `
     <div class="users">
       <h2>Users</h2>
@@ -173,7 +172,6 @@ import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 @Component({
   selector: 'app-search',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <div class="search">
@@ -223,7 +221,6 @@ import { throttleTime, map } from 'rxjs/operators';
 
 @Component({
   selector: 'app-click-tracker',
-  standalone: true,
   template: `
     <div class="tracker">
       <button #clickBtn>Click Me!</button>
@@ -301,7 +298,6 @@ import { Subscription, interval } from 'rxjs';
 
 @Component({
   selector: 'app-timer',
-  standalone: true,
   template: `<p>Timer: {{ count }}</p>`
 })
 export class TimerComponent implements OnDestroy {
@@ -331,7 +327,6 @@ import { AsyncPipe } from '@angular/common';
 
 @Component({
   selector: 'app-timer',
-  standalone: true,
   imports: [AsyncPipe],
   template: `
     <!-- ✅ Async pipe auto-unsubscribes -->
@@ -353,7 +348,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-timer',
-  standalone: true,
   template: `<p>Timer: {{ count() }}</p>`
 })
 export class TimerComponent {
