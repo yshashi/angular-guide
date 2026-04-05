@@ -215,8 +215,7 @@ export class ChartComponent {
   `
 })
 export class DashboardComponent implements OnInit, AfterViewInit {
-  @ViewChild(DynamicHostDirective, {static: true}) 
-  dynamicHost!: DynamicHostDirective;
+  dynamicHost = viewChild.required(DynamicHostDirective);
 
   private loader = inject(DynamicComponentLoaderService);
 
@@ -238,7 +237,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       message: `Alert created at ${new Date().toLocaleTimeString()}`
     };
 
-    this.loader.createComponent('alert', this.dynamicHost.viewContainerRef, data);
+    this.loader.createComponent('alert', this.dynamicHost().viewContainerRef, data);
   }
 
   addChart() {
@@ -251,14 +250,23 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       ]
     };
 
-    this.loader.createComponent('chart', this.dynamicHost.viewContainerRef, data);
+    this.loader.createComponent('chart', this.dynamicHost().viewContainerRef, data);
   }
 
   clearAll() {
-    this.dynamicHost.viewContainerRef.clear();
+    this.dynamicHost().viewContainerRef.clear();
   }
 }
 ```
+
+:::caution[Legacy Syntax]
+In older Angular versions, `@ViewChild` decorator was used for querying view elements:
+```ts
+@ViewChild(DynamicHostDirective, {static: true})
+dynamicHost!: DynamicHostDirective;
+```
+Modern Angular uses signal-based queries like `viewChild()` and `viewChild.required()` instead.
+:::
 
 ## 🧬 Component Inheritance
 
@@ -312,7 +320,7 @@ export abstract class BaseFormComponent {
           id="name" 
           type="text" 
           formControlName="name"
-          [disabled]="disabled">
+          [disabled]="disabled()">
         @if (formGroup.get('name')?.invalid && formGroup.get('name')?.touched) {
           <div class="error">Name is required</div>
         }
@@ -324,7 +332,7 @@ export abstract class BaseFormComponent {
           id="email" 
           type="email" 
           formControlName="email"
-          [disabled]="disabled">
+          [disabled]="disabled()">
         @if (formGroup.get('email')?.invalid && formGroup.get('email')?.touched) {
           <div class="error">Valid email is required</div>
         }
@@ -334,20 +342,20 @@ export abstract class BaseFormComponent {
         <button type="button" (click)="handleCancel()">Cancel</button>
         <button 
           type="submit" 
-          [disabled]="formGroup.invalid || loading">
-          {{loading ? 'Saving...' : 'Save'}}
+          [disabled]="formGroup.invalid || loading()">
+          {{loading() ? 'Saving...' : 'Save'}}
         </button>
       </div>
     </form>
   `
 })
 export class UserFormComponent extends BaseFormComponent {
-  @Input() initialData?: any;
+  initialData = input<any>();
 
   buildForm() {
     this.formGroup = this.fb.group({
-      name: [this.initialData?.name || '', Validators.required],
-      email: [this.initialData?.email || '', [Validators.required, Validators.email]]
+      name: [this.initialData()?.name || '', Validators.required],
+      email: [this.initialData()?.email || '', [Validators.required, Validators.email]]
     });
   }
 
@@ -357,6 +365,14 @@ export class UserFormComponent extends BaseFormComponent {
   }
 }
 ```
+
+:::caution[Legacy Syntax]
+In older Angular versions, `@Input()` and `@Output()` decorators were used:
+```ts
+@Input() initialData?: any;
+```
+Modern Angular uses signal-based `input()` and `output()` functions instead.
+:::
 
 ## 🎨 View Encapsulation
 
@@ -415,11 +431,11 @@ export class ShadowComponent { }
   imports: [CommonModule],
   template: `
     <div class="list-container">
-      <h3>{{title}} ({{items.length}} items)</h3>
+      <h3>{{title()}} ({{items().length}} items)</h3>
       <div class="last-updated">Last updated: {{lastUpdated | date:'medium'}}</div>
       
-      @for (item of items; track item.id) {
-        <div class="list-item" [class.selected]="item.id === selectedId">
+      @for (item of items(); track item.id) {
+        <div class="list-item" [class.selected]="item.id === selectedId()">
           <span>{{item.name}}</span>
           <button (click)="selectItem(item.id)">Select</button>
         </div>
@@ -454,10 +470,10 @@ export class ShadowComponent { }
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OptimizedListComponent {
-  @Input() title = '';
-  @Input() items: any[] = [];
-  @Input() selectedId?: number;
-  @Output() itemSelected = new EventEmitter<number>();
+  title = input('');
+  items = input<any[]>([]);
+  selectedId = input<number>();
+  itemSelected = output<number>();
 
   lastUpdated = new Date();
 
@@ -466,6 +482,16 @@ export class OptimizedListComponent {
   }
 }
 ```
+
+:::caution[Legacy Syntax]
+In older Angular versions, `@Input()` and `@Output()` decorators with `EventEmitter` were used:
+```ts
+@Input() title = '';
+@Input() items: any[] = [];
+@Output() itemSelected = new EventEmitter<number>();
+```
+Modern Angular uses signal-based `input()` and `output()` functions for better reactivity and type safety.
+:::
 
 ## ✅ Best Practices
 

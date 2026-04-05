@@ -411,14 +411,14 @@ export class ActionButtonsComponent {
   `
 })
 export class ModalManagerComponent {
-  @ViewChild('modal') modal!: ModalComponent;
+  modal = viewChild<ModalComponent>('modal');
   
   isModalOpen = signal(false);
 
   openModal() {
     this.isModalOpen.set(true);
     // Direct access to child component
-    this.modal.focus();
+    this.modal()?.focus();
   }
 
   closeModal() {
@@ -440,7 +440,7 @@ export class ModalManagerComponent {
   `
 })
 export class ModalComponent {
-  @ViewChild('modalContent') modalContent!: ElementRef;
+  modalContent = viewChild<ElementRef>('modalContent');
   
   isOpen = input(false);
   close = output<void>();
@@ -450,10 +450,19 @@ export class ModalComponent {
   }
 
   focus() {
-    this.modalContent?.nativeElement.focus();
+    this.modalContent()?.nativeElement.focus();
   }
 }
 ```
+
+:::caution[Legacy Syntax]
+In older Angular versions, `@ViewChild` and `@ContentChild` decorators were used for querying elements:
+```ts
+@ViewChild('modal') modal!: ModalComponent;
+@ViewChild('modalContent') modalContent!: ElementRef;
+```
+Modern Angular uses signal-based queries like `viewChild()` and `contentChild()` instead, which return signals.
+:::
 
 ## 🌐 Advanced Communication Patterns
 

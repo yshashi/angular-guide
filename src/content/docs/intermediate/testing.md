@@ -20,6 +20,10 @@ Testing is like having a safety net for your code - it catches bugs before they 
 
 ## 🧪 Types of Testing
 
+:::note[Angular 19+ Default Test Runner]
+Starting with Angular 19, **Vitest** is the default test runner for new projects (replacing Karma/Jasmine). The testing patterns and concepts below still apply — only the runner and assertion syntax differ slightly. If you're on a new Angular 19+ project, see the [Vitest documentation](https://vitest.dev/) for runner-specific APIs. Existing Karma/Jasmine projects can continue using their current setup or migrate to Vitest.
+:::
+
 ### Unit Tests - Testing Individual Pieces
 
 **Unit tests are like testing each ingredient before cooking** - you verify each component works correctly in isolation.

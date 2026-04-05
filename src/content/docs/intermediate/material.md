@@ -397,8 +397,8 @@ export class FormDemoComponent {
   `
 })
 export class TableDemoComponent implements AfterViewInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+  paginator = viewChild(MatPaginator);
+  sort = viewChild(MatSort);
 
   displayedColumns = signal(['id', 'name', 'email', 'role', 'actions']);
   
@@ -412,8 +412,8 @@ export class TableDemoComponent implements AfterViewInit {
   dataSource = computed(() => new MatTableDataSource(this.users()));
 
   ngAfterViewInit() {
-    this.dataSource().paginator = this.paginator;
-    this.dataSource().sort = this.sort;
+    this.dataSource().paginator = this.paginator()!;
+    this.dataSource().sort = this.sort()!;
   }
 
   editUser(user: any) {
@@ -425,6 +425,15 @@ export class TableDemoComponent implements AfterViewInit {
   }
 }
 ```
+
+:::caution[Legacy Syntax]
+In older Angular versions, `@ViewChild` decorator was used for querying child components:
+```ts
+@ViewChild(MatPaginator) paginator!: MatPaginator;
+@ViewChild(MatSort) sort!: MatSort;
+```
+Modern Angular uses signal-based queries like `viewChild()`. Access the queried element by calling the signal: `this.paginator()`.
+:::
 
 ## 🎨 Theming and Customization
 

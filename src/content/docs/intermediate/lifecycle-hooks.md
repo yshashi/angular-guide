@@ -180,7 +180,7 @@ interface ProcessedData {
   `
 })
 export class CanvasChartComponent implements AfterViewInit {
-  @ViewChild('chartCanvas') canvas!: ElementRef<HTMLCanvasElement>;
+  canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   
   data = input<number[]>([]);
 
@@ -189,7 +189,7 @@ export class CanvasChartComponent implements AfterViewInit {
   }
 
   private drawChart() {
-    const ctx = this.canvas.nativeElement.getContext('2d');
+    const ctx = this.canvas().nativeElement.getContext('2d');
     if (!ctx) return;
 
     const data = this.data();
@@ -217,6 +217,14 @@ export class CanvasChartComponent implements AfterViewInit {
   }
 }
 ```
+
+:::caution[Legacy Syntax]
+In older Angular versions, `@ViewChild` decorator was used to access DOM elements:
+```ts
+@ViewChild('chartCanvas') canvas!: ElementRef<HTMLCanvasElement>;
+```
+Modern Angular uses signal-based queries like `viewChild()` and `viewChild.required()`. Access the element by calling the signal: `this.canvas().nativeElement`.
+:::
 
 ## 🔍 DoCheck - Custom Change Detection
 
