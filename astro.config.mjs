@@ -13,7 +13,7 @@ export default defineConfig({
 			description: 'Master Angular from beginner to advanced - comprehensive guide covering all latest features including Angular 19, 20, and 21',
 			favicon: '/favicon.svg',
 			logo: {
-				src: '/public/favicon.svg',
+				src: './src/assets/logo.svg',
 				alt: 'NG Guide',
 				replacesTitle: false,
 			},
