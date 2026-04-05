@@ -165,7 +165,6 @@ export default defineConfig({
 					label: '🔄 Migration Guides',
 					collapsed: true,
 					items: [
-						{ label: 'AngularJS to Angular', slug: 'migration/angularjs' },
 						{ label: 'Version Upgrades', slug: 'migration/version-upgrade' },
 						{ label: 'Standalone Migration', slug: 'migration/standalone' },
 						{ label: 'Signals Migration', slug: 'migration/signals' },
