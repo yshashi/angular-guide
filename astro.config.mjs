@@ -40,6 +40,14 @@ export default defineConfig({
 						content: '#dd0031',
 					},
 				},
+				{
+					tag: 'script',
+					attrs: {
+						defer: true,
+						src: 'https://umami.letsprogram.in/script.js',
+						'data-website-id': 'eb25091e-601c-4062-b04b-44aa2229d2bd',
+					},
+				},
 			],
 			customCss: [
 				'./src/styles/custom.css',
