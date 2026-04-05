@@ -197,12 +197,14 @@ export class MyComponent implements OnInit, OnDestroy {
 
 ## 📡 Component Communication
 
-### Parent to Child (@Input) [Learn about the new Signal input in modern section]
+### Parent to Child (input)
 ```typescript
+import { Component, input } from '@angular/core';
+
 // Child component
 export class ChildComponent {
-  @Input() message: string = '';
-  @Input() count: number = 0;
+  message = input('');
+  count = input(0);
 }
 ```
 
@@ -211,13 +213,22 @@ export class ChildComponent {
 <app-child [message]="parentMessage" [count]="5"></app-child>
 ```
 
-### Child to Parent (@Output) [Learn about the new Signal output in modern section]
-```typescript
-// Child component
-import { Output, EventEmitter } from '@angular/core';
+:::caution[Legacy Syntax]
+In older Angular versions (pre-v17), this was done with:
+```ts
+@Input() message: string = '';
+@Input() count: number = 0;
+```
+This syntax is still supported but not recommended for new projects.
+:::
 
+### Child to Parent (output)
+```typescript
+import { Component, output } from '@angular/core';
+
+// Child component
 export class ChildComponent {
-  @Output() notify = new EventEmitter<string>();
+  notify = output<string>();
   
   sendMessage(): void {
     this.notify.emit('Hello from child!');
@@ -230,7 +241,15 @@ export class ChildComponent {
 <app-child (notify)="handleMessage($event)"></app-child>
 ```
 
-## 🏗️ Standalone Components (Modern)
+:::caution[Legacy Syntax]
+In older Angular versions (pre-v17), this was done with:
+```ts
+@Output() notify = new EventEmitter<string>();
+```
+This syntax is still supported but not recommended for new projects.
+:::
+
+## 🏗️ Standalone Components
 
 ```typescript
 import { Component } from '@angular/core';
@@ -239,7 +258,6 @@ import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-counter',
-  standalone: true, // not required from v19 and above
   imports: [CommonModule, FormsModule],
   template: `
     <div>
@@ -267,7 +285,7 @@ export class Counter {
 Let's build a reusable product card component:
 
 ```typescript
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface Product {
@@ -282,15 +300,17 @@ interface Product {
   selector: 'app-product-card',
   imports: [CommonModule],
   template: `
-    <div class="product-card" [class.out-of-stock]="!product.inStock">
-      <img [src]="product.image" [alt]="product.name">
+    <div class="product-card" [class.out-of-stock]="!product().inStock">
+      <img [src]="product().image" [alt]="product().name">
       <div class="product-info">
-        <h3>{{product.name}}</h3>
-        <p class="price">\${{product.price}}</p>
-        <p class="stock" *ngIf="!product.inStock">Out of Stock</p>
+        <h3>{{product().name}}</h3>
+        <p class="price">\${{product().price}}</p>
+        @if (!product().inStock) {
+          <p class="stock">Out of Stock</p>
+        }
         <button 
           (click)="onAddToCart()" 
-          [disabled]="!product.inStock"
+          [disabled]="!product().inStock"
           class="add-btn">
           Add to Cart
         </button>
@@ -299,12 +319,12 @@ interface Product {
   `,
 })
 export class ProductCard {
-  @Input() product!: Product;
-  @Output() addToCart = new EventEmitter<Product>();
+  product = input.required<Product>();
+  addToCart = output<Product>();
   
   onAddToCart(): void {
-    if (this.product.inStock) {
-      this.addToCart.emit(this.product);
+    if (this.product().inStock) {
+      this.addToCart.emit(this.product());
     }
   }
 }
@@ -336,21 +356,25 @@ Use descriptive names that indicate the component's purpose.
 Always validate inputs and provide defaults.
 
 ```typescript
-@Input() set count(value: number) {
-  this._count = value >= 0 ? value : 0;
+import { Component, input, computed } from '@angular/core';
+
+export class MyComponent {
+  private rawCount = input(0);
+  
+  // Use computed() for validated/transformed input values
+  count = computed(() => {
+    const value = this.rawCount();
+    return value >= 0 ? value : 0;
+  });
 }
-get count(): number {
-  return this._count;
-}
-private _count = 0;
 ```
 
 ## 🎯 Quick Checklist
 
 - [ ] Understand component structure (template, class, styles, metadata)
 - [ ] Know how to create components with CLI
-- [ ] Use @Input() for parent-to-child communication
-- [ ] Use @Output() for child-to-parent communication
+- [ ] Use `input()` for parent-to-child communication
+- [ ] Use `output()` for child-to-parent communication
 - [ ] Implement lifecycle hooks when needed
 - [ ] Create reusable, focused components
 - [ ] Use standalone components for modern Angular

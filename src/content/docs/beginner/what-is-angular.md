@@ -49,7 +49,7 @@ Angular is designed for large-scale applications:
 ### 4. **Strong Ecosystem**
 - **Angular Material** - UI component library
 - **Angular CDK** - Component development kit
-- **Angular Universal** - Server-side rendering
+- **Built-in SSR** - Server-side rendering (formerly Angular Universal)
 - **Ionic** - Mobile app development
 - **NativeScript** - Native mobile apps
 
@@ -102,16 +102,18 @@ Angular is designed for large-scale applications:
 - **Angular 18** - Material 3, control flow stable, experimental esbuild
 - **Angular 19** - Linked signals, incremental hydration, @let syntax
 - **Angular 20** - Zoneless change detection stable
+- **Angular 21** - Signal Forms stable, linkedSignal stable, resource API
 
 **Angular Can I Use Explorer:**
 https://www.dolmen.tools/en/angular/caniuse/explorer
 
-### Latest Features (Angular 18-20)
-- **Signals** - New reactivity model
-- **Standalone Components** - Simplified architecture
-- **Control Flow** - New @if, @for, @switch syntax
+### Latest Features (Angular 19-21)
+- **Signals** - Reactivity model (stable since Angular 16, now with linkedSignal and resource API)
+- **Standalone Components** - Default since Angular 19
+- **Control Flow** - @if, @for, @switch syntax (standard)
 - **Zoneless Change Detection** - Better performance
 - **Incremental Hydration** - Faster SSR
+- **Signal Forms** - Reactive forms powered by signals
 - **Material 3** - Latest design system
 
 ## 🎯 When to Use Angular

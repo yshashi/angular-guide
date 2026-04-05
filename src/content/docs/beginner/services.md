@@ -91,7 +91,6 @@ import { UserService } from './user.service';
   `
 })
 export class UserList {
-  // Modern inject() function (Angular 14+)
   private userService = inject(UserService);
   
   users = this.userService.getUsers();
@@ -160,8 +159,8 @@ interface Product {
 }
 ```
 
-### 2. State Management Service (Angular 16+ with Signals)
-**Note:** This pattern is recommended for Angular 16+ with Signals. Will take more about signals in the next modern angular section.
+### 2. State Management Service with Signals
+**Note:** This pattern uses Signals for reactive state. We'll cover signals in more depth in the modern Angular section.
 ```typescript
 import { Injectable, signal, computed } from '@angular/core';
 
@@ -169,7 +168,7 @@ import { Injectable, signal, computed } from '@angular/core';
   providedIn: 'root'
 })
 export class CartService {
-  // Using signals for reactive state (Angular 16+)
+  // Using signals for reactive state
   private cartItems = signal<CartItem[]>([]);
   
   // Computed values
@@ -285,7 +284,7 @@ export class GlobalService { }
   template: `...`
 })
 export class FeatureComponent {
-  constructor(private featureService: FeatureService) {}
+  private featureService = inject(FeatureService);
 }
 ```
 

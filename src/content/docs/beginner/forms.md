@@ -409,12 +409,14 @@ import { CommonModule } from '@angular/common';
         </div>
 
         <!-- Form Debug Info (Development only) -->
-        <div class="debug-info" *ngIf="showDebug">
-          <h4>Form Debug Info:</h4>
-          <p>Form Valid: {{registrationForm.valid}}</p>
-          <p>Form Value: {{registrationForm.value | json}}</p>
-          <p>Password Match: {{!passwordMismatch}}</p>
-        </div>
+        @if (showDebug) {
+          <div class="debug-info">
+            <h4>Form Debug Info:</h4>
+            <p>Form Valid: {{registrationForm.valid}}</p>
+            <p>Form Value: {{registrationForm.value | json}}</p>
+            <p>Password Match: {{!passwordMismatch}}</p>
+          </div>
+        }
       </form>
     </div>
   `,

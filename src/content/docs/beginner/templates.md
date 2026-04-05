@@ -82,13 +82,12 @@ export class Product {
 <!-- Class binding -->
 <div [class.active]="isActive">Toggle class</div>
 <div [class]="'btn btn-' + buttonType">Dynamic classes</div>
-<div [ngClass]="{'active': isActive, 'disabled': isDisabled}">Multiple classes</div>
+<div [class.active]="isActive" [class.disabled]="isDisabled">Multiple classes</div>
 
 <!-- Style binding -->
 <div [style.color]="textColor">Colored text</div>
 <div [style.font-size.px]="fontSize">Sized text</div>
-<!-- This below is going to be deprecated in future -->
-<div [ngStyle]="{'color': textColor, 'font-size': fontSize + 'px'}">Multiple styles</div>
+<div [style.color]="textColor" [style.font-size.px]="fontSize">Multiple styles</div>
 ```
 
 ## ⬆️ Event Binding
@@ -154,7 +153,6 @@ Combine property and event binding with `[(ngModel)]`:
 import { FormsModule } from '@angular/forms';
 
 @Component({
-  standalone: true,
   imports: [FormsModule],
   // ... template
 })
@@ -228,10 +226,10 @@ export class PipeComponent {
 
 ## 🎨 Conditional Rendering
 
-Show/hide elements based on conditions using the new control flow syntax:
+Show/hide elements based on conditions using the control flow syntax:
 
 ```html
-<!-- Modern @if syntax (Angular 17+) -->
+<!-- @if syntax -->
 @if (isLoggedIn) {
   <div>Welcome back!</div>
 } @else {
@@ -253,9 +251,9 @@ Show/hide elements based on conditions using the new control flow syntax:
 }
 ```
 
-### Traditional *ngIf (Still Supported)
+:::caution[Legacy Syntax]
+In older Angular versions (pre-v17), this was done with:
 ```html
-<!-- Legacy syntax - still works but not recommended -->
 <div *ngIf="isLoggedIn">Welcome back!</div>
 <div *ngIf="!isLoggedIn">Please log in</div>
 
@@ -264,13 +262,15 @@ Show/hide elements based on conditions using the new control flow syntax:
   <p>Content loaded!</p>
 </ng-template>
 ```
+This syntax is still supported but not recommended for new projects.
+:::
 
 ## 🔁 Lists and Loops
 
-Repeat elements using the new @for syntax:
+Repeat elements using the @for syntax:
 
 ```html
-<!-- Modern @for syntax (Angular 17+) -->
+<!-- @for syntax -->
 <ul>
   @for (item of items; track item.id) {
     <li>{{item.name}}</li>
@@ -299,9 +299,9 @@ Repeat elements using the new @for syntax:
 }
 ```
 
-### Traditional *ngFor (Still Supported)
+:::caution[Legacy Syntax]
+In older Angular versions (pre-v17), this was done with:
 ```html
-<!-- Legacy syntax - still works but not recommended -->
 <ul>
   <li *ngFor="let item of items; trackBy: trackByItemId">{{item.name}}</li>
 </ul>
@@ -310,6 +310,8 @@ Repeat elements using the new @for syntax:
   {{i + 1}}. {{user.name}}
 </div>
 ```
+This syntax is still supported but not recommended for new projects.
+:::
 
 ```typescript
 export class List {
@@ -328,11 +330,6 @@ export class List {
     { id: 1, name: 'Laptop', price: 999 },
     { id: 2, name: 'Phone', price: 599 }
   ];
-  
-  // Only needed for legacy *ngFor
-  trackByItemId(index: number, item: any): number {
-    return item.id;
-  }
 }
 ```
 
@@ -360,9 +357,11 @@ export class List {
         [(ngModel)]="user.name" 
         [class.error]="!isValidName(user.name)"
         (blur)="validateName()">
-      <span *ngIf="!isValidName(user.name)" class="error-msg">
-        Name is required
-      </span>
+      @if (!isValidName(user.name)) {
+        <span class="error-msg">
+          Name is required
+        </span>
+      }
     </div>
     
     <div class="form-group">
@@ -565,8 +564,8 @@ trackByUserId(index: number, user: any): number {
 - [ ] Implement two-way binding with `[(ngModel)]`
 - [ ] Create template reference variables with `#`
 - [ ] Transform data with pipes
-- [ ] Show/hide content with `@if` (modern) or `*ngIf` (legacy)
-- [ ] Loop through lists with `@for` (modern) or `*ngFor` (legacy)
+- [ ] Show/hide content with `@if`
+- [ ] Loop through lists with `@for`
 - [ ] Apply conditional styling with `[class]` and `[style]`
 - [ ] Use `@empty` with `@for` for empty states
 

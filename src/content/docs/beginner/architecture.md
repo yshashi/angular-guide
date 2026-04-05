@@ -56,20 +56,11 @@ src/
 
 ### Standalone Components (Modern)
 - **Purpose**: Self-contained components without modules
-- **Structure**: `standalone: true` with direct imports and latest version we don't need to specify `standalone: true` whatever component we create it will be standalone by default
+- **Structure**: Components are standalone by default — no need to specify `standalone: true`
 - **Benefit**: Simpler, more flexible architecture
 
 ## 🔄 Data Flow
 
-```
-Parent Component
-       ↓ @Input()
-Child Component
-       ↑ @Output()
-Parent Component
-```
-
-**Modern Approach with Signals**
 ```
 Parent Component
        ↓ input()
@@ -100,7 +91,7 @@ Angular automatically updates the UI when data changes:
 ## 📝 Key Concepts
 
 - **Dependency Injection**: Angular provides services to components automatically
-- **Decorators**: `@Component`, `@Injectable`, `@Input`, `@Output`
+- **Decorators**: `@Component`, `@Injectable`; signal functions: `input()`, `output()`
 - **Lifecycle Hooks**: `ngOnInit`, `ngOnDestroy`, etc.
 - **Templates**: HTML with Angular syntax for data binding
 

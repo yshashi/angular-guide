@@ -79,24 +79,27 @@ Replace `app.html` content:
     </div>
 
     <div class="task-list">
-      <div 
-        *ngFor="let task of filteredTasks" 
-        class="task-item"
-        [class.completed]="task.completed">
-        
-        <input 
-          type="checkbox" 
-          [checked]="task.completed"
-          (change)="toggleTask(task.id)">
-        
-        <span class="task-text">{{task.text}}</span>
-        
-        <button 
-          class="delete-btn"
-          (click)="deleteTask(task.id)">
-          ❌
-        </button>
-      </div>
+      @for (task of filteredTasks; track task.id) {
+        <div 
+          class="task-item"
+          [class.completed]="task.completed">
+          
+          <input 
+            type="checkbox" 
+            [checked]="task.completed"
+            (change)="toggleTask(task.id)">
+          
+          <span class="task-text">{{task.text}}</span>
+          
+          <button 
+            class="delete-btn"
+            (click)="deleteTask(task.id)">
+            ❌
+          </button>
+        </div>
+      } @empty {
+        <p class="empty-state">No tasks match the current filter</p>
+      }
     </div>
 
     <div class="empty-state">
@@ -334,7 +337,7 @@ Your app should now:
 - **Data Binding**: Two-way binding with `[(ngModel)]`
 - **Event Binding**: Handled clicks with `(click)`
 - **Property Binding**: Dynamic classes with `[class]`
-- **Structural Directives**: `*ngFor` and `*ngIf`
+- **Control Flow**: `@for` and `@if`
 - **Interpolation**: Displayed data with `{{}}`
 
 ### TypeScript Features

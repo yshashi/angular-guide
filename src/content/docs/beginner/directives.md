@@ -12,63 +12,66 @@ Directives are classes that add behavior to elements in Angular templates. They 
 Directives are **instructions in the DOM** that tell Angular how to transform elements. There are three types:
 
 1. **Component Directives** - Components with templates
-2. **Structural Directives** - Change DOM layout (`*ngIf`, `*ngFor`) Replaced by `@if`, `@for` in Angular 17+
+2. **Structural Directives** - Change DOM layout (standard: `@if`, `@for`, `@switch`)
 3. **Attribute Directives** - Change element appearance or behavior
 
 ## 🏗️ Built-in Structural Directives
 
-### Legacy Structural Directives (Still Supported)
+### Control Flow
 
-#### *ngIf
+#### @if
+```html
+<!-- Simple condition -->
+@if (isVisible) {
+  <div>This is visible</div>
+}
+
+<!-- With else -->
+@if (user) {
+  <div>Hello {{user.name}}</div>
+} @else {
+  <p>Please log in</p>
+}
+```
+
+#### @for
+```html
+@for (item of items; track item.id; let i = $index) {
+  <li>{{i}}: {{item.name}}</li>
+}
+```
+
+#### @switch
+```html
+@switch (status) {
+  @case ('loading') {
+    <div>Loading...</div>
+  }
+  @case ('error') {
+    <div>Error occurred</div>
+  }
+  @default {
+    <div>Content</div>
+  }
+}
+```
+
+:::caution[Legacy Syntax]
+In older Angular versions (pre-v17), this was done with:
 ```html
 <div *ngIf="isVisible">This is visible</div>
-<div *ngIf="user; else noUser">Hello {{user.name}}</div>
-<ng-template #noUser>Please log in</ng-template>
-```
-
-#### *ngFor
-```html
-<li *ngFor="let item of items; index as i; trackBy: trackByFn">
-  {{i}}: {{item.name}}
-</li>
-```
-
-#### *ngSwitch
-```html
+<li *ngFor="let item of items; index as i; trackBy: trackByFn">{{i}}: {{item.name}}</li>
 <div [ngSwitch]="status">
   <div *ngSwitchCase="'loading'">Loading...</div>
-  <div *ngSwitchCase="'error'">Error occurred</div>
   <div *ngSwitchDefault>Content</div>
 </div>
 ```
+This syntax is still supported but not recommended for new projects.
+:::
 
 ## 🎨 Built-in Attribute Directives
 
-### ngClass (Replaced by `class` binding in Angular 19+)
-```html
-<!-- Object syntax -->
-<div [ngClass]="{'active': isActive, 'disabled': isDisabled}">Content</div>
-
-<!-- Array syntax -->
-<div [ngClass]="['btn', 'btn-primary', extraClass]">Button</div>
-
-<!-- String syntax -->
-<div [ngClass]="'btn btn-' + buttonType">Button</div>
-
-<!-- Method call -->
-<div [ngClass]="getClasses()">Content</div>
-```
-
-### ngStyle (Replaced by `style` binding in Angular 19+)
-```html
-<!-- Object syntax -->
-<div [ngStyle]="{'color': textColor, 'font-size': fontSize + 'px'}">Text</div>
-
-<!-- Method call -->
-<div [ngStyle]="getStyles()">Styled content</div>
-```
-
-### Modern Class and Style Binding (Recommended)
+### Class and Style Binding (Recommended)
 ```html
 <!-- Individual class binding -->
 <div [class.active]="isActive" [class.disabled]="isDisabled">Content</div>
@@ -85,7 +88,16 @@ Directives are **instructions in the DOM** that tell Angular how to transform el
 </div>
 ```
 
-### Modern Control Flow (Angular 17+)
+:::caution[Legacy Syntax]
+In older Angular versions, `ngClass` and `ngStyle` directives were used:
+```html
+<div [ngClass]="{'active': isActive, 'disabled': isDisabled}">Content</div>
+<div [ngStyle]="{'color': textColor, 'font-size': fontSize + 'px'}">Text</div>
+```
+This syntax is still supported but direct class/style bindings are recommended for new projects.
+:::
+
+### Modern Control Flow
 
 #### @if Directive
 ```html
@@ -155,22 +167,20 @@ Directives are **instructions in the DOM** that tell Angular how to transform el
 
 ### Basic Attribute Directive
 ```typescript
-import { Directive, ElementRef, Input, Renderer2 } from '@angular/core';
+import { Directive, ElementRef, inject, input, Renderer2 } from '@angular/core';
 
 @Directive({
   selector: '[appHighlight]'
 })
 export class HighlightDirective {
-  @Input() appHighlight = 'yellow';
-  @Input() defaultColor = 'transparent';
+  appHighlight = input('yellow');
+  defaultColor = input('transparent');
 
-  constructor(
-    private el: ElementRef,
-    private renderer: Renderer2
-  ) {}
+  private el = inject(ElementRef);
+  private renderer = inject(Renderer2);
 
   ngOnInit() {
-    this.highlight(this.appHighlight || this.defaultColor);
+    this.highlight(this.appHighlight() || this.defaultColor());
   }
 
   private highlight(color: string) {
@@ -193,26 +203,28 @@ export class HighlightDirective {
 
 ### Interactive Directive with Events
 ```typescript
-import { Directive, ElementRef, HostListener, Input, Renderer2 } from '@angular/core';
+import { Directive, ElementRef, inject, input, Renderer2 } from '@angular/core';
 
 @Directive({
-  selector: '[appHoverHighlight]'
+  selector: '[appHoverHighlight]',
+  host: {
+    '(mouseenter)': 'onMouseEnter()',
+    '(mouseleave)': 'onMouseLeave()',
+  }
 })
 export class HoverHighlightDirective {
-  @Input() hoverColor = 'lightblue';
-  @Input() defaultColor = 'transparent';
+  hoverColor = input('lightblue');
+  defaultColor = input('transparent');
 
-  constructor(
-    private el: ElementRef,
-    private renderer: Renderer2
-  ) {}
+  private el = inject(ElementRef);
+  private renderer = inject(Renderer2);
 
-  @HostListener('mouseenter') onMouseEnter() {
-    this.highlight(this.hoverColor);
+  onMouseEnter() {
+    this.highlight(this.hoverColor());
   }
 
-  @HostListener('mouseleave') onMouseLeave() {
-    this.highlight(this.defaultColor);
+  onMouseLeave() {
+    this.highlight(this.defaultColor());
   }
 
   private highlight(color: string) {
@@ -223,35 +235,34 @@ export class HoverHighlightDirective {
 
 ### Advanced Directive with Multiple Features
 ```typescript
-import { Directive, ElementRef, Input, Output, EventEmitter, HostListener, Renderer2 } from '@angular/core';
+import { Directive, ElementRef, inject, input, output, Renderer2 } from '@angular/core';
 
 @Directive({
-  selector: '[appClickTracker]'
+  selector: '[appClickTracker]',
+  host: {
+    '(click)': 'onClick($event)',
+  }
 })
 export class ClickTrackerDirective {
-  @Input() trackingId: string = '';
-  @Input() highlightOnClick = true;
-  @Output() clicked = new EventEmitter<{id: string, timestamp: Date}>();
+  trackingId = input('');
+  highlightOnClick = input(true);
+  clicked = output<{id: string, timestamp: Date}>();
 
   private clickCount = 0;
+  private el = inject(ElementRef);
+  private renderer = inject(Renderer2);
 
-  constructor(
-    private el: ElementRef,
-    private renderer: Renderer2
-  ) {}
-
-  @HostListener('click', ['$event'])
   onClick(event: Event) {
     this.clickCount++;
     
     // Emit tracking data
     this.clicked.emit({
-      id: this.trackingId,
+      id: this.trackingId(),
       timestamp: new Date()
     });
 
     // Visual feedback
-    if (this.highlightOnClick) {
+    if (this.highlightOnClick()) {
       this.flashHighlight();
     }
 
@@ -287,21 +298,19 @@ export class ClickTrackerDirective {
 ## 🎯 Practical Example: Form Validation Directive
 
 ```typescript
-import { Directive, ElementRef, Input, Renderer2, OnInit } from '@angular/core';
+import { Directive, ElementRef, inject, input, Renderer2, OnInit } from '@angular/core';
 import { NgControl } from '@angular/forms';
 
 @Directive({
   selector: '[appValidationStyle]'
 })
 export class ValidationStyleDirective implements OnInit {
-  @Input() errorClass = 'error';
-  @Input() successClass = 'success';
+  errorClass = input('error');
+  successClass = input('success');
 
-  constructor(
-    private el: ElementRef,
-    private renderer: Renderer2,
-    private control: NgControl
-  ) {}
+  private el = inject(ElementRef);
+  private renderer = inject(Renderer2);
+  private control = inject(NgControl);
 
   ngOnInit() {
     if (this.control) {
@@ -313,14 +322,14 @@ export class ValidationStyleDirective implements OnInit {
 
   private updateStyles(status: string) {
     // Remove existing classes
-    this.renderer.removeClass(this.el.nativeElement, this.errorClass);
-    this.renderer.removeClass(this.el.nativeElement, this.successClass);
+    this.renderer.removeClass(this.el.nativeElement, this.errorClass());
+    this.renderer.removeClass(this.el.nativeElement, this.successClass());
 
     // Add appropriate class
     if (status === 'INVALID' && this.control.touched) {
-      this.renderer.addClass(this.el.nativeElement, this.errorClass);
+      this.renderer.addClass(this.el.nativeElement, this.errorClass());
     } else if (status === 'VALID' && this.control.touched) {
-      this.renderer.addClass(this.el.nativeElement, this.successClass);
+      this.renderer.addClass(this.el.nativeElement, this.successClass());
     }
   }
 }
@@ -344,27 +353,29 @@ export class ValidationStyleDirective implements OnInit {
 
 ### Simple Structural Directive
 ```typescript
-import { Directive, Input, TemplateRef, ViewContainerRef } from '@angular/core';
+import { Directive, effect, inject, input, TemplateRef, ViewContainerRef } from '@angular/core';
 
 @Directive({
   selector: '[appUnless]'
 })
 export class UnlessDirective {
   private hasView = false;
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
 
-  constructor(
-    private templateRef: TemplateRef<any>,
-    private viewContainer: ViewContainerRef
-  ) {}
+  appUnless = input.required<boolean>();
 
-  @Input() set appUnless(condition: boolean) {
-    if (!condition && !this.hasView) {
-      this.viewContainer.createEmbeddedView(this.templateRef);
-      this.hasView = true;
-    } else if (condition && this.hasView) {
-      this.viewContainer.clear();
-      this.hasView = false;
-    }
+  constructor() {
+    effect(() => {
+      const condition = this.appUnless();
+      if (!condition && !this.hasView) {
+        this.viewContainer.createEmbeddedView(this.templateRef);
+        this.hasView = true;
+      } else if (condition && this.hasView) {
+        this.viewContainer.clear();
+        this.hasView = false;
+      }
+    });
   }
 }
 ```
@@ -379,30 +390,33 @@ export class UnlessDirective {
 
 ### Advanced Structural Directive with Context
 ```typescript
-import { Directive, Input, TemplateRef, ViewContainerRef } from '@angular/core';
+import { Directive, effect, inject, input, TemplateRef, ViewContainerRef } from '@angular/core';
 
 @Directive({
   selector: '[appRepeat]'
 })
 export class RepeatDirective {
-  constructor(
-    private templateRef: TemplateRef<any>,
-    private viewContainer: ViewContainerRef
-  ) {}
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
 
-  @Input() set appRepeat(count: number) {
-    this.viewContainer.clear();
-    
-    for (let i = 0; i < count; i++) {
-      this.viewContainer.createEmbeddedView(this.templateRef, {
-        $implicit: i,
-        index: i,
-        first: i === 0,
-        last: i === count - 1,
-        even: i % 2 === 0,
-        odd: i % 2 === 1
-      });
-    }
+  appRepeat = input.required<number>();
+
+  constructor() {
+    effect(() => {
+      const count = this.appRepeat();
+      this.viewContainer.clear();
+      
+      for (let i = 0; i < count; i++) {
+        this.viewContainer.createEmbeddedView(this.templateRef, {
+          $implicit: i,
+          index: i,
+          first: i === 0,
+          last: i === count - 1,
+          even: i % 2 === 0,
+          odd: i % 2 === 1
+        });
+      }
+    });
   }
 }
 ```
@@ -467,13 +481,13 @@ export class MyDirective implements OnDestroy {
 
 - [ ] Understand the three types of directives
 - [ ] Use modern control flow (`@if`, `@for`, `@switch`)
-- [ ] Know built-in attribute directives (`ngClass`, `ngStyle`)
+- [ ] Know built-in class/style bindings
 - [ ] Prefer individual class/style bindings
 - [ ] Create custom attribute directives with `@Directive`
-- [ ] Use `HostListener` for event handling
+- [ ] Use `host` property for event handling
 - [ ] Use `Renderer2` for safe DOM manipulation
 - [ ] Understand structural directive creation
-- [ ] Always use `trackBy` with loops
+- [ ] Always use `track` with loops
 - [ ] Handle cleanup properly
 
 ## 🚀 Next Steps
