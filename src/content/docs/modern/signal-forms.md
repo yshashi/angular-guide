@@ -1,490 +1,697 @@
 ---
 title: Signal Forms 📝
-description: Master Angular's revolutionary Signal Forms - reactive form handling available in Angular 21
+description: Master Angular's Signal Forms - the reactive, type-safe form API built on signals in Angular 21
 sidebar:
   order: 12
 ---
 
-Angular's new Signal Forms represent a revolutionary leap forward in form handling! Available in Angular 21 as an experimental API, they bridge the gap between Angular's reactive signals and user interactions, creating a seamless, type-safe, and highly performant form experience.
+Signal Forms are the recommended approach for handling forms in Angular 21+. Built entirely on signals, they provide a reactive, type-safe, and model-driven way to manage form state — replacing `FormBuilder`, `FormGroup`, and `FormControl` entirely.
 
-## 🎯 What are Signal Forms?
+## What Are Signal Forms?
 
-**Signal Forms are the next generation of Angular forms built entirely on signals.** They provide reactive form handling with automatic change detection, type safety, and seamless integration with Angular's modern signal-based architecture.
+Signal Forms create form state directly from a signal model. The form structure mirrors your data — no builder, no form groups, no form controls.
 
-**Key Revolutionary Features:**
-- **🔄 Signal-Based** - Built entirely on Angular's signal system
-- **⚡ Automatic Reactivity** - No manual change detection needed
-- **🎯 Type-Safe** - Full TypeScript support with compile-time validation
-- **🧹 Clean API** - Simplified, intuitive form creation and management
-- **🚀 Performance** - Optimized for modern Angular applications
-- **🔗 Seamless Integration** - Works perfectly with standalone components and signals
+- 🔄 **Signal-Based** — form state is reactive signals with automatic change detection
+- 🎯 **Type-Safe** — full TypeScript inference from your model
+- 📦 **Model-Driven** — form structure derived from your data signal
+- ⚡ **No Builder** — no `FormBuilder`, `FormGroup`, or `FormControl`
+- 🧩 **Schema Validation** — declarative, composable validation rules
 
-## 🆚 Traditional vs Signal Forms
+## Imports
 
-### ❌ Traditional Reactive Forms
+Everything comes from `@angular/forms/signals`:
 
 ```typescript
-// Complex setup with FormBuilder
-export class UserFormComponent {
-  userForm = this.fb.group({
-    name: ['', [Validators.required, Validators.minLength(3)]],
-    email: ['', [Validators.required, Validators.email]],
-    age: [0, [Validators.required, Validators.min(18)]]
-  });
+import {
+  // Core
+  form, FormField, submit,
 
-  constructor(private fb: FormBuilder) {}
+  // Validators
+  required, email, min, max,
+  minLength, maxLength, pattern,
 
-  onSubmit() {
-    if (this.userForm.valid) {
-      console.log(this.userForm.value);
-    }
-  }
-}
+  // Field state rules
+  disabled, hidden, readonly, debounce,
+
+  // Schema helpers
+  schema, applyWhen, applyEach,
+
+  // Custom validation
+  validate, validateAsync,
+  validateHttp, validateStandardSchema,
+
+  // Metadata
+  metadata,
+} from '@angular/forms/signals';
 ```
 
-### ✅ Modern Signal Forms
+## Creating a Form
+
+Use the `form()` function with a signal model. The form structure mirrors your data shape automatically.
 
 ```typescript
-import { form, required, minLength, email, min, submit } from '@angular/forms/signals';
-
-export class UserFormComponent {
-  // Simple, type-safe form creation
-  user = signal({ name: '', email: '', age: 0 });
-  
-  userForm = form(this.user, (path) => {
-    required(path.name);
-    minLength(path.name, 3);
-    required(path.email);
-    email(path.email);
-    required(path.age);
-    min(path.age, 18);
-  });
-
-  onSubmit() {
-    submit(this.userForm, async (form) => {
-      // Automatically validated - only runs if form is valid
-      console.log(form().value());
-      return null; // No errors
-    });
-  }
-}
-```
-
-## 🚀 Basic Signal Form Setup
-
-### 1. **Simple Contact Form**
-
-```typescript
-import { Component, signal } from '@angular/core';
-import { form, required, email, minLength, Control } from '@angular/forms/signals';
-
-interface Contact {
-  name: string;
-  email: string;
-  message: string;
-}
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+import { form, FormField, required, email, min } from '@angular/forms/signals';
 
 @Component({
-  selector: 'app-contact-form',
-  imports: [Control],
+  selector: 'app-user',
+  imports: [FormField],
   template: `
-    <form class="contact-form">
-      <div class="form-group">
-        <label for="name">Name</label>
-        <input [field]="contactForm.name" id="name" />
-        @if (contactForm.name().errors().length > 0) {
-          <div class="error">{{ contactForm.name().errors()[0].message }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input [field]="contactForm.email" id="email" type="email" />
-        @if (contactForm.email().errors().length > 0) {
-          <div class="error">{{ contactForm.email().errors()[0].message }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="message">Message</label>
-        <textarea [field]="contactForm.message" id="message"></textarea>
-        @if (contactForm.message().errors().length > 0) {
-          <div class="error">{{ contactForm.message().errors()[0].message }}</div>
-        }
-      </div>
-
-      <button 
-        type="button" 
-        (click)="onSubmit()" 
-        [disabled]="contactForm().invalid()">
-        Send Message
-      </button>
-    </form>
-  `
+    <input [formField]="userForm.name" />
+    <input [formField]="userForm.email" type="email" />
+    <input [formField]="userForm.age" type="number" />
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ContactFormComponent {
-  contact = signal<Contact>({
+export class UserComponent {
+  // Define your model with initial values — NEVER use null
+  userModel = signal({
     name: '',
     email: '',
-    message: ''
+    age: 0,
+    address: { street: '', city: '' },
+    hobbies: [] as string[],
   });
 
-  contactForm = form(this.contact, (path) => {
-    required(path.name);
-    minLength(path.name, 2);
-    required(path.email);
-    email(path.email);
-    required(path.message);
-    minLength(path.message, 10);
+  // Create the form — structure is inferred from the model
+  userForm = form(this.userModel, (s) => {
+    required(s.name);
+    required(s.email);
+    email(s.email);
+    min(s.age, 18);
   });
+}
+```
+
+:::danger[Never Use Null]
+Signal Forms do **not** support `null` or `undefined` as initial values. Always use empty defaults:
+- Strings → `''`
+- Numbers → `0`
+- Booleans → `false`
+- Arrays → `[] as Type[]`
+:::
+
+## Template Binding with `[formField]`
+
+Import `FormField` and bind using the `[formField]` directive. It automatically handles `disabled`, `readonly`, `hidden`, and `name` attributes.
+
+```html
+<!-- Text input -->
+<input [formField]="userForm.name" />
+
+<!-- Checkbox (boolean fields only) -->
+<input type="checkbox" [formField]="userForm.isAdmin" />
+
+<!-- Select -->
+<select [formField]="userForm.country">
+  <option value="us">United States</option>
+  <option value="uk">United Kingdom</option>
+</select>
+
+<!-- Radio buttons -->
+<label><input type="radio" value="economy" [formField]="userForm.tier" /> Economy</label>
+<label><input type="radio" value="business" [formField]="userForm.tier" /> Business</label>
+
+<!-- Multi-select for array fields -->
+<select multiple [formField]="userForm.tags">
+  <option value="angular">Angular</option>
+  <option value="typescript">TypeScript</option>
+</select>
+```
+
+:::caution[Forbidden HTML Attributes]
+When using `[formField]`, do **not** set these attributes on the element:
+- `min`, `max`, `[attr.min]`, `[attr.max]` — use validator rules in the schema instead
+- `value`, `[value]`, `[attr.value]` — already handled by `[formField]`
+- `[disabled]`, `[readonly]` — use `disabled()` / `readonly()` rules in the schema
+:::
+
+## FormField vs FieldState
+
+This is the most important concept in Signal Forms. A **FormField** is the structural tree you navigate. You **must call it as a function** to get the **FieldState** with reactive signals.
+
+```typescript
+const f = form(signal({ cat: { name: 'Whiskers', age: 5 } }));
+
+// FormField (structural) — navigate to fields
+f.cat.name;              // FormField — NO state signals here
+
+// FieldState (reactive) — CALL the field to get state
+f.cat.name();            // FieldState — has .value(), .valid(), etc.
+f.cat.name().touched();  // ✅ Signal<boolean>
+f.cat.name().value();    // ✅ Signal<string>
+
+// ❌ Common mistakes
+f.cat.name.touched();    // ❌ touched() doesn't exist on FormField
+f.cat().name.touched();  // ❌ f.cat() is FieldState, not navigable
+```
+
+In templates:
+
+```html
+<!-- ✅ Correct — call the field first, then access state -->
+@if (userForm.email().touched() && userForm.email().errors().length) {
+  <span class="error">{{ userForm.email().errors()[0].message }}</span>
+}
+
+<!-- ❌ Wrong — missing function call on the field -->
+@if (userForm.email.touched()) { ... }
+```
+
+## Validation
+
+Add validators in the schema function passed to `form()`:
+
+```typescript
+import {
+  form, required, email, min, max,
+  minLength, maxLength, pattern,
+} from '@angular/forms/signals';
+
+userForm = form(this.userModel, (s) => {
+  required(s.name, { message: 'Name is required' });
+  required(s.email, { message: 'Email is required' });
+  email(s.email, { message: 'Invalid email address' });
+
+  min(s.age, 18);
+  max(s.age, 100);
+
+  minLength(s.password, 8);
+  maxLength(s.bio, 500);
+
+  pattern(s.zipCode, /^\d{5}$/);
+});
+```
+
+### Conditional Required
+
+Only `required()` supports the `when` option:
+
+```typescript
+userForm = form(this.userModel, (s) => {
+  required(s.driversLicense, {
+    when({ valueOf }) {
+      return valueOf(s.age) >= 16;
+    },
+  });
+});
+```
+
+:::note
+The `when` option is **only** available on `required()`. For conditional validation on other rules, use `applyWhen()` instead.
+:::
+
+## Custom Validation
+
+Use `validate()` for synchronous custom validators:
+
+```typescript
+import { validate } from '@angular/forms/signals';
+
+userForm = form(this.userModel, (s) => {
+  validate(s.username, ({ value }) => {
+    const forbidden = ['admin', 'root', 'system'];
+    if (forbidden.includes(value().toLowerCase())) {
+      return { kind: 'forbidden', message: `"${value()}" is reserved` };
+    }
+    return undefined; // No error — return undefined, NOT null
+  });
+});
+```
+
+### Validator Context
+
+The callback receives a context object with utilities for cross-field validation:
+
+```typescript
+validate(s.confirmPassword, ({ value, valueOf, state, stateOf, pathKeys }) => {
+  // value     — Signal<T>: current field value
+  // valueOf   — (path) => T: read OTHER fields' values
+  // state     — FieldState<T>: this field's state (valid, dirty, touched)
+  // stateOf   — (path) => FieldState: other fields' state
+  // pathKeys  — Signal<string[]>: path from root to this field
+
+  if (value() !== valueOf(s.password)) {
+    return { kind: 'mismatch', message: 'Passwords do not match' };
+  }
+  return undefined;
+});
+```
+
+:::danger[Paths Are NOT Signals]
+Inside the `form()` schema callback, `s` and its children (e.g. `s.email`) are schema paths — **not** signals. You cannot call them directly.
+
+```typescript
+// ❌ Wrong — s.email is a path, not callable
+validate(s.name, () => s.email() === '...');
+
+// ✅ Correct — use valueOf() from the context
+validate(s.name, ({ valueOf }) => {
+  if (valueOf(s.email) === '') { ... }
+});
+```
+:::
+
+## Async Validation
+
+Use `validateAsync()` for server-side validation. All four options — `params`, `factory`, `onSuccess`, `onError` — are required:
+
+```typescript
+import { resource } from '@angular/core';
+import { validateAsync } from '@angular/forms/signals';
+
+userForm = form(this.userModel, (s) => {
+  validateAsync(s.username, {
+    // params MUST be a function
+    params: ({ value }) => value(),
+
+    // Factory creates a resource for the async check
+    factory: (username) => resource({
+      params: username,
+      loader: async ({ params: val }) => {
+        const res = await fetch(`/api/check-username?name=${val}`);
+        return res.json();
+      },
+    }),
+
+    // Map success result to validation error (or undefined)
+    onSuccess: (result) =>
+      result.taken
+        ? { kind: 'taken', message: 'Username already taken' }
+        : undefined,
+
+    // Handle request errors — THIS IS REQUIRED
+    onError: () => ({ kind: 'error', message: 'Validation check failed' }),
+  });
+});
+```
+
+:::caution[validateAsync Rules]
+- `params` must be a **function**: `({ value }) => value()`, not `s.field`
+- `onError` is **required** — omitting it is a compile error
+- Uses `resource()` with `params` (not `request`) for the input signal
+:::
+
+## Accessing Form State
+
+```typescript
+// Form-level state — call the form root
+const isValid = userForm().valid();       // Signal<boolean>
+const isInvalid = userForm().invalid();   // Signal<boolean>
+const isDirty = userForm().dirty();       // Signal<boolean>
+const isTouched = userForm().touched();   // Signal<boolean>
+const isPending = userForm().pending();   // Signal<boolean>
+const errors = userForm().errors();       // Signal<ValidationError[]>
+const formValue = userForm().value();     // Full model value
+
+// Field-level state — call the field
+const nameValid = userForm.name().valid();
+const nameDirty = userForm.name().dirty();
+const nameTouched = userForm.name().touched();
+const nameErrors = userForm.name().errors();
+const nameValue = userForm.name().value();
+
+// Reset the form
+userForm().reset();
+
+// Array length — structural, NO parentheses
+const count = userForm.items.length;      // ✅ No ()
+```
+
+## Field State Rules
+
+Control field availability using schema rules:
+
+```typescript
+import { disabled, hidden, readonly, debounce } from '@angular/forms/signals';
+
+userForm = form(this.userModel, (s) => {
+  // Conditionally disabled
+  disabled(s.adminLevel, ({ valueOf }) => valueOf(s.role) !== 'admin');
+
+  // Conditionally hidden (marks field, doesn't remove from model)
+  hidden(s.shippingAddress, ({ valueOf }) => valueOf(s.sameAsBilling));
+
+  // Always readonly
+  readonly(s.createdAt);
+
+  // Debounce model sync by 300ms
+  debounce(s.searchQuery, 300);
+});
+```
+
+Check hidden state in the template before rendering:
+
+```html
+@if (!userForm.shippingAddress().hidden()) {
+  <fieldset>
+    <legend>Shipping Address</legend>
+    <input [formField]="userForm.shippingAddress.street" />
+    <input [formField]="userForm.shippingAddress.city" />
+  </fieldset>
+}
+```
+
+## Submitting
+
+Use the `submit()` function. It marks all fields as touched, then runs your callback **only if the form is valid**.
+
+```typescript
+import { submit } from '@angular/forms/signals';
+
+onSubmit() {
+  // Callback MUST be async
+  submit(this.userForm, async () => {
+    await this.userService.save(this.userModel());
+    this.router.navigate(['/success']);
+  });
+}
+```
+
+Disable the submit button reactively:
+
+```html
+<button [disabled]="userForm().invalid() || userForm().pending()">Submit</button>
+```
+
+:::caution[Submit Rules]
+- The callback **must** be `async`
+- It only runs when the form is **valid**
+- All fields are automatically marked as **touched** before validation
+:::
+
+## Reusable Schemas
+
+Extract and compose validation schemas for reusability across forms:
+
+```typescript
+import { schema } from '@angular/forms/signals';
+
+const addressSchema = schema<Address>((s) => {
+  required(s.street);
+  required(s.city);
+  required(s.zipCode);
+  pattern(s.zipCode, /^\d{5}$/);
+});
+
+const userSchema = schema<User>((s) => {
+  required(s.name);
+  email(s.email);
+});
+
+// Compose schemas into a larger form
+orderForm = form(this.orderModel, (s) => {
+  required(s.customerName);
+  apply(s.billingAddress, addressSchema);
+  apply(s.shippingAddress, addressSchema);
+});
+```
+
+## Arrays with `applyEach`
+
+Use `applyEach` to validate each item in an array. The callback takes **one argument** — the item path:
+
+```typescript
+import { applyEach } from '@angular/forms/signals';
+
+orderForm = form(this.orderModel, (s) => {
+  applyEach(s.items, (item) => {
+    required(item.name);
+    min(item.quantity, 1);
+    min(item.price, 0);
+  });
+});
+```
+
+Iterate in the template with `@for`:
+
+```html
+@for (item of orderForm.items; track $index) {
+  <div class="line-item">
+    <input [formField]="item.name" placeholder="Item name" />
+    <input [formField]="item.quantity" type="number" />
+    <button type="button" (click)="removeItem($index)">Remove</button>
+  </div>
+}
+<button type="button" (click)="addItem()">Add Item</button>
+```
+
+Add and remove items by updating the **model signal**:
+
+```typescript
+addItem() {
+  this.orderModel.update((m) => ({
+    ...m,
+    items: [...m.items, { name: '', quantity: 1, price: 0 }],
+  }));
+}
+
+removeItem(index: number) {
+  this.orderModel.update((m) => ({
+    ...m,
+    items: m.items.filter((_, i) => i !== index),
+  }));
+}
+```
+
+:::tip[Nested @for Loops]
+Angular has no `$parent`. In nested `@for` loops, store the outer index with `let`:
+
+```html
+@for (group of form.groups; track $index; let groupIdx = $index) {
+  @for (item of group.items; track $index) {
+    <button (click)="remove(groupIdx, $index)">Remove</button>
+  }
+}
+```
+:::
+
+## Conditional Validation with `applyWhen`
+
+Apply rules only when a condition is met:
+
+```typescript
+import { applyWhen } from '@angular/forms/signals';
+
+form(this.model, (s) => {
+  applyWhen(
+    s.spouse,                                                    // path
+    ({ valueOf }) => valueOf(s.maritalStatus) === 'married',     // condition
+    (spousePath) => {                                            // schema
+      required(spousePath.name);
+      required(spousePath.email);
+      email(spousePath.email);
+    },
+  );
+});
+```
+
+## Complete Example: Booking Form
+
+A full example demonstrating nested objects, arrays, conditional fields, and validation.
+
+### Component
+
+```typescript
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  form, FormField, submit,
+  required, email, min,
+  hidden, applyEach, validate,
+} from '@angular/forms/signals';
+
+@Component({
+  selector: 'app-booking',
+  imports: [FormField],
+  templateUrl: './booking.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class BookingComponent {
+  model = signal({
+    personalInfo: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      age: 0,
+    },
+    tripDetails: {
+      destination: 'Mars',
+      launchDate: '',
+    },
+    package: {
+      tier: 'economy',
+      extras: [] as string[],
+    },
+    companions: [] as Array<{ name: string; relation: string }>,
+  });
+
+  bookingForm = form(this.model, (s) => {
+    required(s.personalInfo.firstName, { message: 'First name required' });
+    required(s.personalInfo.lastName, { message: 'Last name required' });
+    required(s.personalInfo.email, { message: 'Email required' });
+    email(s.personalInfo.email, { message: 'Invalid email' });
+    required(s.personalInfo.age, { message: 'Age required' });
+    min(s.personalInfo.age, 18, { message: 'Must be 18+' });
+
+    required(s.tripDetails.destination);
+    required(s.tripDetails.launchDate);
+    validate(s.tripDetails.launchDate, ({ value }) => {
+      const date = new Date(value());
+      if (isNaN(date.getTime())) return undefined;
+      if (date < new Date()) {
+        return { kind: 'pastDate', message: 'Must be a future date' };
+      }
+      return undefined;
+    });
+
+    hidden(s.package.extras, ({ valueOf }) =>
+      valueOf(s.package.tier) === 'economy'
+    );
+
+    applyEach(s.companions, (companion) => {
+      required(companion.name, { message: 'Name required' });
+      required(companion.relation, { message: 'Relation required' });
+    });
+  });
+
+  addCompanion() {
+    this.model.update((m) => ({
+      ...m,
+      companions: [...m.companions, { name: '', relation: '' }],
+    }));
+  }
+
+  removeCompanion(index: number) {
+    this.model.update((m) => ({
+      ...m,
+      companions: m.companions.filter((_, i) => i !== index),
+    }));
+  }
 
   onSubmit() {
-    submit(this.contactForm, async (form) => {
-      console.log('Sending message:', form().value());
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      alert('Message sent successfully!');
-      return null;
+    submit(this.bookingForm, async () => {
+      console.log('Booking confirmed:', this.model());
     });
   }
 }
 ```
 
-### 2. **Custom Validators**
+### Template
 
-```typescript
-import { validate, customError, FieldPath } from '@angular/forms/signals';
-
-// Custom validator function
-function validateUsername(path: FieldPath<string>) {
-  validate(path, (ctx) => {
-    const value = ctx.value();
-    const forbidden = ['admin', 'root', 'user'];
-    
-    if (forbidden.includes(value.toLowerCase())) {
-      return customError({
-        kind: 'forbidden_username',
-        message: `Username "${value}" is not allowed`,
-        value,
-        forbidden
-      });
+```html
+<form (submit)="onSubmit(); $event.preventDefault()">
+  <h2>Personal Info</h2>
+  <label>
+    First Name
+    <input [formField]="bookingForm.personalInfo.firstName" />
+    @if (bookingForm.personalInfo.firstName().touched() &&
+         bookingForm.personalInfo.firstName().errors().length) {
+      <span class="error">
+        {{ bookingForm.personalInfo.firstName().errors()[0].message }}
+      </span>
     }
-    return null;
-  });
-}
+  </label>
 
-// Usage in form
-userForm = form(this.user, (path) => {
-  required(path.username);
-  minLength(path.username, 3);
-  validateUsername(path.username);
-});
-```
+  <label>
+    Last Name
+    <input [formField]="bookingForm.personalInfo.lastName" />
+    @if (bookingForm.personalInfo.lastName().touched() &&
+         bookingForm.personalInfo.lastName().errors().length) {
+      <span class="error">
+        {{ bookingForm.personalInfo.lastName().errors()[0].message }}
+      </span>
+    }
+  </label>
 
-## 🔄 Advanced Features
+  <label>
+    Email
+    <input type="email" [formField]="bookingForm.personalInfo.email" />
+    @if (bookingForm.personalInfo.email().touched() &&
+         bookingForm.personalInfo.email().errors().length) {
+      <span class="error">
+        {{ bookingForm.personalInfo.email().errors()[0].message }}
+      </span>
+    }
+  </label>
 
-### 1. **Conditional Validation**
+  <label>
+    Age
+    <input type="number" [formField]="bookingForm.personalInfo.age" />
+    @if (bookingForm.personalInfo.age().touched() &&
+         bookingForm.personalInfo.age().errors().length) {
+      <span class="error">
+        {{ bookingForm.personalInfo.age().errors()[0].message }}
+      </span>
+    }
+  </label>
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { applyEach, Control, form, minLength, required, schema, submit } from '@angular/forms/signals';
+  <h2>Trip Details</h2>
+  <label>
+    Destination
+    <select [formField]="bookingForm.tripDetails.destination">
+      <option value="Mars">Mars</option>
+      <option value="Moon">Moon</option>
+      <option value="Titan">Titan</option>
+    </select>
+  </label>
 
-interface TodoItem {
-  id: number;
-  text: string;
-  completed: boolean;
-  priority: 'low' | 'medium' | 'high';
-}
+  <label>
+    Launch Date
+    <input type="date" [formField]="bookingForm.tripDetails.launchDate" />
+    @if (bookingForm.tripDetails.launchDate().touched() &&
+         bookingForm.tripDetails.launchDate().errors().length) {
+      <span class="error">
+        {{ bookingForm.tripDetails.launchDate().errors()[0].message }}
+      </span>
+    }
+  </label>
 
-interface TodoList {
-  title: string;
-  items: TodoItem[];
-}
+  <h2>Package</h2>
+  <label><input type="radio" value="economy" [formField]="bookingForm.package.tier" /> Economy</label>
+  <label><input type="radio" value="business" [formField]="bookingForm.package.tier" /> Business</label>
+  <label><input type="radio" value="first" [formField]="bookingForm.package.tier" /> First Class</label>
 
-// Schema for individual todo items
-const todoItemSchema = schema<TodoItem>((path) => {
-  required(path.text);
-  minLength(path.text, 3);
-  required(path.priority);
-});
+  @if (!bookingForm.package.extras().hidden()) {
+    <h3>Extras</h3>
+    <select multiple [formField]="bookingForm.package.extras">
+      <option value="wifi">WiFi</option>
+      <option value="gym">Gym</option>
+    </select>
+  }
 
-@Component({
-  template: `
-    <form class="todo-form">
-      <div class="form-group">
-        <label>List Title</label>
-        <input [field]="todoForm.title" />
-      </div>
+  <h2>Companions</h2>
+  <button type="button" (click)="addCompanion()">Add Companion</button>
 
-      <fieldset>
-        <legend>Todo Items</legend>
-        @for (item of todoForm.items; track item; let i = $index) {
-          <div class="todo-item">
-            <input [field]="item.text" placeholder="Todo text" />
-            <select [field]="item.priority">
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-            <input type="checkbox" [field]="item.completed" />
-            <button type="button" (click)="removeItem(i)">Remove</button>
-          </div>
-        }
-        <button type="button" (click)="addItem()">Add Todo</button>
-      </fieldset>
-
-      <button type="button" (click)="saveTodos()" [disabled]="todoForm().invalid()">
-        Save Todos
-      </button>
-    </form>
-  `,
-  imports: [Control]
-})
-export class TodoFormComponent {
-  todoList = signal<TodoList>({
-    title: '',
-    items: []
-  });
-
-  todoForm = form(this.todoList, (path) => {
-    required(path.title);
-    minLength(path.title, 3);
-    applyEach(path.items, todoItemSchema);
-  });
-
-  addItem() {
-    const items = this.todoForm.items();
-    items.value.update(current => [
-      ...current,
-      {
-        id: Date.now(),
-        text: '',
-        completed: false,
-        priority: 'medium' as const
+  @for (companion of bookingForm.companions; track $index) {
+    <div>
+      <input [formField]="companion.name" placeholder="Name" />
+      @if (companion.name().touched() && companion.name().errors().length) {
+        <span class="error">{{ companion.name().errors()[0].message }}</span>
       }
-    ]);
-  }
 
-  removeItem(index: number) {
-    const items = this.todoForm.items();
-    items.value.update(current =>
-      current.filter((_, i) => i !== index)
-    );
-  }
-
-  saveTodos() {
-    submit(this.todoForm, async (form) => {
-      console.log('Saving todos:', form().value());
-      return null;
-    });
-  }
-}
-```
-
-### 2. **Nested Object Forms**
-
-```typescript
-interface Address {
-  street: string;
-  city: string;
-  country: string;
-  zipCode: string;
-}
-
-interface Company {
-  name: string;
-  address: Address;
-  employees: number;
-}
-
-const addressSchema = schema<Address>((path) => {
-  required(path.street);
-  required(path.city);
-  required(path.country);
-  required(path.zipCode);
-});
-
-@Component({
-  template: `
-    <form class="company-form">
-      <fieldset>
-        <legend>Company Information</legend>
-        <input [field]="companyForm.name" placeholder="Company Name" />
-        <input [field]="companyForm.employees" type="number" placeholder="Employees" />
-      </fieldset>
-
-      <fieldset>
-        <legend>Address</legend>
-        <input [field]="companyForm.address.street" placeholder="Street" />
-        <input [field]="companyForm.address.city" placeholder="City" />
-        <input [field]="companyForm.address.country" placeholder="Country" />
-        <input [field]="companyForm.address.zipCode" placeholder="ZIP Code" />
-      </fieldset>
-    </form>
-  `
-})
-export class CompanyFormComponent {
-  company = signal<Company>({
-    name: '',
-    address: {
-      street: '',
-      city: '',
-      country: '',
-      zipCode: ''
-    },
-    employees: 0
-  });
-
-  companyForm = form(this.company, (path) => {
-    required(path.name);
-    required(path.employees);
-    min(path.employees, 1);
-    apply(path.address, addressSchema);
-  });
-}
-```
-
-## 🎨 Form State Management
-
-### 1. **Form Status and Properties**
-
-```typescript
-@Component({
-  template: `
-    <div class="form-status">
-      <p>Form Valid: {{ userForm().valid() }}</p>
-      <p>Form Dirty: {{ userForm().dirty() }}</p>
-      <p>Form Touched: {{ userForm().touched() }}</p>
-      <p>Form Pending: {{ userForm().pending() }}</p>
-    </div>
-
-    <div class="field-status">
-      <p>Name Valid: {{ userForm.name().valid() }}</p>
-      <p>Name Dirty: {{ userForm.name().dirty() }}</p>
-      <p>Name Touched: {{ userForm.name().touched() }}</p>
-      <p>Name Errors: {{ userForm.name().errors().length }}</p>
-    </div>
-
-    <!-- Error Summary for entire form -->
-    <div class="error-summary">
-      @for (error of userForm().errorSummary(); track error) {
-        <div class="error">{{ error.message }}</div>
+      <input [formField]="companion.relation" placeholder="Relation" />
+      @if (companion.relation().touched() && companion.relation().errors().length) {
+        <span class="error">{{ companion.relation().errors()[0].message }}</span>
       }
+
+      <button type="button" (click)="removeCompanion($index)">Remove</button>
     </div>
-  `
-})
-export class FormStatusComponent {
-  // Form implementation...
-}
-```
-
-### 2. **Conditional Field States**
-
-```typescript
-import { disabled, hidden, readonly } from '@angular/forms/signals';
-
-userForm = form(this.user, (path) => {
-  required(path.userType);
-  
-  // Conditionally disable admin fields
-  disabled(path.adminLevel, (ctx) => ctx.valueOf(path.userType) !== 'admin');
-  
-  // Hide sensitive fields for regular users
-  hidden(path.secretKey, (ctx) => ctx.valueOf(path.userType) !== 'admin');
-  
-  // Make email readonly after verification
-  readonly(path.email, (ctx) => ctx.valueOf(path.emailVerified));
-});
-```
-
-## ✅ Best Practices
-
-### 1. **Schema Organization**
-
-```typescript
-// ✅ Good - Separate schemas for reusability
-export const userSchema = schema<User>((path) => {
-  required(path.name);
-  email(path.email);
-});
-
-export const addressSchema = schema<Address>((path) => {
-  required(path.street);
-  required(path.city);
-});
-
-// ✅ Good - Compose schemas
-export const userWithAddressSchema = schema<UserWithAddress>((path) => {
-  apply(path.user, userSchema);
-  apply(path.address, addressSchema);
-});
-```
-
-### 2. **Error Handling**
-
-```typescript
-// ✅ Good - Centralized error display component
-@Component({
-  selector: 'app-field-errors',
-  template: `
-    @for (error of errors; track error) {
-      <div class="error" [attr.data-error-kind]="error.kind">
-        {{ getErrorMessage(error) }}
-      </div>
-    }
-  `
-})
-export class FieldErrorsComponent {
-  errors = input<ValidationError[]>([]);
-
-  getErrorMessage(error: ValidationError): string {
-    switch (error.kind) {
-      case 'required': return 'This field is required';
-      case 'email': return 'Please enter a valid email';
-      case 'minLength': return `Minimum length is ${error.minLength}`;
-      default: return error.message || 'Invalid value';
-    }
   }
-}
+
+  <button [disabled]="bookingForm().invalid()">Submit Booking</button>
+</form>
 ```
 
-### 3. **Form Submission**
+## Migration: Reactive Forms → Signal Forms
 
 ```typescript
-// ✅ Good - Proper error handling in submit
-async onSubmit() {
-  submit(this.userForm, async (form) => {
-    try {
-      const result = await this.userService.saveUser(form().value());
-      this.router.navigate(['/users', result.id]);
-      return null; // Success
-    } catch (error) {
-      if (error.status === 409) {
-        return {
-          kind: 'duplicate_email',
-          message: 'Email already exists',
-          field: form().field.email
-        };
-      }
-      return {
-        kind: 'server_error',
-        message: 'Failed to save user. Please try again.'
-      };
-    }
-  });
-}
-```
-
-## 🎯 Quick Migration Guide
-
-### From Reactive Forms to Signal Forms
-
-```typescript
-// ❌ Old Reactive Forms
+// ❌ Legacy Reactive Forms
 export class OldComponent {
+  private fb = inject(FormBuilder);
+
   form = this.fb.group({
     name: ['', Validators.required],
-    email: ['', [Validators.required, Validators.email]]
+    email: ['', [Validators.required, Validators.email]],
   });
 
   onSubmit() {
@@ -494,31 +701,109 @@ export class OldComponent {
   }
 }
 
-// ✅ New Signal Forms
+// ✅ Modern Signal Forms
 export class NewComponent {
-  user = signal({ name: '', email: '' });
-  
-  form = form(this.user, (path) => {
-    required(path.name);
-    required(path.email);
-    email(path.email);
+  model = signal({ name: '', email: '' });
+
+  userForm = form(this.model, (s) => {
+    required(s.name);
+    required(s.email);
+    email(s.email);
   });
 
   onSubmit() {
-    submit(this.form, async (form) => {
-      console.log(form().value());
-      return null;
+    submit(this.userForm, async () => {
+      console.log(this.model());
     });
   }
 }
 ```
 
-## 🚀 Next Steps
+## Common Pitfalls
 
-1. **[Angular Signals](/modern/signals/)** - Master the foundation of Signal Forms
-2. **[Computed Signals](/modern/computed-signals/)** - Reactive derived state
-3. **[Effects API](/modern/effects/)** - Handle side effects with signals
+| Mistake | ❌ Wrong | ✅ Correct |
+|---------|----------|-----------|
+| Access field state | `form.field.valid()` | `form.field().valid()` |
+| Access value | `form.field.value()` | `form.field().value()` |
+| Set value | `form.field.set('x')` | `this.model.update(...)` |
+| Root form state | `form.invalid()` | `form().invalid()` |
+| Array length | `form.items().length` | `form.items.length` |
+| Null in model | `signal({ name: null })` | `signal({ name: '' })` |
+| Submit callback | `submit(form, () => {})` | `submit(form, async () => {})` |
+| Async params | `params: s.field` | `params: ({ value }) => value()` |
+| Async onError | _(omitting it)_ | `onError` is **required** |
+| `when` option | `pattern(s.x, /.../, { when })` | `when` only works with `required()` |
+| Call paths | `s.foo()` inside schema | Use `valueOf(s.foo)` from context |
+| `applyEach` args | `(item, index) => {}` | `(item) => {}` — one argument only |
+| Nested `@for` | `$parent.$index` | `let outerIdx = $index` |
+| HTML attributes | `<input min="1" [formField]>` | Use `min()` rule in schema |
+| Checkbox arrays | `<input type="checkbox" [formField]="form.tags">` | Checkboxes bind to `boolean` only |
+
+## Troubleshooting Build Errors
+
+### `Property 'value' does not exist on type 'FieldTree'`
+
+You're accessing state without calling the field first:
+
+```typescript
+// ❌ form.name.value()
+// ✅ form.name().value()
+```
+
+### `Property 'set' does not exist on type 'FieldTree'`
+
+Signal Forms are model-driven — update the model signal, not the form:
+
+```typescript
+// ❌ this.form.name.set('John')
+// ✅ this.model.update(m => ({ ...m, name: 'John' }))
+```
+
+### `NG8022: Setting 'readonly/min/max/value' is not allowed`
+
+Remove HTML attributes that conflict with `[formField]`:
+
+```html
+<!-- ❌ --> <input min="18" [formField]="form.age" />
+<!-- ✅ --> <input [formField]="form.age" />
+<!-- Add min(s.age, 18) in the schema instead -->
+```
+
+### `Type 'string[]' is not assignable to type 'boolean'`
+
+Checkboxes only bind to `boolean` fields. Use `<select multiple>` for arrays:
+
+```html
+<!-- ❌ --> <input type="checkbox" [formField]="form.tags" />
+<!-- ✅ --> <select multiple [formField]="form.tags">...</select>
+```
+
+### `'when' does not exist in type` for pattern/email/min
+
+`when` only works with `required()`. Use `applyWhen()` for conditional non-required rules:
+
+```typescript
+// ❌ pattern(s.ssn, /^\d{3}-\d{2}-\d{4}$/, { when: condition })
+// ✅ applyWhen(s.ssn, condition, (ssnPath) => {
+//      pattern(ssnPath, /^\d{3}-\d{2}-\d{4}$/);
+//    });
+```
+
+### `Module has no exported member 'FormState'`
+
+`FormState` does not exist. Access state through calling the field:
+
+```typescript
+// ❌ import { FormState } from '@angular/forms/signals';
+// ✅ Use form.field().valid(), form.field().touched(), etc.
+```
+
+## Next Steps
+
+1. **[Angular Signals](/modern/signals/)** — The foundation of Signal Forms
+2. **[Computed Signals](/modern/computed-signals/)** — Derive reactive state
+3. **[Resource API](/modern/resource-api/)** — Data fetching with signals
 
 ---
 
-**Remember**: Signal Forms are **available in Angular 21** as an experimental API and represent the future of form handling in Angular. They provide a cleaner, more reactive, and type-safe approach to building complex forms! 📝✨
+Signal Forms are the recommended approach for all new form development in Angular 21. They replace `FormBuilder`, `FormGroup`, and `FormControl` with a cleaner, signal-native API. 📝
