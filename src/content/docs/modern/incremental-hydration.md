@@ -33,8 +33,8 @@ Incremental hydration is like having a smart loading system for your Angular app
 ### Step 1: Enable SSR (If Not Already Done)
 
 ```bash
-# Add SSR to existing project
-ng add @nguniversal/express-engine
+# Add SSR to existing project (built-in since Angular 17)
+ng add @angular/ssr
 
 # Or create new project with SSR
 ng new my-app --ssr

@@ -26,7 +26,7 @@ export class UserComponent {
   loading = false;
   error: string | null = null;
 
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
 
   loadUsers() {
     this.loading = true;
@@ -391,4 +391,4 @@ export class TypeSafeComponent {
 
 ---
 
-**HttpResource** is experimental but represents the future of data fetching in Angular! 🌐
+**HttpResource** represents the future of data fetching in Angular! 🌐

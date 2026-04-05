@@ -17,7 +17,7 @@ Change the appearance or behavior of an element, component, or another directive
 
 Change the DOM layout by adding or removing elements (less common with modern `@if`, `@for`).
 
-### 3. **Host Directives** (Angular 15+)
+### 3. **Host Directives**
 
 Compose directives together for powerful reusability.
 
@@ -30,7 +30,6 @@ import { Directive, ElementRef, inject } from '@angular/core';
 
 @Directive({
   selector: '[appHighlight]',
-  standalone: true
 })
 export class HighlightDirective {
   private el = inject(ElementRef);
@@ -54,7 +53,6 @@ import { Directive, ElementRef, input, effect, inject } from '@angular/core';
 
 @Directive({
   selector: '[appHighlight]',
-  standalone: true
 })
 export class HighlightDirective {
   private el = inject(ElementRef);
@@ -84,7 +82,6 @@ import { Directive, ElementRef, input, inject } from '@angular/core';
 
 @Directive({
   selector: '[appHoverHighlight]',
-  standalone: true,
   host: {
     '(mouseenter)': 'onMouseEnter()',
     '(mouseleave)': 'onMouseLeave()'
@@ -120,9 +117,7 @@ export class HoverHighlightDirective {
 
 ## 🎨 Real-World Examples
 
-<blockquote>
-<p><strong>Warning:</strong> For Angular versions 19 and above, you can remove the <code>standalone: true</code> property from your dynamic component directives.</p>
-</blockquote>
+
 
 ### 1. **Click Outside Directive**
 
@@ -131,7 +126,6 @@ import { Directive, ElementRef, output, inject } from '@angular/core';
 
 @Directive({
   selector: '[appClickOutside]',
-  standalone: true,
   host: {
     '(document:click)': 'onClick($event)'
   }
@@ -154,7 +148,6 @@ export class ClickOutsideDirective {
 ```typescript
 @Component({
   selector: 'app-dropdown',
-  standalone: true,
   imports: [ClickOutsideDirective],
   template: `
     <div class="dropdown" appClickOutside (clickOutside)="close()">
@@ -188,7 +181,6 @@ import { Directive, ElementRef, input, effect, inject } from '@angular/core';
 
 @Directive({
   selector: '[appAutoFocus]',
-  standalone: true
 })
 export class AutoFocusDirective {
   private el = inject(ElementRef);
@@ -221,7 +213,6 @@ import { Directive, ElementRef, input, inject, Renderer2 } from '@angular/core';
 
 @Directive({
   selector: '[appTooltip]',
-  standalone: true,
   host: {
     '(mouseenter)': 'show()',
     '(mouseleave)': 'hide()'
@@ -319,7 +310,6 @@ import { Directive, ElementRef, input, effect, inject } from '@angular/core';
 
 @Directive({
   selector: '[appLazyLoad]',
-  standalone: true
 })
 export class LazyLoadDirective {
   private el = inject(ElementRef);
@@ -374,7 +364,6 @@ import { Directive, TemplateRef, ViewContainerRef, input, effect, inject } from 
 
 @Directive({
   selector: '[appHasPermission]',
-  standalone: true
 })
 export class HasPermissionDirective {
   private templateRef = inject(TemplateRef);
@@ -423,7 +412,6 @@ import { debounceTime } from 'rxjs/operators';
 
 @Directive({
   selector: '[appDebounceClick]',
-  standalone: true,
   host: {
     '(click)': 'onClick()'
   }
@@ -465,7 +453,6 @@ import { Directive, TemplateRef, ViewContainerRef, input, effect, inject } from 
 
 @Directive({
   selector: '[appUnless]',
-  standalone: true
 })
 export class UnlessDirective {
   private templateRef = inject(TemplateRef);
@@ -500,7 +487,6 @@ import { Directive, TemplateRef, ViewContainerRef, input, effect, inject } from 
 
 @Directive({
   selector: '[appRepeat]',
-  standalone: true
 })
 export class RepeatDirective {
   private templateRef = inject(TemplateRef);
@@ -532,7 +518,7 @@ export class RepeatDirective {
 </div>
 ```
 
-## 🎯 Host Directives (Angular 15+)
+## 🎯 Host Directives
 
 Compose multiple directives together for powerful reusability.
 
@@ -540,7 +526,6 @@ Compose multiple directives together for powerful reusability.
 // Base tooltip directive
 @Directive({
   selector: '[appTooltip]',
-  standalone: true
 })
 export class TooltipDirective {
   tooltip = input<string>('');
@@ -550,7 +535,6 @@ export class TooltipDirective {
 // Highlight directive
 @Directive({
   selector: '[appHighlight]',
-  standalone: true
 })
 export class HighlightDirective {
   color = input<string>('yellow');
@@ -560,7 +544,6 @@ export class HighlightDirective {
 // Component using host directives
 @Component({
   selector: 'app-fancy-button',
-  standalone: true,
   hostDirectives: [
     {
       directive: TooltipDirective,
@@ -594,22 +577,20 @@ export class FancyButtonComponent {}
 // ✅ Good - Modern signals
 @Directive({
   selector: '[appDirective]',
-  standalone: true
 })
 export class MyDirective {
   value = input<string>('');
   config = input<Config>({ /* defaults */ });
 }
 
-// ❌ Avoid - Old decorator style
-@Directive({
-  selector: '[appDirective]',
-  standalone: true
-})
-export class MyDirective {
-  @Input() value = '';
-  @Input() config: Config = { /* defaults */ };
-}
+:::caution[Legacy Syntax]
+In older Angular versions, inputs used decorators:
+```ts
+@Input() value = '';
+@Input() config: Config = { /* defaults */ };
+```
+This syntax is still supported but not recommended for new projects.
+:::
 ```
 
 ### 2. **Use Host Object for Events**
@@ -618,7 +599,6 @@ export class MyDirective {
 // ✅ Good - Host object
 @Directive({
   selector: '[appDirective]',
-  standalone: true,
   host: {
     '(click)': 'onClick($event)',
     '(mouseenter)': 'onMouseEnter()',
@@ -632,15 +612,14 @@ export class MyDirective {
   onMouseEnter() { }
 }
 
-// ❌ Avoid - Decorators
-@Directive({
-  selector: '[appDirective]',
-  standalone: true
-})
-export class MyDirective {
-  @HostBinding('class.active') isActive = false;
-  @HostListener('click', ['$event']) onClick(e: MouseEvent) { }
-}
+:::caution[Legacy Syntax]
+In older Angular versions, host bindings used decorators:
+```ts
+@HostBinding('class.active') isActive = false;
+@HostListener('click', ['$event']) onClick(e: MouseEvent) { }
+```
+This syntax is still supported but not recommended for new projects.
+:::
 ```
 
 ### 3. **Use inject() Function**
@@ -649,7 +628,6 @@ export class MyDirective {
 // ✅ Good - inject() function
 @Directive({
   selector: '[appDirective]',
-  standalone: true
 })
 export class MyDirective {
   private el = inject(ElementRef);
@@ -657,18 +635,17 @@ export class MyDirective {
   private service = inject(MyService);
 }
 
-// ❌ Avoid - Constructor injection
-@Directive({
-  selector: '[appDirective]',
-  standalone: true
-})
-export class MyDirective {
-  constructor(
-    private el: ElementRef,
-    private renderer: Renderer2,
-    private service: MyService
-  ) {}
-}
+:::caution[Legacy Syntax]
+In older Angular versions, dependencies were injected via the constructor:
+```ts
+constructor(
+  private el: ElementRef,
+  private renderer: Renderer2,
+  private service: MyService
+) {}
+```
+This syntax is still supported but not recommended for new projects.
+:::
 ```
 
 ### 4. **Clean Up Resources**
@@ -676,7 +653,6 @@ export class MyDirective {
 ```typescript
 @Directive({
   selector: '[appDirective]',
-  standalone: true
 })
 export class MyDirective {
   private subscription?: Subscription;
@@ -713,7 +689,6 @@ import { AbstractControl, NG_VALIDATORS, ValidationErrors, Validator } from '@an
 
 @Directive({
   selector: '[appMinValue]',
-  standalone: true,
   providers: [{
     provide: NG_VALIDATORS,
     useExisting: MinValueDirective,

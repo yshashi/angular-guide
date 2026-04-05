@@ -15,18 +15,22 @@ Angular's new control flow syntax is like upgrading from a flip phone to a smart
 - **~45% Better Performance** - Direct internal API usage vs structural directives
 - **Improved Readability** - Cleaner, more intuitive syntax
 - **Type Safety** - Better TypeScript integration
-- **Less Boilerplate** - No more `*ngIf` and template references
+- **Less Boilerplate** - Cleaner syntax without structural directive prefixes
 - **Enhanced Developer Experience** - Better IDE support and autocomplete
 
 ## 🚀 Performance Under the Hood
 
 **How it works internally:**
-- **Old way (`*ngIf`)**: Uses `ViewContainerRef` API → `property()` instruction → checks value changes → creates/destroys views
 - **New way (`@if`)**: Uses direct internal APIs → `conditional()` instruction → directly creates/destroys views
+- This eliminates the extra steps of setting properties and checking for changes, making it significantly faster.
 
-This eliminates the extra steps of setting properties and checking for changes, making it significantly faster.
+:::note[Legacy: Structural Directives]
+The old structural directive syntax (`*ngIf`, `*ngFor`, `*ngSwitch`) used the `ViewContainerRef` API with extra indirection, resulting in roughly 45% slower performance than the new control flow. If your project still uses them, run the migration schematic:
 
-> **Migration Tip**: Run `ng g @angular/core:control-flow` to automatically migrate your existing structural directives to the new syntax!
+```bash
+ng g @angular/core:control-flow
+```
+:::
 
 ## 🔀 @if - Conditional Rendering
 

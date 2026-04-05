@@ -28,7 +28,7 @@ Zoneless Angular is like upgrading from a gas-powered car to an electric vehicle
 - Manual `ChangeDetectorRef.markForCheck()` calls
 - Component creation or destruction
 
-> **Angular 20 Update**: Zoneless is now in **Developer Preview** with improved SSR support and global error handling!
+> **Angular 21 Status**: Zoneless is now in **Developer Preview** with improved SSR support, global error handling, and further matured stability. It is on track to become the default change detection strategy in a future Angular release.
 
 ## ⚡ Enabling Zoneless Mode
 
@@ -37,7 +37,7 @@ Zoneless Angular is like upgrading from a gas-powered car to an electric vehicle
 **Think of enabling zoneless mode like switching to eco-mode** - you're optimizing for efficiency and performance.
 
 ```typescript
-// main.ts - Angular 20+
+// main.ts - Angular 21+
 import { bootstrapApplication } from '@angular/platform-browser';
 import { 
   provideZonelessChangeDetection,
@@ -180,7 +180,7 @@ export class CounterComponent {
 **The best of both worlds** - signals work even outside Angular's zone!
 
 ```typescript
-// This now works perfectly in Angular 18+
+// Signal updates outside the zone trigger change detection (Angular 18+)
 ngZone.runOutsideAngular(() => {
   setInterval(() => {
     this.count.set(this.count() + 1); // Signal updates trigger change detection!

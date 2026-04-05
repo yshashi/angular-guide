@@ -1,11 +1,11 @@
 ---
-title: Signal Forms (Experimental) 📝
-description: Master Angular's revolutionary Signal Forms - the future of reactive form handling
+title: Signal Forms 📝
+description: Master Angular's revolutionary Signal Forms - reactive form handling available in Angular 21
 sidebar:
   order: 12
 ---
 
-Angular's new Signal Forms represent a revolutionary leap forward in form handling! Coming in Angular 21, they bridge the gap between Angular's reactive signals and user interactions, creating a seamless, type-safe, and highly performant form experience.
+Angular's new Signal Forms represent a revolutionary leap forward in form handling! Available in Angular 21 as an experimental API, they bridge the gap between Angular's reactive signals and user interactions, creating a seamless, type-safe, and highly performant form experience.
 
 ## 🎯 What are Signal Forms?
 
@@ -435,7 +435,7 @@ export const userWithAddressSchema = schema<UserWithAddress>((path) => {
   `
 })
 export class FieldErrorsComponent {
-  @Input() errors: ValidationError[] = [];
+  errors = input<ValidationError[]>([]);
 
   getErrorMessage(error: ValidationError): string {
     switch (error.kind) {
@@ -521,4 +521,4 @@ export class NewComponent {
 
 ---
 
-**Remember**: Signal Forms are currently **experimental in Angular 21** but represent the future of form handling in Angular. They provide a cleaner, more reactive, and type-safe approach to building complex forms! 📝✨
+**Remember**: Signal Forms are **available in Angular 21** as an experimental API and represent the future of form handling in Angular. They provide a cleaner, more reactive, and type-safe approach to building complex forms! 📝✨

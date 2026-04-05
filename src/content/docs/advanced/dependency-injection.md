@@ -27,7 +27,6 @@ import { UserService } from './user.service';
 
 @Component({
   selector: 'app-user-profile',
-  standalone: true,
   template: `
     <div>
       <h2>{{ user().name }}</h2>
@@ -48,7 +47,6 @@ export class UserProfileComponent {
 ```typescript
 @Component({
   selector: 'app-dashboard',
-  standalone: true
 })
 export class DashboardComponent {
   private userService = inject(UserService);
@@ -82,7 +80,6 @@ export class DataService {
 // ✅ New instance for each component
 @Component({
   selector: 'app-user-form',
-  standalone: true,
   providers: [FormStateService],  // Component-specific instance
   template: `...`
 })
@@ -165,9 +162,7 @@ export class AppComponent {
 
 ## 🎨 Real-World Examples
 
-<blockquote>
-<p><strong>Note:</strong> For Angular versions 19 and above, you can remove the <code>standalone: true</code> property from your components.</p>
-</blockquote>
+
 
 ### 1. **Configuration Service Pattern**
 
@@ -282,7 +277,6 @@ providers: [
 // Use in components
 @Component({
   selector: 'app-dashboard',
-  standalone: true
 })
 export class DashboardComponent {
   private logger = inject(LOGGER);
@@ -365,7 +359,6 @@ import { inject, Optional } from '@angular/core';
 
 @Component({
   selector: 'app-feature',
-  standalone: true
 })
 export class FeatureComponent {
   // Optional dependency - may not be provided
@@ -380,7 +373,6 @@ export class FeatureComponent {
 // Or with default value
 @Component({
   selector: 'app-config',
-  standalone: true
 })
 export class ConfigComponent {
   private config = inject(APP_CONFIG, { 
@@ -397,7 +389,6 @@ Let's control dependency resolution in component hierarchy.
 // Parent component with its own service
 @Component({
   selector: 'app-parent',
-  standalone: true,
   providers: [StateService],
   template: `
     <app-child></app-child>
@@ -410,7 +401,6 @@ export class ParentComponent {
 // Child component
 @Component({
   selector: 'app-child',
-  standalone: true,
   providers: [StateService]
 })
 export class ChildComponent {
@@ -480,7 +470,6 @@ providers: [
 // Use abstract class
 @Component({
   selector: 'app-settings',
-  standalone: true
 })
 export class SettingsComponent {
   private storage = inject(StorageService);  // Gets LocalStorageService
@@ -503,7 +492,6 @@ export class AppService {}
 // Component level - new instance per component
 @Component({
   selector: 'app-feature',
-  standalone: true,
   providers: [FeatureService]
 })
 export class FeatureComponent {
@@ -513,7 +501,6 @@ export class FeatureComponent {
 // Child inherits parent's providers
 @Component({
   selector: 'app-child',
-  standalone: true
 })
 export class ChildComponent {
   private feature = inject(FeatureService);  // Same instance as parent
@@ -540,7 +527,6 @@ export class FormStateService {
 // Parent form component
 @Component({
   selector: 'app-multi-step-form',
-  standalone: true,
   providers: [FormStateService],  // Scoped to this component tree
   template: `
     <app-step-one></app-step-one>
@@ -553,7 +539,6 @@ export class MultiStepFormComponent {}
 // All steps share the same FormStateService instance
 @Component({
   selector: 'app-step-one',
-  standalone: true
 })
 export class StepOneComponent {
   private formState = inject(FormStateService);  // Shared instance
@@ -571,13 +556,18 @@ export class MyComponent {
   private router = inject(Router);
 }
 
-// ❌ Avoid - Constructor injection
+:::caution[Legacy Syntax]
+In older Angular versions, dependencies were injected via the constructor:
+```ts
 export class MyComponent {
   constructor(
     private service: MyService,
     private router: Router
   ) {}
 }
+```
+This syntax is still supported but not recommended for new projects.
+:::
 ```
 
 ### 2. **Use InjectionToken for Primitives**

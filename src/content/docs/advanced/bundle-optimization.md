@@ -13,8 +13,10 @@ Bundle optimization reduces application size, improves load times, and enhances 
 - **Initial Bundle** - Code loaded on first page load
 - **Lazy Bundles** - Code loaded on demand
 - **Vendor Bundle** - Third-party libraries
-- **Runtime Bundle** - Webpack runtime code
+- **Runtime Bundle** - Build tool runtime code
 - **Polyfills** - Browser compatibility code
+
+> **Note:** Angular uses **esbuild** as the default builder since Angular 17, replacing Webpack. esbuild provides significantly faster builds with automatic tree shaking and optimizations. The concepts below still apply regardless of the build tool.
 
 **Target Sizes:**
 - Initial bundle: < 200KB (gzipped)
@@ -34,9 +36,6 @@ Bundle optimization reduces application size, improves load times, and enhances 
       "outputHashing": "all",
       "sourceMap": false,
       "namedChunks": false,
-      "aot": true,
-      "extractLicenses": true,
-      "buildOptimizer": true,
       "budgets": [
         {
           "type": "initial",
@@ -48,6 +47,8 @@ Bundle optimization reduces application size, improves load times, and enhances 
   }
 }
 ```
+
+> **Note:** With the esbuild builder (default since Angular 17), options like `aot` and `buildOptimizer` are no longer needed — AOT compilation and build optimization are always enabled automatically.
 
 ### Tree Shaking
 
@@ -106,7 +107,6 @@ async loadEditor() {
 // ✅ Use standalone components
 @Component({
   selector: 'app-user',
-  standalone: true,
   imports: [CommonModule] // Only import what's needed
 })
 
@@ -115,19 +115,6 @@ import { BrowserModule } from '@angular/platform-browser';
 ```
 
 ## 📊 Bundle Analysis
-
-### Webpack Bundle Analyzer
-
-```bash
-# Install
-npm install --save-dev webpack-bundle-analyzer
-
-# Build with stats
-ng build --stats-json
-
-# Analyze
-npx webpack-bundle-analyzer dist/stats.json
-```
 
 ### Source Map Explorer
 
@@ -140,6 +127,16 @@ ng build --source-map
 
 # Analyze
 npx source-map-explorer dist/**/*.js
+```
+
+### Bundle Size Inspection
+
+```bash
+# View bundle stats directly
+ng build --stats-json
+
+# Use esbuild-visualizer or source-map-explorer to inspect
+npx esbuild-visualizer --metadata dist/stats.json --open
 ```
 
 ## ✅ Best Practices
@@ -180,8 +177,10 @@ ng build
 ### 4. **Remove Console Logs**
 
 ```typescript
-// ✅ Remove in production
-if (!environment.production) {
+// ✅ Remove in production using isDevMode()
+import { isDevMode } from '@angular/core';
+
+if (isDevMode()) {
   console.log('Debug info');
 }
 

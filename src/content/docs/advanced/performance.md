@@ -33,7 +33,6 @@ import { Component, ChangeDetectionStrategy, input, signal } from '@angular/core
 // ✅ OnPush - Only checks when inputs change or events fire
 @Component({
   selector: 'app-user-card',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="card">
@@ -52,7 +51,6 @@ export class UserCardComponent {
 ```typescript
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div>
@@ -80,7 +78,6 @@ import { ChangeDetectorRef, inject } from '@angular/core';
 
 @Component({
   selector: 'app-heavy-component',
-  standalone: true
 })
 export class HeavyComponent {
   private cdr = inject(ChangeDetectorRef);
@@ -128,7 +125,6 @@ export const routes: Routes = [
 ```typescript
 @Component({
   selector: 'app-chart',
-  standalone: true
 })
 export class ChartComponent {
   async loadChart() {
@@ -172,7 +168,6 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
 
 @Component({
   selector: 'app-virtual-list',
-  standalone: true,
   imports: [ScrollingModule],
   template: `
     <cdk-virtual-scroll-viewport itemSize="50" class="viewport">
@@ -213,7 +208,6 @@ import { NgOptimizedImage } from '@angular/common';
 
 @Component({
   selector: 'app-gallery',
-  standalone: true,
   imports: [NgOptimizedImage],
   template: `
     <div class="gallery">
@@ -246,7 +240,6 @@ Let's cache expensive calculations.
 ```typescript
 @Component({
   selector: 'app-calculator',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CalculatorComponent {
@@ -287,7 +280,6 @@ import { Subject } from 'rxjs';
 
 @Component({
   selector: 'app-search',
-  standalone: true,
   template: `
     <input 
       [value]="searchTerm()"
@@ -351,7 +343,6 @@ Let's optimize list rendering with trackBy.
 ```typescript
 @Component({
   selector: 'app-user-list',
-  standalone: true,
   template: `
     @for (user of users(); track user.id) {
       <div class="user">
@@ -382,7 +373,6 @@ import { interval, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-timer',
-  standalone: true
 })
 export class TimerComponent implements OnDestroy {
   private subscription?: Subscription;
@@ -400,12 +390,11 @@ export class TimerComponent implements OnDestroy {
   }
 }
 
-// Or use takeUntilDestroyed (Angular 16+)
+// Or use takeUntilDestroyed
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-timer-modern',
-  standalone: true
 })
 export class TimerModernComponent {
   constructor() {
@@ -422,7 +411,6 @@ export class TimerModernComponent {
 // ✅ Pure pipe - Only recalculates when input changes
 @Pipe({
   name: 'expensiveFilter',
-  standalone: true,
   pure: true
 })
 export class ExpensiveFilterPipe implements PipeTransform {
@@ -434,7 +422,6 @@ export class ExpensiveFilterPipe implements PipeTransform {
 // Use computed signals instead when possible
 @Component({
   selector: 'app-list',
-  standalone: true
 })
 export class ListComponent {
   items = signal<Item[]>([]);
@@ -456,7 +443,6 @@ export class ListComponent {
 // ✅ Always use OnPush
 @Component({
   selector: 'app-component',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 ```

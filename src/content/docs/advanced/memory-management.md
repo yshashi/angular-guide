@@ -33,7 +33,6 @@ import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-data',
-  standalone: true
 })
 export class DataComponent implements OnDestroy {
   private subscription = new Subscription();
@@ -68,7 +67,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-modern',
-  standalone: true
 })
 export class ModernComponent {
   constructor() {
@@ -85,7 +83,6 @@ export class ModernComponent {
 ```typescript
 @Component({
   selector: 'app-users',
-  standalone: true,
   imports: [AsyncPipe],
   template: `
     @if (users$ | async; as users) {
@@ -116,7 +113,6 @@ import { Component, ElementRef, OnDestroy, inject } from '@angular/core';
 
 @Component({
   selector: 'app-scroll-tracker',
-  standalone: true
 })
 export class ScrollTrackerComponent implements OnDestroy {
   private el = inject(ElementRef);
@@ -145,7 +141,6 @@ Let's manage setInterval and setTimeout properly.
 ```typescript
 @Component({
   selector: 'app-timer',
-  standalone: true
 })
 export class TimerComponent implements OnDestroy {
   private intervalId?: number;
@@ -181,7 +176,6 @@ Let's avoid holding references to removed DOM elements.
 ```typescript
 @Component({
   selector: 'app-dynamic',
-  standalone: true
 })
 export class DynamicComponent implements OnDestroy {
   private elementRef?: HTMLElement;

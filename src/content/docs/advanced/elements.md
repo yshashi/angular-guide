@@ -43,7 +43,6 @@ import { createCustomElement } from '@angular/elements';
 
 @Component({
   selector: 'app-hello',
-  standalone: true,
   template: `<h1>Hello, {{ name() }}!</h1>`
 })
 export class HelloComponent {
@@ -80,7 +79,6 @@ import { createCustomElement } from '@angular/elements';
 
 @Component({
   selector: 'app-counter',
-  standalone: true,
   template: `
     <div class="counter">
       <button (click)="decrement()">-</button>
@@ -157,7 +155,6 @@ interface User {
 
 @Component({
   selector: 'app-user-card',
-  standalone: true,
   template: `
     <div class="user-card">
       <img [src]="user().avatar" [alt]="user().name">
@@ -245,7 +242,6 @@ import { createCustomElement } from '@angular/elements';
 
 @Component({
   selector: 'app-chart',
-  standalone: true,
   template: `<canvas #canvas></canvas>`,
   styles: [`
     canvas {
@@ -433,7 +429,6 @@ export class EventBusService {
 // Widget A
 @Component({
   selector: 'app-sender',
-  standalone: true
 })
 export class SenderComponent {
   private eventBus = inject(EventBusService);
@@ -446,7 +441,6 @@ export class SenderComponent {
 // Widget B
 @Component({
   selector: 'app-receiver',
-  standalone: true
 })
 export class ReceiverComponent {
   private eventBus = inject(EventBusService);
@@ -467,7 +461,6 @@ export class ReceiverComponent {
 // ✅ Good - All dependencies included
 @Component({
   selector: 'app-widget',
-  standalone: true,
   imports: [CommonModule, FormsModule],
   template: `...`
 })
@@ -501,7 +494,6 @@ element.dispatchEvent(new CustomEvent('clicked', { detail: data }));
 // ✅ Good - Encapsulated styles
 @Component({
   selector: 'app-widget',
-  standalone: true,
   styles: [`
     :host {
       display: block;

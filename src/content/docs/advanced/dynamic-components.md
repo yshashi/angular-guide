@@ -28,7 +28,6 @@ import { WelcomeComponent } from './welcome.component';
 
 @Component({
   selector: 'app-container',
-  standalone: true,
   template: `
     <div class="container">
       <h2>Dynamic Component Container</h2>
@@ -64,7 +63,6 @@ import { Component, input } from '@angular/core';
 
 @Component({
   selector: 'app-welcome',
-  standalone: true,
   template: `
     <div class="welcome">
       <h3>Welcome, {{ username() }}!</h3>
@@ -79,9 +77,7 @@ export class WelcomeComponent {
 
 ## 🎨 Real-World Examples
 
-<blockquote>
-<p><strong>Warning:</strong> For Angular versions 19 and above, you can remove the <code>standalone: true</code> property from your dynamic component directives.</p>
-</blockquote>
+
 
 ### 1. **Dynamic Modal System**
 
@@ -125,7 +121,6 @@ import { ModalService } from './modal.service';
 
 @Component({
   selector: 'app-modal-container',
-  standalone: true,
   template: `
     @if (modalService.isOpen()) {
       <div class="modal-overlay" (click)="modalService.close()">
@@ -178,7 +173,6 @@ export class ModalContainerComponent {
 // Confirmation Modal
 @Component({
   selector: 'app-confirm-modal',
-  standalone: true,
   template: `
     <div class="confirm-content">
       <p>{{ message() }}</p>
@@ -208,7 +202,6 @@ export class ConfirmModalComponent {
 // User Details Modal
 @Component({
   selector: 'app-user-details-modal',
-  standalone: true,
   template: `
     <div class="user-details">
       <img [src]="user().avatar" [alt]="user().name">
@@ -228,7 +221,6 @@ export class UserDetailsModalComponent {
 ```typescript
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
   imports: [ModalContainerComponent],
   template: `
     <div class="dashboard">
@@ -299,7 +291,6 @@ import { TabConfig } from './tab-config';
 
 @Component({
   selector: 'app-tabs',
-  standalone: true,
   template: `
     <div class="tabs">
       <div class="tab-headers">
@@ -369,7 +360,6 @@ export class TabsComponent {
 // Profile Tab
 @Component({
   selector: 'app-profile-tab',
-  standalone: true,
   template: `
     <div class="profile">
       <h3>Profile Information</h3>
@@ -385,7 +375,6 @@ export class ProfileTabComponent {
 // Settings Tab
 @Component({
   selector: 'app-settings-tab',
-  standalone: true,
   template: `
     <div class="settings">
       <h3>Settings</h3>
@@ -403,7 +392,6 @@ export class SettingsTabComponent {
 // Activity Tab
 @Component({
   selector: 'app-activity-tab',
-  standalone: true,
   template: `
     <div class="activity">
       <h3>Recent Activity</h3>
@@ -426,7 +414,6 @@ export class ActivityTabComponent {
 ```typescript
 @Component({
   selector: 'app-user-dashboard',
-  standalone: true,
   imports: [TabsComponent],
   template: `
     <app-tabs [tabs]="tabConfigs()" />
@@ -492,7 +479,6 @@ export interface FieldConfig {
 // Text Input Component
 @Component({
   selector: 'app-text-field',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <div class="form-field">
@@ -519,7 +505,6 @@ export class TextFieldComponent {
 // Select Component
 @Component({
   selector: 'app-select-field',
-  standalone: true,
   imports: [ReactiveFormsModule],
   template: `
     <div class="form-field">
@@ -547,7 +532,6 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 
 @Component({
   selector: 'app-dynamic-form',
-  standalone: true,
   template: `
     <form [formGroup]="form" (ngSubmit)="onSubmit()">
       <div class="form-fields">
@@ -623,7 +607,6 @@ export class DynamicFormComponent {
 ```typescript
 @Component({
   selector: 'app-registration',
-  standalone: true,
   imports: [DynamicFormComponent],
   template: `
     <h2>User Registration</h2>
@@ -691,7 +674,6 @@ import { Component, signal, ViewContainerRef, inject } from '@angular/core';
 
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
   template: `
     <div class="dashboard">
       <div class="dashboard-header">
@@ -757,7 +739,6 @@ export class DashboardComponent {
 // ✅ Good - Signals for reactive state
 @Component({
   selector: 'app-container',
-  standalone: true
 })
 export class ContainerComponent {
   activeComponent = signal<Type<any> | null>(null);
@@ -767,7 +748,6 @@ export class ContainerComponent {
 // ❌ Avoid - Plain properties
 @Component({
   selector: 'app-container',
-  standalone: true
 })
 export class ContainerComponent {
   activeComponent: Type<any> | null = null;
@@ -780,7 +760,6 @@ export class ContainerComponent {
 ```typescript
 @Component({
   selector: 'app-container',
-  standalone: true
 })
 export class ContainerComponent {
   private componentRef?: ComponentRef<any>;
@@ -820,24 +799,22 @@ interface ComponentConfig {
 // ✅ Good - inject() function
 @Component({
   selector: 'app-container',
-  standalone: true
 })
 export class ContainerComponent {
   private viewContainer = inject(ViewContainerRef);
   private componentFactoryResolver = inject(ComponentFactoryResolver);
 }
 
-// ❌ Avoid - Constructor injection
-@Component({
-  selector: 'app-container',
-  standalone: true
-})
-export class ContainerComponent {
-  constructor(
-    private viewContainer: ViewContainerRef,
-    private componentFactoryResolver: ComponentFactoryResolver
-  ) {}
-}
+:::caution[Legacy Syntax]
+In older Angular versions, dependencies were injected via the constructor:
+```ts
+constructor(
+  private viewContainer: ViewContainerRef,
+  private componentFactoryResolver: ComponentFactoryResolver
+) {}
+```
+This syntax is still supported but not recommended for new projects. Note that `ComponentFactoryResolver` is deprecated — use `ViewContainerRef.createComponent()` directly.
+:::
 ```
 
 ### 5. **Handle Component Lifecycle**
@@ -845,7 +822,6 @@ export class ContainerComponent {
 ```typescript
 @Component({
   selector: 'app-container',
-  standalone: true
 })
 export class ContainerComponent {
   private componentRef?: ComponentRef<any>;

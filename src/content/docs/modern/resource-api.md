@@ -7,7 +7,7 @@ sidebar:
 
 The Resource API provides automatic loading states, error handling, and reactive updates for async data. Angular offers two types: `resource()` for Promises and `rxResource()` for Observables.
 
-> **⚠️ Angular 20 Changes**: The `request` property has been renamed to `params` in both `resource()` and `rxResource()`. This guide uses the new Angular 20 API.
+> The Resource API provides automatic loading states, error handling, and reactive updates for async data. Angular offers two types: `resource()` for Promises and `rxResource()` for Observables.
 
 ## 🎯 What are Resources?
 
@@ -150,7 +150,7 @@ export class DebouncedSearchComponent {
 |---------|-------------|----------------|
 | **Input** | Promise | Observable |
 | **Property** | `loader` | `stream` |
-| **Parameters** | `params` (v20, was `request`) | `params` (v20, was `request`) |
+| **Parameters** | `params` | `params` |
 | **Use Case** | async/await, HTTP → Promise | RxJS streams, HTTP → Observable |
 | **Cancellation** | AbortSignal | Automatic unsubscribe |
 | **Multiple Values** | Single value | Can emit multiple values |
@@ -208,7 +208,7 @@ booksResource = resource({
 
 - **`resource()`** → Promises (async/await)
 - **`rxResource()`** → Observables (RxJS)
-- **`params`** → Parameters that trigger refetch (renamed from `request` in v20)
+- **`params`** → Parameters that trigger refetch
 - **`loader`** → Function that returns Promise (resource only)
 - **`stream`** → Function that returns Observable (rxResource only)
 - **`defaultValue`** → Initial value (prevents undefined)

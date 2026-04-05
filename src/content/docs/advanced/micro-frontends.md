@@ -19,10 +19,13 @@ Micro frontends are **independently deployable frontend applications** that work
 - **📦 Smaller Bundles** - Load only what's needed
 
 **Approaches:**
-- Module Federation (Webpack 5)
+- Module Federation (requires Webpack — see note below)
+- Native Federation (works with esbuild)
 - Web Components
 - iFrames
 - Server-side composition
+
+> **Note:** Angular uses **esbuild** as the default builder since Angular 17. Module Federation requires a Webpack-based build. Use `@angular-architects/native-federation` for an esbuild-compatible alternative, or configure your project to use the Webpack builder.
 
 ## 🚀 Module Federation Setup
 
@@ -87,7 +90,6 @@ import { RouterOutlet, RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [RouterOutlet, RouterLink],
   template: `
     <div class="app-container">
@@ -236,7 +238,6 @@ import { Component, signal, computed } from '@angular/core';
 
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
   template: `
     <div class="dashboard">
       <h2>Dashboard</h2>
@@ -331,7 +332,6 @@ export class EventBusService {
 // Usage in Dashboard
 @Component({
   selector: 'app-dashboard',
-  standalone: true
 })
 export class DashboardComponent {
   private eventBus = inject(EventBusService);
@@ -404,7 +404,6 @@ export class SharedStateService {
 // Usage in any micro frontend
 @Component({
   selector: 'app-profile',
-  standalone: true
 })
 export class ProfileComponent {
   private sharedState = inject(SharedStateService);

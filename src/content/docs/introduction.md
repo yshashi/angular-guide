@@ -23,7 +23,7 @@ Angular is a powerful, full-featured framework for building dynamic web applicat
 This isn't just another tutorial. We provide:
 
 - **Complete Learning Path**: From absolute beginner to Angular expert
-- **Latest Features**: Angular 18, 19, 20 and upcoming Angular 21 features
+- **Latest Features**: Angular 19, 20, 21 features
 - **Real-World Projects**: Build production-ready applications (Coming soon)
 - **Best Practices**: Industry-standard patterns and techniques
 - **Modern Angular**: Standalone components, signals, and latest APIs

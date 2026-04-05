@@ -1,6 +1,6 @@
 ---
-title: Linked Signals (v19) 🔗
-description: Learn about linked signals introduced in Angular 19
+title: Linked Signals 🔗
+description: Master linked signals — writable computed signals stable since Angular 19
 sidebar:
   order: 5
 ---
@@ -9,7 +9,7 @@ Linked signals are like having a smart assistant that automatically updates one 
 
 ## 🎯 What Are Linked Signals?
 
-**LinkedSignal is Angular 19's game-changing feature** that creates writable signals derived from other signals. It's similar to `computed()`, but the key difference is that `computed()` returns a read-only signal, whereas `linkedSignal()` returns a writable signal.
+**LinkedSignal** creates writable signals derived from other signals. Introduced in Angular 19 and now stable, it's similar to `computed()`, but the key difference is that `computed()` returns a read-only signal, whereas `linkedSignal()` returns a writable signal.
 
 **Key Benefits:**
 - **Writable Computed** - Derive values but still allow manual updates

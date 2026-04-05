@@ -25,7 +25,6 @@ Content projection lets you **insert content from a parent component into a chil
 // Card component that accepts any content
 @Component({
   selector: 'app-card',
-  standalone: true,
   template: `
     <div class="card">
       <ng-content></ng-content>
@@ -49,7 +48,6 @@ export class CardComponent {}
 ```typescript
 @Component({
   selector: 'app-panel',
-  standalone: true,
   template: `
     <div class="panel">
       <ng-content>
@@ -70,7 +68,6 @@ Use `select` attribute to project content into specific slots.
 ```typescript
 @Component({
   selector: 'app-card',
-  standalone: true,
   template: `
     <div class="card">
       <div class="card-header">
@@ -113,7 +110,6 @@ export class CardComponent {}
 ```typescript
 @Component({
   selector: 'app-layout',
-  standalone: true,
   template: `
     <header>
       <ng-content select="header"></ng-content>
@@ -159,9 +155,7 @@ export class LayoutComponent {}
 
 ## 🎨 Real-World Examples
 
-<blockquote>
-<p><strong>Note:</strong> For Angular versions 19 and above, you can remove the <code>standalone: true</code> property from your components.</p>
-</blockquote>
+
 
 ### 1. **Reusable Dialog Component**
 
@@ -170,7 +164,6 @@ Let's build a flexible dialog component with header, body, and footer slots.
 ```typescript
 @Component({
   selector: 'app-dialog',
-  standalone: true,
   template: `
     <div class="dialog-overlay" (click)="close.emit()">
       <div class="dialog-container" (click)="$event.stopPropagation()">
@@ -200,7 +193,6 @@ export class DialogComponent {
 ```typescript
 @Component({
   selector: 'app-user-profile',
-  standalone: true,
   imports: [DialogComponent],
   template: `
     @if (showDialog()) {
@@ -241,7 +233,6 @@ Let's create an accordion with flexible content projection.
 // Accordion Item Component
 @Component({
   selector: 'app-accordion-item',
-  standalone: true,
   template: `
     <div class="accordion-item">
       <button 
@@ -271,7 +262,6 @@ export class AccordionItemComponent {
 // Accordion Container
 @Component({
   selector: 'app-accordion',
-  standalone: true,
   template: `
     <div class="accordion">
       <ng-content></ng-content>
@@ -309,7 +299,6 @@ Let's build a tab system using content projection.
 // Tab Component
 @Component({
   selector: 'app-tab',
-  standalone: true,
   template: `
     @if (active()) {
       <div class="tab-panel">
@@ -326,7 +315,6 @@ export class TabComponent {
 // Tabs Container
 @Component({
   selector: 'app-tabs',
-  standalone: true,
   imports: [TabComponent],
   template: `
     <div class="tabs">
@@ -348,7 +336,7 @@ export class TabComponent {
   `
 })
 export class TabsComponent {
-  @ContentChildren(TabComponent) tabs = contentChildren<TabComponent>();
+  tabs = contentChildren(TabComponent);
   activeIndex = signal(0);
   
   selectTab(index: number) {
@@ -390,7 +378,6 @@ Let's create an alert component with customizable icon and content.
 ```typescript
 @Component({
   selector: 'app-alert',
-  standalone: true,
   template: `
     <div class="alert" [class]="'alert-' + type()">
       <div class="alert-icon">
@@ -437,7 +424,6 @@ Let's create a list component that accepts custom item templates.
 ```typescript
 @Component({
   selector: 'app-list',
-  standalone: true,
   template: `
     <ul class="list">
       @for (item of items(); track trackBy($index, item)) {
@@ -459,7 +445,6 @@ export class ListComponent<T> {
 ```typescript
 @Component({
   selector: 'app-user-list',
-  standalone: true,
   imports: [ListComponent],
   template: `
     <app-list [items]="users()">
@@ -487,12 +472,13 @@ export class UserListComponent {
 
 ### Conditional Projection
 
-Check if content was projected using `@ContentChild`:
+Check if content was projected using `contentChild()`:
 
 ```typescript
+import { Component, contentChild, computed, ElementRef } from '@angular/core';
+
 @Component({
   selector: 'app-card',
-  standalone: true,
   template: `
     <div class="card">
       @if (hasHeader()) {
@@ -508,9 +494,9 @@ Check if content was projected using `@ContentChild`:
   `
 })
 export class CardComponent {
-  @ContentChild('[card-header]') headerContent?: ElementRef;
+  headerContent = contentChild<ElementRef>('[card-header]');
   
-  hasHeader = computed(() => !!this.headerContent);
+  hasHeader = computed(() => !!this.headerContent());
 }
 ```
 
@@ -519,7 +505,6 @@ export class CardComponent {
 ```typescript
 @Component({
   selector: 'app-container',
-  standalone: true,
   imports: [NgTemplateOutlet],
   template: `
     <div class="container">
@@ -587,19 +572,17 @@ export class ContainerComponent {
  */
 @Component({
   selector: 'app-card',
-  standalone: true,
   template: `...`
 })
 export class CardComponent {}
 ```
 
-### 4. **Use ContentChild/ContentChildren**
+### 4. **Use contentChild/contentChildren Signal Queries**
 
 ```typescript
-// ✅ Good - Access projected content
+// ✅ Good - Signal-based content queries
 @Component({
   selector: 'app-tabs',
-  standalone: true
 })
 export class TabsComponent {
   tabs = contentChildren(TabComponent);
@@ -617,7 +600,6 @@ export class TabsComponent {
 // ✅ Good - Check for projected content
 @Component({
   selector: 'app-panel',
-  standalone: true,
   template: `
     @if (hasContent()) {
       <div class="panel">
@@ -631,9 +613,9 @@ export class TabsComponent {
   `
 })
 export class PanelComponent {
-  @ContentChild(TemplateRef) content?: TemplateRef<any>;
+  content = contentChild(TemplateRef);
   
-  hasContent = computed(() => !!this.content);
+  hasContent = computed(() => !!this.content());
 }
 ```
 
@@ -653,8 +635,8 @@ export class PanelComponent {
 - [ ] Understand single-slot projection with `<ng-content>`
 - [ ] Use multi-slot projection with `select` attribute
 - [ ] Project content using CSS selectors
-- [ ] Access projected content with `@ContentChild`
-- [ ] Work with multiple projections using `@ContentChildren`
+- [ ] Access projected content with `contentChild()`
+- [ ] Work with multiple projections using `contentChildren()`
 - [ ] Provide default content for empty slots
 - [ ] Use `NgTemplateOutlet` for dynamic templates
 - [ ] Handle conditional projection

@@ -14,8 +14,8 @@ Decorators are **special functions that can modify or annotate** classes, method
 **Common Angular Decorators:**
 - `@Component()` - Define components
 - `@Injectable()` - Mark services for DI
-- `@Input()` / `@Output()` - Component communication
-- `@ViewChild()` - Query DOM elements
+- `@Input()` / `@Output()` - Component communication (modern alternative: `input()` / `output()` signal functions)
+- `@ViewChild()` - Query DOM elements (modern alternative: `viewChild()` signal query)
 
 **Benefits:**
 - **🎨 Clean Code** - Reduce boilerplate
@@ -123,7 +123,6 @@ export function Debounce(delay: number = 300) {
 ```typescript
 @Component({
   selector: 'app-search',
-  standalone: true,
   template: `
     <input (input)="onSearch($event)" placeholder="Search...">
   `
@@ -175,7 +174,6 @@ export function Memoize() {
 ```typescript
 @Component({
   selector: 'app-calculator',
-  standalone: true
 })
 export class CalculatorComponent {
   @Memoize()
@@ -224,7 +222,6 @@ export function Loading(loadingProperty: string = 'isLoading') {
 ```typescript
 @Component({
   selector: 'app-data-loader',
-  standalone: true,
   template: `
     @if (isLoading) {
       <div>Loading...</div>
@@ -333,7 +330,6 @@ export function Validate(validator: (value: any) => boolean, message: string) {
 ```typescript
 @Component({
   selector: 'app-user-form',
-  standalone: true
 })
 export class UserFormComponent {
   @Validate(
@@ -394,7 +390,6 @@ export function Throttle(limit: number = 1000) {
 ```typescript
 @Component({
   selector: 'app-scroll-handler',
-  standalone: true,
   template: `<div (scroll)="onScroll()">Scroll me</div>`
 })
 export class ScrollHandlerComponent {
@@ -435,7 +430,6 @@ export function Deprecated(message?: string) {
 ```typescript
 @Component({
   selector: 'app-legacy',
-  standalone: true
 })
 export class LegacyComponent {
   @Deprecated('Use newMethod() instead')

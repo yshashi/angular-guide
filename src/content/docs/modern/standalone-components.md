@@ -1,24 +1,24 @@
 ---
 title: Standalone Components 🏗️
-description: Learn about Angular standalone components - the future of Angular architecture
+description: Learn about Angular standalone components - the default architecture since Angular 19
 sidebar:
   order: 1
 ---
 
-Standalone components are Angular's **default and recommended approach** for building modern applications! Think of them as independent LEGO blocks that don't need a big box (NgModule) to organize them. They're now the standard way to build Angular apps - simpler, more modular, and future-ready!
+Standalone components are Angular's **default and recommended approach** for building modern applications! Since Angular 19, standalone is the default for all components, directives, and pipes — you no longer need to set `standalone: true` explicitly. Think of them as independent LEGO blocks that don't need a big box (NgModule) to organize them.
 
 ## 🎯 What are Standalone Components?
 
-**Standalone components are Angular components that work independently without NgModules.** They manage their own dependencies and can be imported directly where needed.
+**Standalone components are Angular components that work independently without NgModules.** They manage their own dependencies and can be imported directly where needed. Since Angular 19, all components are standalone by default — no flag needed.
 
 **Why Standalone is Now the Standard:**
-- **🎯 Default by Design** - New Angular projects use standalone by default
+- **🎯 Default by Design** - All new components are standalone automatically (since Angular 19)
 - **🚫 No NgModules** - Skip the module boilerplate entirely
 - **📦 Direct Imports** - Import exactly what you need, where you need it
 - **🌳 Better Tree Shaking** - Smaller bundles with unused code elimination
 - **⚡ Simpler Architecture** - Less complexity, easier to understand
 - **🔄 Easy Migration** - Can coexist with existing NgModule components
-- **🚀 Angular's Future** - The official direction for all new development
+- **🚀 Angular's Direction** - The standard for all Angular development
 
 ```typescript
 import { Component } from '@angular/core';
@@ -27,7 +27,6 @@ import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-user-profile',
-  standalone: true, // ✅ Default in new Angular projects
   imports: [CommonModule, FormsModule], // Direct imports
   template: `
     <div class="profile">
@@ -46,12 +45,11 @@ export class UserProfileComponent {
 }
 ```
 
-## 🆚 Legacy vs Modern Angular
-
-### ❌ Legacy Approach (NgModules)
+:::note[Legacy: NgModule-based Components]
+In older Angular projects (pre-19), components required `standalone: true` in the decorator to opt into standalone mode. If you're working in a legacy codebase that still uses NgModules, you may need to set this flag explicitly or set `standalone: false` to declare a component inside an NgModule.
 
 ```typescript
-// user.module.ts - Extra boilerplate file
+// user.module.ts - Extra boilerplate file (legacy pattern)
 @NgModule({
   declarations: [UserProfileComponent],
   imports: [CommonModule, FormsModule],
@@ -59,13 +57,14 @@ export class UserProfileComponent {
 })
 export class UserModule { }
 
-// app.module.ts - Complex module configuration
+// app.module.ts - Complex module configuration (legacy pattern)
 @NgModule({
   imports: [UserModule], // Import entire module
   // ...
 })
 export class AppModule { }
 ```
+:::
 
 ### ✅ Modern Angular (Standalone - Default)
 
@@ -74,7 +73,6 @@ export class AppModule { }
 import { UserProfileComponent } from './user-profile.component';
 
 @Component({
-  standalone: true, // Default in new projects
   imports: [UserProfileComponent], // Direct import
   template: `<app-user-profile></app-user-profile>`
 })
@@ -83,26 +81,22 @@ export class AppComponent { }
 
 ## 🎯 Angular CLI Default Behavior
 
-**New Angular projects now generate standalone components by default!**
+**New Angular projects generate standalone components by default — no flags needed!**
 
 ```bash
 # Create a new Angular project (standalone by default)
 ng new my-app
 
-# Generate a new component (automatically standalone)
+# Generate a new component (standalone by default since Angular 19)
 ng generate component user-profile
-# Creates: user-profile.component.ts with standalone: true
-
-# Generate a new project with explicit standalone flag
-ng new my-app --standalone
+# Creates: user-profile.component.ts — standalone automatically
 ```
 
 **Generated component structure:**
 ```typescript
-// Automatically generated with standalone: true
+// Generated component — standalone by default, no flag needed
 @Component({
   selector: 'app-user-profile',
-  standalone: true,
   imports: [CommonModule],
   templateUrl: './user-profile.component.html',
   styleUrl: './user-profile.component.css'
@@ -117,7 +111,6 @@ export class UserProfileComponent { }
 ```typescript
 @Component({
   selector: 'app-counter',
-  standalone: true,
   template: `
     <div>
       <p>Count: {{ count }}</p>
@@ -146,7 +139,6 @@ export class UserService {
 
 @Component({
   selector: 'app-user-list',
-  standalone: true,
   imports: [CommonModule],
   template: `
     <ul>
@@ -166,7 +158,6 @@ export class UserListComponent {
 ```typescript
 @Component({
   selector: 'app-user-card',
-  standalone: true,
   template: `
     <div class="card">
       <h3>{{ user.name }}</h3>
@@ -181,7 +172,6 @@ export class UserCardComponent {
 
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
   imports: [CommonModule, UserCardComponent], // Import child component
   template: `
     <div class="dashboard">
@@ -231,7 +221,6 @@ bootstrapApplication(AppComponent, {
 ```typescript
 // ✅ Good - Import specific modules
 @Component({
-  standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   // ...
 })
@@ -249,7 +238,6 @@ export class SharedModule { } // Not needed with standalone!
 ```typescript
 // ✅ Good - Provide services directly
 @Component({
-  standalone: true,
   providers: [UserService], // Component-level service
   // ...
 })
@@ -264,7 +252,6 @@ export class UserService { }
 ```typescript
 // ✅ Good - Group imports logically
 @Component({
-  standalone: true,
   imports: [
     // Angular modules
     CommonModule,
@@ -281,12 +268,12 @@ export class UserService { }
 
 ## 🎯 Quick Checklist
 
-- [ ] Add `standalone: true` to your component decorator
+- [ ] Components are standalone by default — no flag needed (Angular 19+)
 - [ ] Import necessary modules in the `imports` array
-- [ ] Remove component from NgModule declarations
 - [ ] Import the component directly where needed
 - [ ] Use `loadComponent` for lazy loading
 - [ ] Provide services using `providedIn: 'root'` or component providers
+- [ ] For legacy NgModule projects, consider migrating with `ng generate @angular/core:standalone`
 
 ## 🚀 Next Steps
 
@@ -296,4 +283,4 @@ export class UserService { }
 
 ---
 
-**Remember**: Standalone components are now Angular's **default and standard approach**! All new projects use them automatically. If you're working with legacy NgModule projects, consider migrating to enjoy the benefits of simpler, more modular code! 🌟
+**Remember**: Standalone components are Angular's **default architecture** since Angular 19! All new components are standalone automatically — no flag needed. If you're working with legacy NgModule projects, consider migrating with `ng generate @angular/core:standalone` to enjoy simpler, more modular code! 🌟

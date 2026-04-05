@@ -22,17 +22,22 @@ The new `@let` template syntax is like having a smart notepad in your templates 
 
 **The Falsy Value Problem (SOLVED):**
 ```typescript
-// ❌ Old way - fails with falsy values like 0, "", null
-<div *ngIf="userName$ | async as userName">
-  <h1>Welcome, {{ userName }}</h1>
-</div>
-
-// ✅ New way - works with all values
+// ✅ New way - works with all values including 0, "", null
 <div>
   @let userName = (userName$ | async) ?? 'Guest';
   <h1>Welcome, {{ userName }}</h1>
 </div>
 ```
+
+:::note[Legacy: *ngIf with `as`]
+The old `*ngIf` directive failed with falsy values like `0`, `""`, `null`:
+```typescript
+<div *ngIf="userName$ | async as userName">
+  <h1>Welcome, {{ userName }}</h1>
+</div>
+```
+The `@let` syntax with nullish coalescing resolves this cleanly.
+:::
 
 ### ❄️ **The Case AGAINST @let**
 
@@ -99,8 +104,8 @@ The new `@let` template syntax is like having a smart notepad in your templates 
 </table>
 ```
 
-### ❌ Without @let (Repetitive)
-
+:::note[Legacy: Without @let (Repetitive)]
+Before `@let`, you had to repeat complex expressions:
 ```typescript
 <table mat-table [dataSource]="dataSource">
   <ng-container *ngFor="let columnDef of columnDefs">
@@ -119,8 +124,8 @@ The new `@let` template syntax is like having a smart notepad in your templates 
   </ng-container>
 </table>
 ```
-
-**Notice how @let eliminates the repetitive `element[columnDef.propertyName]` expressions!**
+Notice how `element[columnDef.propertyName]` is repeated multiple times!
+:::
 
 ## 📝 Basic @let Usage
 
