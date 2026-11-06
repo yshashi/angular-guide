@@ -35,16 +35,18 @@ OpenAI-compatible providers you can use via `LLM_BASE_URL`:
 ## Run locally
 
 ```bash
-cd ai-backend
-cp .env.example .env   # fill in LLM_API_KEY and LLM_MODEL
-node --env-file=.env server.mjs
+cp ai-backend/.env.example ai-backend/.env   # fill in your LLM_API_KEY
+npm run ai:server                            # starts backend on http://localhost:8787
 ```
 
-Then, in the site root:
+In a second terminal, run the docs site (`.env` in the repo root sets `PUBLIC_ASK_AI_ENDPOINT=http://localhost:8787/ask`):
 
 ```bash
-PUBLIC_ASK_AI_ENDPOINT=http://localhost:8787/ask npm run dev
+cp .env.example .env
+npm run dev                                  # http://localhost:4321 with the "Ask AI" widget enabled
 ```
+
+> **Note:** Both `.env` and `ai-backend/.env` are gitignored so your API keys are never committed. If `dist/llms-full.txt` exists locally (after `npm run build`), the backend indexes it directly and falls back to `DOCS_URL` otherwise.
 
 ## Enable it on the website
 

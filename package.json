@@ -7,7 +7,9 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "ai:server": "node --env-file=ai-backend/.env ai-backend/server.mjs",
+    "ai:dev": "node --env-file=ai-backend/.env --watch ai-backend/server.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^3.6.2",

@@ -1,7 +1,13 @@
 // NG Guide "Ask AI" backend — zero dependencies, Node.js >= 22.
-// Retrieval-augmented answers over https://ng-guide.letsprogram.in/llms-full.txt using any
-// OpenAI-compatible Chat Completions API. See README.md for configuration and deployment.
+// Retrieval-augmented answers over NG Guide's llms-full.txt (local dist/ fallback or remote URL)
+// using any OpenAI-compatible Chat Completions API. See README.md for configuration and deployment.
 import { createServer } from 'node:http';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const defaultLocalDocsPath = resolve(__dirname, '../dist/llms-full.txt');
 
 const config = {
 	port: Number(process.env.PORT ?? 8787),
@@ -9,7 +15,8 @@ const config = {
 	baseUrl: (process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
 	model: process.env.LLM_MODEL ?? '',
 	docsUrl: process.env.DOCS_URL ?? 'https://ng-guide.letsprogram.in/llms-full.txt',
-	allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'https://ng-guide.letsprogram.in,http://localhost:4321')
+	docsFile: process.env.DOCS_FILE ?? defaultLocalDocsPath,
+	allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'https://ng-guide.letsprogram.in,http://localhost:4321,http://127.0.0.1:4321')
 		.split(',')
 		.map((o) => o.trim())
 		.filter(Boolean),
@@ -56,10 +63,24 @@ function buildIndex(fullText) {
 
 async function ensureIndex() {
 	if (index.chunks.length && Date.now() - index.loadedAt < 6 * 60 * 60 * 1000) return;
-	const response = await fetch(config.docsUrl);
-	if (!response.ok) throw new Error(`Could not load docs (${response.status})`);
-	index = buildIndex(await response.text());
-	console.log(`Indexed ${index.chunks.length} chunks from ${config.docsUrl}`);
+	if (!process.env.DOCS_URL && existsSync(config.docsFile)) {
+		index = buildIndex(readFileSync(config.docsFile, 'utf8'));
+		console.log(`Indexed ${index.chunks.length} chunks from local ${config.docsFile}`);
+		return;
+	}
+	try {
+		const response = await fetch(config.docsUrl);
+		if (!response.ok) throw new Error(`HTTP ${response.status}`);
+		index = buildIndex(await response.text());
+		console.log(`Indexed ${index.chunks.length} chunks from ${config.docsUrl}`);
+	} catch (err) {
+		if (existsSync(config.docsFile)) {
+			index = buildIndex(readFileSync(config.docsFile, 'utf8'));
+			console.log(`Indexed ${index.chunks.length} chunks from fallback ${config.docsFile}`);
+			return;
+		}
+		throw new Error(`Could not load docs (${err.message})`);
+	}
 }
 
 function search(query, pageId) {
@@ -162,16 +183,20 @@ async function streamAnswer(res, { question, page, history }) {
 		body: JSON.stringify({
 			model: config.model,
 			stream: true,
-			temperature: 0.2,
 			messages: [
-				{ role: 'system', content: SYSTEM_PROMPT },
-				{ role: 'system', content: `Documentation excerpts:\n\n${context || '(no relevant excerpts found)'}` },
+				{
+					role: 'system',
+					content: `${SYSTEM_PROMPT}\n\nDocumentation excerpts:\n\n${context || '(no relevant excerpts found)'}`,
+				},
 				...history,
 				{ role: 'user', content: question },
 			],
 		}),
 	});
-	if (!llm.ok || !llm.body) throw new Error(`LLM request failed (${llm.status})`);
+	if (!llm.ok || !llm.body) {
+		const detail = await llm.text().catch(() => '');
+		throw new Error(`LLM request failed (${llm.status}): ${detail.slice(0, 300)}`);
+	}
 
 	const decoder = new TextDecoder();
 	let buffer = '';
@@ -190,6 +215,10 @@ async function streamAnswer(res, { question, page, history }) {
 	send({ type: 'done' });
 }
 
+// ---------- Startup ----------
+
+ensureIndex().catch((err) => console.warn('Initial docs index delayed:', err.message));
+
 createServer(async (req, res) => {
 	const origin = req.headers.origin ?? '';
 	const cors = corsHeaders(origin);
@@ -200,14 +229,14 @@ createServer(async (req, res) => {
 		return;
 	}
 	if (req.method === 'GET' && url.pathname === '/health') {
-		res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, chunks: index.chunks.length }));
+		res.writeHead(200, { ...cors, 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, chunks: index.chunks.length, model: config.model }));
 		return;
 	}
 	if (req.method !== 'POST' || url.pathname !== '/ask') {
 		res.writeHead(404).end();
 		return;
 	}
-	if (!cors['Access-Control-Allow-Origin']) {
+	if (origin && !cors['Access-Control-Allow-Origin']) {
 		res.writeHead(403).end();
 		return;
 	}
