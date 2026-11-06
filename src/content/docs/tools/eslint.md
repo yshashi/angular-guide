@@ -1,228 +1,248 @@
 ---
 title: ESLint for Angular 📐
-description: Configure ESLint for consistent and error-free Angular code
+description: Add angular-eslint to an Angular 22 project with ng add, understand the flat eslint.config.js, enable modern Angular rules and run ng lint locally and in CI.
 sidebar:
   order: 5
 ---
 
-ESLint is the standard linting tool for Angular projects. It catches bugs, enforces coding standards, and helps maintain consistency across your codebase. Angular has an official ESLint integration — **angular-eslint** — that provides Angular-specific rules for both TypeScript and HTML templates.
+ESLint finds bugs and enforces conventions in your TypeScript **and** your Angular templates. Angular projects use **angular-eslint**, a community project that works closely with the Angular team: it adds Angular-specific rules (selectors, signals, control flow, accessibility…) on top of ESLint and typescript-eslint.
 
-## 🎯 Setup with angular-eslint
+## What you'll learn
 
-The easiest way to add ESLint to an Angular project is with the `ng add` schematic:
+- How to add ESLint to an Angular 22 project with one command
+- What the generated flat config (`eslint.config.js`) means
+- Which rules are on by default and which modern Angular rules to add
+- How to run `ng lint`, auto-fix problems and lint in CI
 
-```bash
-ng add @angular-eslint/schematics
-```
-
-This command:
-
-1. Installs `eslint`, `@angular-eslint/*`, and `typescript-eslint` packages
-2. Creates an `eslint.config.js` file with Angular-recommended rules
-3. Adds a `lint` target to `angular.json` so you can run `ng lint`
-
-:::note
-Angular 21 projects use ESLint **flat config** (`eslint.config.js`) by default. The legacy `.eslintrc.json` format is no longer generated.
+:::note[Not included by default]
+`ng new` doesn't add a linter. Add it with `ng add angular-eslint` — or just run `ng lint`, and the CLI offers to install it for you.
 :::
 
-## ⚙️ Configuration (Flat Config)
+## Set up with `ng add`
 
-After setup, your `eslint.config.js` looks like this:
+```bash
+ng add angular-eslint
+```
 
-```javascript
+At the time of writing this installs **angular-eslint 22.x**, **ESLint 10** and **typescript-eslint 8**. The schematic:
+
+1. Adds the dev dependencies `angular-eslint`, `eslint`, `@eslint/js` and `typescript-eslint`.
+2. Creates `eslint.config.js` (ESLint "flat config" — the only format ESLint 10 supports).
+3. Adds a `lint` target to `angular.json`:
+
+   ```json title="angular.json"
+   "lint": {
+     "builder": "@angular-eslint/builder:lint",
+     "options": {
+       "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"]
+     }
+   }
+   ```
+
+4. Adds `"schematicCollections": ["angular-eslint"]` under `cli` in `angular.json`. The angular-eslint collection extends the normal Angular schematics, so `ng g component` keeps working, and `ng g application` / `ng g library` also wire up ESLint for new projects.
+
+Choose a stricter typescript-eslint preset up front if you like:
+
+```bash
+ng add angular-eslint --tseslint-preset=strict
+# recommended (default) | strict | recommendedTypeChecked | strictTypeChecked
+```
+
+The `*TypeChecked` presets enable **type-aware linting** (more powerful, slower).
+
+## The generated `eslint.config.js`
+
+```js title="eslint.config.js"
 // @ts-check
 const eslint = require('@eslint/js');
+const { defineConfig } = require('eslint/config');
 const tseslint = require('typescript-eslint');
 const angular = require('angular-eslint');
 
-module.exports = tseslint.config(
+module.exports = defineConfig([
   {
     files: ['**/*.ts'],
     extends: [
       eslint.configs.recommended,
-      ...tseslint.configs.recommended,
-      ...tseslint.configs.stylistic,
-      ...angular.configs.tsRecommended,
+      tseslint.configs.recommended,
+      tseslint.configs.stylistic,
+      angular.configs.tsRecommended,
     ],
     processor: angular.processInlineTemplates,
     rules: {
       '@angular-eslint/directive-selector': [
         'error',
-        {
-          type: 'attribute',
-          prefix: 'app',
-          style: 'camelCase',
-        },
+        { type: 'attribute', prefix: 'app', style: 'camelCase' },
       ],
       '@angular-eslint/component-selector': [
         'error',
-        {
-          type: 'element',
-          prefix: 'app',
-          style: 'kebab-case',
-        },
+        { type: 'element', prefix: 'app', style: 'kebab-case' },
       ],
     },
   },
   {
     files: ['**/*.html'],
-    extends: [
-      ...angular.configs.templateRecommended,
-      ...angular.configs.templateAccessibility,
-    ],
+    extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
     rules: {},
   },
-);
+]);
 ```
 
-### Configuration Breakdown
+How to read it:
 
-- **`files: ['**/*.ts']`** — Apply TypeScript rules to all `.ts` files
-- **`processInlineTemplates`** — Lint inline templates in `@Component({ template })` strings
-- **`files: ['**/*.html']`** — Apply template rules to all `.html` files
-- **`templateAccessibility`** — Enables accessibility-focused rules for templates
+| Part | Meaning |
+|---|---|
+| `defineConfig([...])` | ESLint's helper for typed flat configs. Each object applies to the files in its `files` glob. |
+| First block (`**/*.ts`) | JavaScript + TypeScript + Angular TypeScript rules for your classes. |
+| `processor: angular.processInlineTemplates` | Extracts inline `template: \`…\`` strings so the HTML rules also check them. |
+| Second block (`**/*.html`) | Angular template rules, including accessibility rules. |
+| `directive-selector` / `component-selector` | Enforce your `app` prefix: `appHighlight`, `<app-user-card>`. |
 
-## 📏 Recommended Rules for Angular
+The file uses `require()` because Angular projects' `package.json` is not `"type": "module"`. If yours is, the schematic writes `import`/`export default` instead (you can also rename the file to `eslint.config.mjs`).
 
-### TypeScript Rules
+## What the recommended configs check
 
-Add these rules to the TypeScript config section for stricter Angular code:
+**`angular.configs.tsRecommended`** (errors unless noted):
 
-```javascript
-rules: {
-  // Enforce consistent component architecture
-  '@angular-eslint/prefer-on-push-component-change-detection': 'warn',
-  '@angular-eslint/no-empty-lifecycle-method': 'error',
-  '@angular-eslint/use-lifecycle-interface': 'error',
-  '@angular-eslint/relative-url-prefix': 'error',
-  '@angular-eslint/sort-lifecycle-methods': 'warn',
+- `prefer-standalone`, `prefer-inject` (use `inject()` instead of constructor parameters)
+- `prefer-on-push-component-change-detection` — reports components that **opt out** of OnPush (`ChangeDetectionStrategy.Eager` or the deprecated `Default`). Leaving `changeDetection` out is fine, because OnPush is the default since v22.
+- `no-input-rename`, `no-output-rename`, `no-output-native`, `no-output-on-prefix`, `no-inputs-metadata-property`, `no-outputs-metadata-property`
+- `contextual-lifecycle`, `no-empty-lifecycle-method`, `use-pipe-transform-interface`, `use-lifecycle-interface` (warning)
 
-  // TypeScript best practices
-  '@typescript-eslint/no-unused-vars': ['error', {
-    argsIgnorePattern: '^_',
-  }],
-  '@typescript-eslint/explicit-function-return-type': 'off',
-  '@typescript-eslint/no-explicit-any': 'warn',
-  '@typescript-eslint/prefer-readonly': 'warn',
+**`angular.configs.templateRecommended`**: `prefer-control-flow` (no `*ngIf`/`*ngFor`), `banana-in-box` (`([x])` → `[(x)]`), `eqeqeq`, `no-negated-async`.
 
-  // General best practices
-  'no-console': ['warn', { allow: ['warn', 'error'] }],
-  'prefer-const': 'error',
-  'no-var': 'error',
-}
+**`angular.configs.templateAccessibility`**: `alt-text`, `elements-content`, `label-has-associated-control`, `click-events-have-key-events`, `mouse-events-have-key-events`, `interactive-supports-focus`, `no-autofocus`, `no-distracting-elements`, `role-has-required-aria`, `table-scope`, `valid-aria`.
+
+## Rules worth adding for modern Angular
+
+```js title="eslint.config.js (excerpt)"
+{
+  files: ['**/*.ts'],
+  // ...
+  rules: {
+    // ...selector rules from above
+    '@angular-eslint/prefer-service-decorator': 'error',      // @Service() over @Injectable({ providedIn: 'root' })
+    '@angular-eslint/prefer-host-metadata-property': 'error', // host: {} over @HostBinding/@HostListener
+    '@angular-eslint/prefer-output-readonly': 'error',
+    '@angular-eslint/computed-must-return': 'error',
+    '@angular-eslint/no-implicit-take-until-destroyed': 'error',
+    '@angular-eslint/sort-lifecycle-methods': 'warn',
+  },
+},
+{
+  files: ['**/*.html'],
+  // ...
+  rules: {
+    '@angular-eslint/template/prefer-self-closing-tags': 'warn', // <app-card />
+    '@angular-eslint/template/prefer-class-binding': 'warn',     // [class.x] over ngClass
+    '@angular-eslint/template/prefer-style-binding': 'warn',     // [style.x] over ngStyle
+    '@angular-eslint/template/prefer-ngsrc': 'warn',             // NgOptimizedImage
+    '@angular-eslint/template/prefer-at-empty': 'warn',          // @for … @empty
+    '@angular-eslint/template/button-has-type': 'warn',
+  },
+},
 ```
 
-### Template Rules
+### Type-aware rules (signals)
 
-Add these to the HTML config section:
+Some of the most useful signal rules need TypeScript type information:
 
-```javascript
-rules: {
-  // Accessibility
-  '@angular-eslint/template/alt-text': 'error',
-  '@angular-eslint/template/elements-content': 'error',
-  '@angular-eslint/template/label-has-associated-control': 'error',
-  '@angular-eslint/template/click-events-have-key-events': 'warn',
-  '@angular-eslint/template/no-autofocus': 'warn',
+- `@angular-eslint/no-uncalled-signals` — catches `if (this.isLoggedIn)` where you meant `this.isLoggedIn()`.
+- `@angular-eslint/prefer-signals` — prefer `input()`, `viewChild()`, … over decorators, and `readonly` signals.
+- `@angular-eslint/reactive-context-must-read-signal` — a `computed()`/`effect()` that reads no signal is probably a bug.
+- `@angular-eslint/prefer-signal-model` — use `model()` instead of an `input` + `output` pair.
+- `@angular-eslint/no-developer-preview`, `@angular-eslint/no-experimental` — flag non-stable Angular APIs.
 
-  // Best practices
-  '@angular-eslint/template/no-negated-async': 'error',
-  '@angular-eslint/template/no-duplicate-attributes': 'error',
-  '@angular-eslint/template/use-track-by-function': 'warn',
-  '@angular-eslint/template/prefer-self-closing-tags': 'warn',
-}
+Enable type information in the TypeScript block, then turn the rules on:
+
+```js title="eslint.config.js (excerpt)"
+{
+  files: ['**/*.ts'],
+  languageOptions: {
+    parserOptions: { projectService: true },
+  },
+  // ...
+  rules: {
+    '@angular-eslint/no-uncalled-signals': 'error',
+    '@angular-eslint/prefer-signals': 'error',
+    '@angular-eslint/reactive-context-must-read-signal': 'error',
+  },
+},
 ```
 
-## 🛡️ Custom Rules for Enforcing Patterns
+### Restrict imports
 
-You can create custom rules to enforce your team's Angular conventions.
+Block deprecated APIs with ESLint's built-in `no-restricted-imports` rule:
 
-### Enforce OnPush Change Detection
-
-```javascript
-'@angular-eslint/prefer-on-push-component-change-detection': 'error',
-```
-
-This reports an error on any component that doesn't explicitly set `ChangeDetectionStrategy.OnPush`.
-
-### Enforce inject() Over Constructor Injection
-
-Use the `@angular-eslint/prefer-standalone` rule and the TypeScript ESLint ecosystem to enforce modern patterns:
-
-```javascript
-rules: {
-  // Ban constructor parameter injection in favor of inject()
-  '@angular-eslint/prefer-standalone': 'error',
-}
-```
-
-### Restrict Specific Imports
-
-Prevent importing from deprecated or internal paths:
-
-```javascript
+```js
 'no-restricted-imports': ['error', {
-  patterns: [
+  paths: [
+    { name: '@angular/animations', message: 'Use native CSS with animate.enter / animate.leave.' },
     {
-      group: ['@angular/common/http/testing'],
-      message: 'Use provideHttpClientTesting() from @angular/common/http instead.',
+      name: '@angular/common/http',
+      importNames: ['HttpClientModule'],
+      message: 'Use provideHttpClient() in app.config.ts.',
     },
   ],
 }],
 ```
 
-## ▶️ Running the Linter
-
-### Basic Usage
+## Run the linter
 
 ```bash
-ng lint
+ng lint                    # lint every project that has a lint target
+ng lint --fix              # apply automatic fixes
+ng lint my-app             # one project
 ```
 
-This lints all files in the project and reports errors:
+```text
+src/app/core/user-api.ts
+  3:1  error  Use the `@Service()` decorator instead of `@Injectable({ providedIn: 'root' })`  @angular-eslint/prefer-service-decorator
 
-```
-/src/app/user/user.component.ts
-  12:3  error  Component should use ChangeDetectionStrategy.OnPush
-        @angular-eslint/prefer-on-push-component-change-detection
-  25:7  warning  Unexpected console statement    no-console
+src/app/user/user-card.html
+  1:7  error  Use built-in control flow instead of directive ngIf  @angular-eslint/template/prefer-control-flow
 
-✖ 2 problems (1 error, 1 warning)
-```
-
-### Lint Specific Files
-
-```bash
-ng lint --lint-file-patterns="src/app/features/**/*.ts"
+✖ 2 problems (2 errors, 0 warnings)
 ```
 
-### Fix Issues Automatically
+Useful builder options (also settable under `lint.options` in `angular.json`):
 
-Many ESLint rules support auto-fixing:
+| Option | Purpose |
+|---|---|
+| `--fix` | Apply fixes for auto-fixable rules. |
+| `--cache` | Only re-lint changed files (much faster locally). |
+| `--max-warnings 0` | Fail when there are warnings (strict CI). |
+| `--quiet` | Report errors only. |
+| `--format json` + `--output-file lint.json` | Machine-readable reports. |
+| `--lint-file-patterns "src/app/features/**/*.ts"` | Lint only some files. |
 
-```bash
-ng lint --fix
-```
-
-This automatically fixes issues like:
-
-- Sorting imports
-- Adding missing semicolons
-- Converting `var` to `const`/`let`
-- Removing unused imports
-- Adding self-closing tags in templates
+You can also call ESLint directly — handy for editors and Git hooks: `npx eslint src/app/cart`.
 
 :::caution
-Always review auto-fixed changes before committing. Some fixes may alter behavior in unexpected ways.
+Review auto-fixes before committing. Most are safe (formatting of templates, `prefer-self-closing-tags`), but a fix can still change behaviour in rare cases.
 :::
 
-## 🔄 Integration with CI/CD
+## Disable a rule locally
 
-Add linting to your CI pipeline to catch issues before merging:
+```ts
+// eslint-disable-next-line @angular-eslint/prefer-inject -- third-party base class needs constructor DI
+constructor(private readonly legacy: LegacyService) {}
+```
 
-### GitHub Actions Example
+```html
+<!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
+<div (click)="close()" class="backdrop"></div>
+```
 
-```yaml
+Always add a reason after `--`. If you disable a rule often, change the config instead.
+
+## ESLint and Prettier together
+
+Let Prettier handle formatting and ESLint handle code quality. Add `eslint-config-prettier` as the **last** config entry to turn off any ESLint rules that would fight Prettier — see [Prettier](/tools/prettier/#prettier-and-eslint).
+
+## Lint in CI
+
+```yaml title=".github/workflows/lint.yml"
 name: Lint
 on: [pull_request]
 
@@ -230,62 +250,38 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
-          cache: 'npm'
+          node-version: 24
+          cache: npm
       - run: npm ci
-      - run: npx ng lint
+      - run: npx ng lint --max-warnings 0
 ```
 
-### Pre-Commit Hook
+For linting only staged files before each commit, see [Git hooks](/tools/git-hooks/).
 
-Lint only staged files before each commit using `lint-staged`:
+## Editor integration
 
-```json
-{
-  "lint-staged": {
-    "*.{ts,html}": "eslint --fix"
-  }
-}
-```
+Install the **ESLint** extension (`dbaeumer.vscode-eslint`) and add `"eslint.validate": ["typescript", "html"]` so template problems appear while you type. See [VS Code setup](/tools/vscode/#recommended-workspace-settings).
 
-:::tip
-See the [Git Hooks & Automation](/tools/git-hooks/) page for a complete Husky + lint-staged setup.
-:::
+## Common mistakes
 
-## 🧩 Common Rules to Enable/Customize
+- **Using `.eslintrc.json` examples** from old blog posts. ESLint 10 only reads `eslint.config.*` (flat config).
+- **Spreading configs** (`...angular.configs.tsRecommended`) inside `extends` — not needed with `defineConfig`; pass them directly.
+- **Adding `changeDetection: OnPush` everywhere** to satisfy the old rule — in v22 it's the default, and the rule only reports opting out.
+- **Enabling type-aware rules without `projectService`** — ESLint will throw "You have used a rule which requires type information".
+- **Linting `dist/` or `.angular/`** — keep `lintFilePatterns` pointed at `src/`.
 
-Here's a quick reference of commonly adjusted rules:
+## Key takeaways
 
-| Rule | Default | Recommended |
-|------|---------|-------------|
-| `@angular-eslint/prefer-on-push-component-change-detection` | off | `warn` or `error` |
-| `@angular-eslint/template/prefer-self-closing-tags` | off | `warn` |
-| `@angular-eslint/use-lifecycle-interface` | off | `error` |
-| `@typescript-eslint/no-explicit-any` | `warn` | `error` for strict teams |
-| `@typescript-eslint/no-unused-vars` | off | `error` with `argsIgnorePattern` |
-| `no-console` | off | `warn` (allow `warn`/`error`) |
-| `@angular-eslint/template/alt-text` | off | `error` |
-| `@angular-eslint/template/click-events-have-key-events` | off | `warn` |
+- `ng add angular-eslint` sets up ESLint 10 flat config, the `ng lint` target and the right schematics.
+- The recommended configs already enforce standalone, `inject()`, OnPush, control flow and accessibility.
+- Add signal-aware rules with `projectService: true` for the best Angular 22 feedback.
+- Run `ng lint --max-warnings 0` in CI and ESLint on staged files in a pre-commit hook.
 
-## 🚫 Disabling Rules When Needed
+## Next steps
 
-Sometimes you need to suppress a rule for a specific case:
-
-```typescript
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const legacyData: any = getLegacyData();
-```
-
-For an entire file:
-
-```typescript
-/* eslint-disable no-console */
-// This file intentionally uses console for logging
-```
-
-:::caution
-Use `eslint-disable` comments sparingly. If you find yourself disabling a rule frequently, consider adjusting the rule configuration instead.
-:::
+- [Prettier](/tools/prettier/) — automatic formatting
+- [Git hooks](/tools/git-hooks/) — lint staged files before commit
+- [Best practices](/resources/best-practices/) — the conventions these rules enforce

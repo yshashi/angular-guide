@@ -1,402 +1,427 @@
 ---
 title: Standalone Migration 📦
-description: Migrate from NgModule-based to standalone Angular components
+description: Migrate NgModule-based Angular apps to standalone components with ng g @angular/core:standalone, replace CommonModule, and move providers to app.config.ts.
 sidebar:
   order: 2
 ---
 
-Since Angular 19, standalone components are the default — new components no longer need `standalone: true` in their decorator. If your codebase still relies on `NgModule`-based architecture, migrating to standalone gives you simpler code, better tree-shaking, and alignment with Angular's future direction.
+Standalone components declare their own dependencies in an `imports` array — no `NgModule` needed. They've been the **default since Angular 19**, and every project created with `ng new` in v22 is fully standalone. If your app still has `AppModule`, `SharedModule` and friends, this guide takes you from NgModules to standalone with the official schematic and explains how to finish the job by hand.
 
-## 🎯 Why Migrate to Standalone?
+**What you'll learn**
 
-NgModules served Angular well for years, but they introduced coupling, boilerplate, and indirection that standalone components eliminate:
+- Why standalone is simpler than NgModules
+- How to run the three-step `ng g @angular/core:standalone` migration
+- How to replace `CommonModule` with exact imports
+- How to move module providers (`HttpClientModule`, `RouterModule.forRoot`, interceptors …) to `app.config.ts`
+- How to convert lazy-loaded modules, `SharedModule`/`CoreModule`, and tests
 
-| Aspect | NgModule-based | Standalone |
-|--------|---------------|------------|
-| Declaration location | Registered in a module | Self-contained in component |
-| Dependency imports | Module-level imports array | Component-level imports array |
-| Tree-shaking | Module-level (coarse) | Component-level (fine-grained) |
-| Boilerplate | High (module + component) | Low (component only) |
-| Lazy loading | Requires loadChildren with module | Direct loadComponent |
-| Default since | — | Angular 19 |
+## Why migrate?
 
-:::tip
-Standalone migration is the **first step** in any Angular modernization effort. Once your components are standalone, other migrations (signals, inject, control flow) become easier.
+| | NgModule-based | Standalone |
+|---|---|---|
+| Where dependencies are declared | In a module's `declarations`/`imports` | In each component's `imports` |
+| Finding what a template can use | Search for the module that declares it | Look at the component file |
+| Lazy loading | `loadChildren` + a feature module | `loadComponent` or a routes file |
+| App bootstrap | `platformBrowser().bootstrapModule(AppModule)` | `bootstrapApplication(App, appConfig)` |
+| Boilerplate | Module + component | Component only |
+| Default | Before v19 | **v19 and later** |
+
+Standalone is also the foundation for the other modernizations — [signals](/migration/signals/), [control flow and zoneless](/migration/modernization/) are all easier once modules are gone.
+
+:::note[`standalone: true` is no longer needed]
+Since v19, components, directives and pipes are standalone unless they say `standalone: false`. In an NgModule-based app you'll see `standalone: false` on every declared class — that's what the migration removes.
 :::
 
-## 🤖 Automated Migration with Schematics
-
-Angular provides an official schematic that automates most of the migration. This is the recommended approach for any project with more than a handful of components.
+## Automatic migration (recommended)
 
 ```bash
-# Run the standalone migration schematic
 ng generate @angular/core:standalone
 ```
 
-The schematic runs in three phases — it will prompt you to choose which phase to execute:
+The schematic asks which **mode** to run. Run the three modes **in this order**, and build + test + commit after each one:
 
-1. **Convert declarations to standalone** — adds `imports` to each component/directive/pipe
-2. **Remove unnecessary NgModules** — deletes modules that only re-export standalone components
-3. **Bootstrap with standalone API** — replaces `platformBrowserDynamic().bootstrapModule()` with `bootstrapApplication()`
-
-:::note
-Run each phase separately and verify your app builds after each one. This makes it easier to catch and fix issues incrementally.
-:::
+| Step | Mode (`--mode`) | What it does |
+|---|---|---|
+| 1 | `convert-to-standalone` | Removes `standalone: false` from components, directives and pipes and adds what each template needs to its `imports` |
+| 2 | `prune-ng-modules` | Deletes NgModules that are now empty and removes references to them |
+| 3 | `standalone-bootstrap` | Replaces `bootstrapModule(AppModule)` with `bootstrapApplication(...)`, copies root providers, and deletes `AppModule` |
 
 ```bash
-# Phase 1: Convert components to standalone
-ng generate @angular/core:standalone --mode=convert-to-standalone
+# Step 1
+ng g @angular/core:standalone --mode=convert-to-standalone
+npx ng build && npx ng test --no-watch && git commit -am "standalone: convert declarations"
 
-# Verify
-ng build
+# Step 2
+ng g @angular/core:standalone --mode=prune-ng-modules
+npx ng build && npx ng test --no-watch && git commit -am "standalone: prune NgModules"
 
-# Phase 2: Remove empty NgModules
-ng generate @angular/core:standalone --mode=prune-modules
-
-# Verify
-ng build
-
-# Phase 3: Switch to standalone bootstrap
-ng generate @angular/core:standalone --mode=standalone-bootstrap
-
-# Verify
-ng build
+# Step 3
+ng g @angular/core:standalone --mode=standalone-bootstrap
+npx ng build && npx ng test --no-watch && git commit -am "standalone: bootstrapApplication"
 ```
 
-## 📝 Manual Migration: Step by Step
+Add `--path=src/app/feature` to migrate one folder at a time in a large codebase.
 
-For smaller projects or when you want full control, here's the manual approach.
+**Before you start**, make sure the project builds without errors (the schematic analyses compiled code), every file is included by a `tsconfig`, and you're on a clean Git branch.
 
-### Step 1: Convert a Component to Standalone
+### Step 1 — convert declarations
 
-**Before (NgModule-based):**
-
-```typescript
-// hero.component.ts
-import { Component } from '@angular/core';
-
-@Component({
-  selector: 'app-hero',
-  standalone: true, // was needed pre-v19
-  template: `<h1>{{ title }}</h1>`,
-})
-export class HeroComponent {
-  title = 'Hero Works!';
-}
-
-// hero.module.ts
-import { NgModule } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { HeroComponent } from './hero.component';
-
+```ts title="Before: shared.module.ts + greeter.ts"
 @NgModule({
-  declarations: [HeroComponent],
   imports: [CommonModule],
-  exports: [HeroComponent],
+  declarations: [Greeter],
+  exports: [Greeter],
 })
-export class HeroModule {}
-```
-
-**After (Standalone, Angular 19+):**
-
-```typescript
-// hero.component.ts — that's it, no module needed
-import { Component } from '@angular/core';
+export class SharedModule {}
 
 @Component({
-  selector: 'app-hero',
-  template: `<h1>{{ title }}</h1>`,
+  selector: 'app-greeter',
+  template: '<div *ngIf="showGreeting">Hello</div>',
+  standalone: false,
 })
-export class HeroComponent {
-  title = 'Hero Works!';
+export class Greeter {
+  showGreeting = true;
 }
 ```
 
-Notice that in Angular 19+, you don't even need `standalone: true` — it's the default.
+```ts title="After"
+@NgModule({
+  imports: [CommonModule, Greeter], // standalone classes are imported, not declared
+  exports: [Greeter],
+})
+export class SharedModule {}
 
-### Step 2: Add Direct Imports to Components
+@Component({
+  selector: 'app-greeter',
+  template: '<div *ngIf="showGreeting">Hello</div>',
+  imports: [NgIf],
+})
+export class Greeter {
+  showGreeting = true;
+}
+```
 
-Standalone components must import their own dependencies directly, instead of relying on a parent module:
+Modules that bootstrap a component (your root `AppModule`) are left alone in this step — step 3 handles them.
 
-```typescript
-import { Component } from '@angular/core';
+### Step 2 — remove unnecessary NgModules
+
+A module is deleted when it has no `declarations`, no `providers`, no `bootstrap` components, no class members, and doesn't import a `ModuleWithProviders` (like `RouterModule.forChild(...)`) or another module that must stay. References the schematic can't remove are marked with:
+
+```ts
+/* TODO(standalone-migration): clean up removed NgModule reference manually */
+```
+
+### Step 3 — switch to `bootstrapApplication`
+
+```ts title="Before: main.ts"
+import { platformBrowser } from '@angular/platform-browser';
+import { AppModule } from './app/app.module';
+
+platformBrowser()
+  .bootstrapModule(AppModule)
+  .catch((e) => console.error(e));
+```
+
+```ts title="After: main.ts"
+import { bootstrapApplication } from '@angular/platform-browser';
+import { App } from './app/app';
+import { appConfig } from './app/app.config';
+
+bootstrapApplication(App, appConfig).catch((e) => console.error(e));
+```
+
+The schematic copies as much of `AppModule`'s `providers` and `imports` as it can into the `bootstrapApplication` call (module imports may end up wrapped in `importProvidersFrom(...)`). Tidy them up afterwards: move them into `app.config.ts` and replace module imports with provider functions (see [Moving module providers](#2-moving-module-providers-to-appconfigts)).
+
+### Limitations
+
+- Code that can't be statically analysed (dynamic metadata, custom wrappers around `TestBed.configureTestingModule`) is skipped.
+- Unit tests aren't AOT-compiled, so `imports` added in specs may need manual fixes.
+- Generated code may not match your formatting — run Prettier/lint afterwards.
+
+## Replace `CommonModule` with exact imports
+
+After step 1, many components still import `CommonModule` (or every directive like `NgIf`). Two schematics clean this up:
+
+```bash
+# 1. Replace CommonModule with the individual directives and pipes each template uses
+ng generate @angular/core:common-to-standalone
+
+# 2. Replace *ngIf / *ngFor / *ngSwitch with @if / @for / @switch (no imports needed)
+ng generate @angular/core:control-flow
+```
+
+```ts title="Before"
+@Component({
+  selector: 'app-example',
+  imports: [CommonModule],
+  template: `<div *ngIf="show">{{ data | async | json }}</div>`,
+})
+export class Example {
+  show = true;
+  data = Promise.resolve({ message: 'Hello' });
+}
+```
+
+```ts title="After both schematics (plus signals)"
+import { Component, signal } from '@angular/core';
+import { AsyncPipe, JsonPipe } from '@angular/common';
+
+@Component({
+  selector: 'app-example',
+  imports: [AsyncPipe, JsonPipe],
+  template: `
+    @if (show()) {
+      {{ data | async | json }}
+    }
+  `,
+})
+export class Example {
+  protected readonly show = signal(true);
+  protected readonly data = Promise.resolve({ message: 'Hello' });
+}
+```
+
+Built-in control flow needs no imports, so after the control-flow migration only **pipes** (and any `NgTemplateOutlet`, `NgComponentOutlet`, etc.) stay in `imports`. Finally, remove anything the compiler reports as unused:
+
+```bash
+ng generate @angular/core:cleanup-unused-imports
+```
+
+## Manual migration, step by step
+
+For small apps — or to finish what the schematic left — here's what to do by hand.
+
+### 1. Make a component standalone
+
+Delete `standalone: false`, then add every component, directive and pipe its template uses to `imports`:
+
+```ts title="hero-list.ts"
+import { Component, input, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { HeroCardComponent } from './hero-card.component';
+
+export interface Hero {
+  id: number;
+  name: string;
+}
+
+@Component({
+  selector: 'app-hero-card',
+  template: `<p>{{ hero().name }}</p>`,
+})
+export class HeroCard {
+  readonly hero = input.required<Hero>();
+}
 
 @Component({
   selector: 'app-hero-list',
-  imports: [DatePipe, RouterLink, MatButtonModule, HeroCardComponent],
+  imports: [DatePipe, RouterLink, HeroCard],
   template: `
     <h2>Heroes</h2>
-    @for (hero of heroes; track hero.id) {
+    @for (hero of heroes(); track hero.id) {
       <app-hero-card [hero]="hero" />
+    } @empty {
+      <p>No heroes yet.</p>
     }
-    <a routerLink="/add">Add Hero</a>
-    <p>Last updated: {{ lastUpdated | date:'short' }}</p>
+    <a routerLink="/heroes/new">Add hero</a>
+    <p>Last updated: {{ lastUpdated | date: 'short' }}</p>
   `,
 })
-export class HeroListComponent {
-  heroes = [
+export class HeroList {
+  protected readonly heroes = signal<Hero[]>([
     { id: 1, name: 'Windstorm' },
     { id: 2, name: 'Bombasto' },
-  ];
-  lastUpdated = new Date();
+  ]);
+  protected readonly lastUpdated = new Date();
 }
 ```
 
-### Step 3: Migrate Module Providers
+Third-party libraries that still ship NgModules (for example `MatButtonModule`) can go straight into a standalone component's `imports` array.
 
-NgModules often provide services and configuration. These move to the `bootstrapApplication()` call or to route-level providers.
+### 2. Moving module providers to `app.config.ts`
 
-**Before (NgModule providers):**
-
-```typescript
-// app.module.ts
+```ts title="Before: app.module.ts"
 @NgModule({
-  imports: [
-    BrowserModule,
-    HttpClientModule,
-    RouterModule.forRoot(routes),
-    BrowserAnimationsModule,
-  ],
+  declarations: [AppComponent],
+  imports: [BrowserModule, HttpClientModule, RouterModule.forRoot(routes)],
   providers: [
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
-    MyService,
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
   ],
   bootstrap: [AppComponent],
 })
 export class AppModule {}
 ```
 
-**After (Standalone bootstrap):**
-
-```typescript
-// main.ts
-import { bootstrapApplication } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+```ts title="After: app.config.ts"
+import { ApplicationConfig, ErrorHandler, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { AppComponent } from './app/app.component';
-import { routes } from './app/app.routes';
-import { authInterceptor } from './app/auth.interceptor';
+import { routes } from './app.routes';
+import { authInterceptor } from './auth.interceptor';
+import { GlobalErrorHandler } from './global-error-handler';
 
-bootstrapApplication(AppComponent, {
+export const appConfig: ApplicationConfig = {
   providers: [
-    provideRouter(routes),
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withInterceptors([authInterceptor])),
-    provideAnimationsAsync(),
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
   ],
-});
+};
 ```
 
-:::tip
-Replace class-based interceptors with functional interceptors when migrating. The `withInterceptors()` helper works with the modern `HttpInterceptorFn` type.
+Common module → provider replacements:
+
+| NgModule-era code | Standalone replacement |
+|---|---|
+| `BrowserModule` | Nothing — `bootstrapApplication` includes it |
+| `HttpClientModule` (deprecated) | `provideHttpClient()` |
+| `HTTP_INTERCEPTORS` class interceptors | `withInterceptors([fn])` (or keep classes with `withInterceptorsFromDi()`) |
+| `RouterModule.forRoot(routes, options)` | `provideRouter(routes, withXxx())` features |
+| `RouterModule.forChild(routes)` | Export a `Routes` array and lazy-load it with `loadChildren` |
+| `APP_INITIALIZER` (deprecated) | `provideAppInitializer(() => ...)` |
+| `BrowserAnimationsModule` | Prefer native CSS with `animate.enter`/`animate.leave` (the animations package is deprecated) |
+| `ServiceWorkerModule.register(...)` | `provideServiceWorker(...)` |
+| Library `XxxModule.forRoot(config)` without a `provideXxx()` function | `importProvidersFrom(XxxModule.forRoot(config))` |
+
+:::tip[Services don't need registering]
+Services decorated with `@Service()` (or `@Injectable({ providedIn: 'root' })`) are available everywhere automatically. Delete them from old `providers` arrays — listing them again creates a **second instance**.
 :::
 
-### Step 4: Migrate Interceptors to Functional Style
+### 3. Convert class interceptors to functions
 
-**Before (Class-based interceptor):**
-
-```typescript
+```ts title="Before"
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
-  constructor(private authService: AuthService) {}
+  constructor(private auth: AuthService) {}
 
-  intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    const token = this.authService.getToken();
-    const authReq = req.clone({
-      setHeaders: { Authorization: `Bearer ${token}` },
-    });
-    return next.handle(authReq);
+  intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
+    const token = this.auth.getToken();
+    return next.handle(token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req);
   }
 }
 ```
 
-**After (Functional interceptor):**
-
-```typescript
+```ts title="After: auth.interceptor.ts"
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { AuthService } from './auth.service';
+import { AuthService } from './auth';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const authService = inject(AuthService);
-  const token = authService.getToken();
-  const authReq = req.clone({
-    setHeaders: { Authorization: `Bearer ${token}` },
-  });
-  return next(authReq);
+  const token = inject(AuthService).getToken();
+  if (!token) {
+    return next(req);
+  }
+  return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
 };
 ```
 
-### Step 5: Migrate Lazy-Loaded Modules to Lazy Components
+Can't convert them all yet? Keep the classes registered with `HTTP_INTERCEPTORS` and use `provideHttpClient(withInterceptorsFromDi())` in the meantime.
 
-**Before (Lazy module loading):**
+### 4. Lazy-load components and route files instead of modules
 
-```typescript
-const routes: Routes = [
-  {
-    path: 'admin',
-    loadChildren: () =>
-      import('./admin/admin.module').then((m) => m.AdminModule),
-  },
-];
+```ts title="Before"
+{ path: 'admin', loadChildren: () => import('./admin/admin.module').then((m) => m.AdminModule) }
 ```
 
-**After (Lazy component routes):**
-
-```typescript
-const routes: Routes = [
-  {
-    path: 'admin',
-    loadComponent: () =>
-      import('./admin/admin.component').then((m) => m.AdminComponent),
-  },
-  // Or load child routes directly
-  {
-    path: 'dashboard',
-    loadChildren: () =>
-      import('./dashboard/dashboard.routes').then((m) => m.DASHBOARD_ROUTES),
-  },
-];
-```
-
-The route file for child routes looks like this:
-
-```typescript
-// dashboard/dashboard.routes.ts
+```ts title="After: app.routes.ts"
 import { Routes } from '@angular/router';
 
-export const DASHBOARD_ROUTES: Routes = [
-  {
-    path: '',
-    loadComponent: () =>
-      import('./dashboard.component').then((m) => m.DashboardComponent),
-  },
-  {
-    path: 'analytics',
-    loadComponent: () =>
-      import('./analytics.component').then((m) => m.AnalyticsComponent),
-  },
+export const routes: Routes = [
+  // A single lazy page
+  { path: 'dashboard', loadComponent: () => import('./dashboard/dashboard').then((m) => m.Dashboard) },
+  // A lazy section with its own child routes
+  { path: 'admin', loadChildren: () => import('./admin/admin.routes').then((m) => m.ADMIN_ROUTES) },
 ];
 ```
 
-## ⚡ Migrating Common Module Patterns
+Providers that used to live in a lazy feature module move to the route — they're created when the route is first visited and shared by its children:
 
-### SharedModule → Direct Imports
+```ts title="admin/admin.routes.ts"
+import { Routes } from '@angular/router';
+import { AdminApi } from './admin-api';
 
-**Before:**
-
-```typescript
-@NgModule({
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
-  declarations: [SpinnerComponent, HighlightDirective, TruncatePipe],
-  exports: [
-    CommonModule, FormsModule, ReactiveFormsModule,
-    SpinnerComponent, HighlightDirective, TruncatePipe,
-  ],
-})
-export class SharedModule {}
-```
-
-**After:** Delete `SharedModule` entirely. Each consumer imports exactly what it needs:
-
-```typescript
-@Component({
-  selector: 'app-profile',
-  imports: [ReactiveFormsModule, SpinnerComponent, TruncatePipe],
-  template: `...`,
-})
-export class ProfileComponent {}
-```
-
-### CoreModule Providers → bootstrapApplication
-
-**Before:**
-
-```typescript
-@NgModule({
-  providers: [
-    AuthService,
-    LoggingService,
-    { provide: ErrorHandler, useClass: GlobalErrorHandler },
-  ],
-})
-export class CoreModule {}
-```
-
-**After:** Move these to `bootstrapApplication()` providers:
-
-```typescript
-bootstrapApplication(AppComponent, {
-  providers: [
-    // AuthService and LoggingService use providedIn: 'root' — no registration needed
-    { provide: ErrorHandler, useClass: GlobalErrorHandler },
-  ],
-});
-```
-
-:::note
-Services using `providedIn: 'root'` don't need to be listed anywhere — they're automatically available. Only register services that use custom providers or factory functions.
-:::
-
-### Feature Modules → Route-Level Providers
-
-```typescript
-// admin/admin.routes.ts
 export const ADMIN_ROUTES: Routes = [
   {
     path: '',
-    providers: [AdminService, AdminGuard],
+    providers: [AdminApi],
     children: [
-      {
-        path: '',
-        loadComponent: () =>
-          import('./admin-dashboard.component').then((m) => m.AdminDashboardComponent),
-      },
-      {
-        path: 'users',
-        loadComponent: () =>
-          import('./user-management.component').then((m) => m.UserManagementComponent),
-      },
+      { path: '', loadComponent: () => import('./admin-dashboard').then((m) => m.AdminDashboard) },
+      { path: 'users', loadComponent: () => import('./user-management').then((m) => m.UserManagement) },
     ],
   },
 ];
 ```
 
-## 🐛 Common Pitfalls
+`AdminApi` here is declared with `@Service({ autoProvided: false })` (or a plain `@Injectable()`), so it exists only where it's provided.
 
-### Missing Imports
+Already standalone but still eagerly loading route components? The `route-lazy-loading` schematic converts `component: X` routes to `loadComponent` for you:
 
-The most common issue: a component uses a directive or pipe in its template but doesn't list it in `imports`. The compiler will give you a clear error:
-
-```
-NG8001: 'app-hero-card' is not a known element.
+```bash
+ng generate @angular/core:route-lazy-loading
 ```
 
-Fix: add the missing component to the `imports` array.
+### 5. Dissolve `SharedModule` and `CoreModule`
 
-### Circular Dependencies
+- **`SharedModule`** usually re-exports `CommonModule`, `FormsModule` and a few components. Delete it; each component imports exactly what it uses (for example `imports: [ReactiveFormsModule, Spinner, TruncatePipe]`).
+- **`CoreModule`** usually holds singletons and app-wide providers. Root services need nothing (`@Service()`); move the rest (`ErrorHandler`, tokens, interceptors) into `app.config.ts`.
 
-When two standalone components import each other, you'll get circular dependency errors. Solutions:
-- Extract shared logic into a separate component or service
-- Use `forwardRef()` as a last resort
+### 6. Update tests
 
-### Duplicate Providers
+Standalone components go in TestBed's **`imports`**, not `declarations`:
 
-When migrating from modules to standalone, be careful not to provide the same service in multiple places (both `bootstrapApplication` and route-level providers), which can create multiple instances.
+```ts title="hero-list.spec.ts"
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { HeroList } from './hero-list';
 
-## ✅ Migration Verification Checklist
+describe('HeroList', () => {
+  it('renders heroes', async () => {
+    TestBed.configureTestingModule({
+      imports: [HeroList],
+      providers: [provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(HeroList);
+    await fixture.whenStable();
+    expect(fixture.nativeElement.textContent).toContain('Windstorm');
+  });
+});
+```
 
-After migrating, verify the following:
+Replace `RouterTestingModule` (deprecated) with `provideRouter(...)` — or run `ng generate @angular/core:router-testing-module-migration`.
 
-- [ ] `ng build` succeeds with zero errors
-- [ ] No remaining `@NgModule` declarations (except third-party)
-- [ ] `main.ts` uses `bootstrapApplication()` instead of `platformBrowserDynamic()`
-- [ ] All lazy routes use `loadComponent` or `loadChildren` with route files
-- [ ] All unit tests pass
-- [ ] Application boots and renders correctly
-- [ ] Services with `providedIn: 'root'` are not manually registered
-- [ ] No `SharedModule` or `CoreModule` remaining
+## Common pitfalls
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `NG8001: 'app-hero-card' is not a known element` | The child isn't in the component's `imports` | Import the component |
+| `NG8004: No pipe found with name 'date'` | Pipe not imported | Add `DatePipe` to `imports` |
+| `Can't bind to 'formGroup'` | Forms module missing | Add `ReactiveFormsModule` to `imports` |
+| A service has two instances | Root service also listed in a `providers` array | Remove it from `providers` |
+| `NullInjectorError` after pruning a module | That module had `providers` | Move them to `app.config.ts` or the route's `providers` |
+| Circular import between two components | They import each other | Extract shared UI into a third component; `forwardRef()` as a last resort |
+
+## Migration checklist
+
+- [ ] All three schematic modes run, with a build/test/commit after each
+- [ ] `main.ts` uses `bootstrapApplication(App, appConfig)`
+- [ ] Providers live in `app.config.ts` or route `providers`, using `provideXxx()` functions
+- [ ] No `CommonModule` imports left (`common-to-standalone` + `control-flow` run)
+- [ ] Lazy routes use `loadComponent` or routes files
+- [ ] `SharedModule`/`CoreModule` removed
+- [ ] Tests import standalone components and use `provideRouter`
+- [ ] `ng build` and `ng test` pass
+
+## Key takeaways
+
+- Run `ng g @angular/core:standalone` three times: `convert-to-standalone` → `prune-ng-modules` → `standalone-bootstrap`.
+- Follow up with `common-to-standalone`, `control-flow` and `cleanup-unused-imports`.
+- Module providers become `provideXxx()` calls in `app.config.ts`; feature providers move to routes.
+- Root services (`@Service()`) never need to be listed in `providers`.
+
+## Next steps
+
+1. **[Signals Migration](/migration/signals/)** — convert `@Input`, `@Output` and queries to signals
+2. **[Codebase Modernization](/migration/modernization/)** — control flow, class bindings, zoneless and more
+3. **[Standalone Components](/modern/standalone-components/)** — deeper guide to the standalone model

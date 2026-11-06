@@ -1,317 +1,286 @@
 ---
 title: VS Code Setup 💻
-description: Optimize VS Code for Angular development with extensions, settings, and productivity tips
+description: Set up VS Code for Angular 22 — Angular Language Service (inlay hints, outline, inline styles), recommended extensions, debugging and Copilot with the Angular MCP server.
 sidebar:
   order: 2
 ---
 
-Visual Studio Code is the most popular editor for Angular development. With the right extensions, settings, and configuration, you can dramatically boost your productivity — from intelligent autocompletion and inline error detection to one-click debugging and automated formatting.
+Visual Studio Code is the most popular editor for Angular. Out of the box it understands TypeScript, but it only understands **Angular templates** once you install the Angular Language Service. This page shows the setup we recommend in 2026 — from template autocompletion to debugging and AI assistants that know your Angular project.
 
-## 🎯 Essential Extensions
+## What you'll learn
 
-Install these extensions to get a first-class Angular development experience:
+- What the Angular Language Service extension does (including inlay hints and outline support)
+- Which extensions and settings to use for an Angular project
+- How to debug the app and Vitest tests from VS Code
+- How to connect GitHub Copilot (and other AI tools) to the Angular CLI MCP server
 
-### Angular Language Service
+## The Angular Language Service extension
 
-The **must-have** extension for Angular development. It provides autocompletion, error checking, and go-to-definition inside Angular templates.
+Install **Angular Language Service** (`Angular.ng-template`), published and maintained by the Angular team. A new project already recommends it in `.vscode/extensions.json`, so VS Code prompts you to install it when you open the folder.
 
-```
-Extension ID: Angular.ng-template
-```
-
-Features:
-- Autocomplete for component inputs, outputs, and template variables
-- Inline template error checking (type errors, missing properties)
-- Go-to-definition from templates to TypeScript
-- Hover information for directives and pipes
-- Signal type checking in templates
-
-### ESLint
-
-Integrates ESLint into VS Code for real-time linting feedback:
-
-```
-Extension ID: dbaeumer.vscode-eslint
+```bash
+code --install-extension Angular.ng-template
 ```
 
-### Prettier — Code Formatter
+It works in external templates (`user-card.html`) and inline templates (`template: \`…\``), and also in VS Code–based editors such as Cursor.
 
-Automatic code formatting that keeps your codebase consistent:
+### What it gives you
 
-```
-Extension ID: esbenp.prettier-vscode
-```
+| Feature | Example |
+|---|---|
+| **Completions** | Component selectors, inputs/outputs, signals, pipes, `@if` / `@for` blocks, `$index`, `$event` members. Missing components can be auto-imported. |
+| **Errors as you type** | The same template errors `ng build` reports (unknown elements, wrong input types, calling a method that doesn't exist…). |
+| **Quick info (hover)** | Hover a binding, pipe or directive to see its type and where it comes from. |
+| **Go to definition / references / rename** | `F12` from `{{ user().name }}` jumps into the TypeScript class; `F2` renames across template and class. |
+| **Inlay hints** (v22) | Show inferred types inline, e.g. `@for (user /* : User */ of users())`. |
+| **Document symbols** (v22) | `@if`, `@for`, `@defer`, `@let` and elements appear in the **Outline** view, breadcrumbs and `Cmd/Ctrl+Shift+O`. |
+| **Inline styles support** (v21.2) | Completions, hover info and code folding inside `styles: \`…\``. |
+| **Linked editing** (v21.2) | Renaming `<div>` also renames its closing `</div>`. |
+| **`angularCompilerOptions` schema** (v21.2) | Autocomplete and validation for Angular options in `tsconfig.json`. |
 
-### Error Lens
+Useful commands (Command Palette → "Angular:"):
 
-Displays errors and warnings inline — no need to hover over squiggly lines:
+- **Go to component** / **Go to template** — jump between `user-card.ts` and `user-card.html`.
+- **View Template Typecheck Block** — shows the TypeScript Angular generates to type-check a template (great for confusing errors).
+- **Restart Angular Language server** — fixes stale errors after big refactors or `npm install`.
 
-```
-Extension ID: usernameheo.errorlens
-```
-
-### GitLens
-
-Supercharges Git capabilities with inline blame, history, and comparison tools:
-
-```
-Extension ID: eamodio.gitlens
-```
-
-### Additional Recommended Extensions
-
-| Extension | ID | Purpose |
-|-----------|-----|---------|
-| Path Intellisense | `christian-kohler.path-intellisense` | Autocomplete file paths |
-| Auto Rename Tag | `formulahendry.auto-rename-tag` | Rename paired HTML tags |
-| Material Icon Theme | `PKief.material-icon-theme` | Better file icons |
-| TODO Highlight | `wayou.vscode-todo-highlight` | Highlight TODO/FIXME comments |
-| Import Cost | `wix.vscode-import-cost` | Show import sizes inline |
-
-## ⚙️ Recommended Settings
-
-Add these settings to your workspace or user `settings.json` for an optimal Angular setup:
-
-```json
-{
-  // TypeScript
-  "typescript.preferences.importModuleSpecifier": "relative",
-  "typescript.suggest.autoImports": true,
-  "typescript.updateImportsOnFileMove.enabled": "always",
-
-  // Formatting
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true,
-  "editor.formatOnPaste": false,
-  "editor.codeActionsOnSave": {
-    "source.organizeImports": "explicit",
-    "source.fixAll.eslint": "explicit"
-  },
-
-  // Editor
-  "editor.bracketPairColorization.enabled": true,
-  "editor.guides.bracketPairs": true,
-  "editor.inlineSuggest.enabled": true,
-  "editor.minimap.enabled": false,
-  "editor.wordWrap": "on",
-  "editor.tabSize": 2,
-
-  // Files
-  "files.autoSave": "onFocusChange",
-  "files.exclude": {
-    "**/.git": true,
-    "**/node_modules": true,
-    "**/dist": true,
-    "**/.angular": true
-  },
-
-  // Angular-specific
-  "[html]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "[scss]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-
-  // Search
-  "search.exclude": {
-    "**/node_modules": true,
-    "**/dist": true,
-    "**/.angular": true,
-    "**/package-lock.json": true
-  },
-
-  // Emmet for Angular templates
-  "emmet.includeLanguages": {
-    "typescript": "html"
-  }
-}
-```
-
-:::tip
-Use **Workspace Settings** (`.vscode/settings.json`) for project-specific config and commit it to Git. This ensures every team member has the same experience.
+:::tip[Full checking needs strict templates]
+The Language Service is most helpful with strict template type checking. In Angular 22, `strictTemplates` is `true` by default, so new projects get it automatically. Older projects updated with `ng update` may have `"strictTemplates": false` in `tsconfig.json` — remove it when you can.
 :::
 
-## 📝 Useful Snippets
+### Turn on inlay hints
 
-Create custom snippets for common Angular patterns. Go to **File → Preferences → Configure Snippets → typescript.json**:
+Most Angular inlay hints are **off by default** so the editor stays calm. Enable the ones you like in `.vscode/settings.json`:
 
-```json
+```json title=".vscode/settings.json"
 {
-  "Angular Component with Signals": {
-    "prefix": "ng-component-signal",
-    "body": [
-      "import { ChangeDetectionStrategy, Component, signal } from '@angular/core';",
-      "",
-      "@Component({",
-      "  selector: 'app-${1:name}',",
-      "  template: `",
-      "    <div>",
-      "      {{ ${2:value}() }}",
-      "    </div>",
-      "  `,",
-      "  changeDetection: ChangeDetectionStrategy.OnPush,",
-      "})",
-      "export class ${3:Name}Component {",
-      "  ${2:value} = signal(${4:''});",
-      "}"
-    ],
-    "description": "Angular standalone component with signal"
-  },
-  "Angular Injectable Service": {
-    "prefix": "ng-service",
-    "body": [
-      "import { Injectable, inject } from '@angular/core';",
-      "import { HttpClient } from '@angular/common/http';",
-      "",
-      "@Injectable({",
-      "  providedIn: 'root',",
-      "})",
-      "export class ${1:Name}Service {",
-      "  private http = inject(HttpClient);",
-      "}"
-    ],
-    "description": "Angular injectable service with HttpClient"
-  },
-  "Signal Input": {
-    "prefix": "ng-input",
-    "body": [
-      "${1:name} = input<${2:string}>(${3:''});"
-    ],
-    "description": "Angular signal input"
-  },
-  "Inject Function": {
-    "prefix": "ng-inject",
-    "body": [
-      "private ${1:service} = inject(${2:ServiceName});"
-    ],
-    "description": "Angular inject function"
-  }
+  "editor.inlayHints.enabled": "onUnlessPressed",
+  "angular.inlayHints.variableTypes.forLoopVariableTypes": true,
+  "angular.inlayHints.variableTypes.letDeclarationTypes": true,
+  "angular.inlayHints.variableTypes.referenceVariableTypes": true,
+  "angular.inlayHints.eventHints.parameterTypes": true,
+  "angular.inlayHints.bindingHints.pipeOutputTypes": true
 }
 ```
 
-## 🐛 Debugging Setup
+What they look like in a template:
 
-Configure VS Code to debug your Angular app directly in the editor.
+```html
+@for (user /* : User */ of users(); track user.id) {
+  @let fullName /* : string */ = user.first + ' ' + user.last;
+  <input #search /* : HTMLInputElement */ (keyup)="filter($event /* : KeyboardEvent */)" />
+  <p>{{ user.joined | date /* : string | null */ }}</p>
+}
+```
 
-### launch.json Configuration
+`"onUnlessPressed"` shows hints but hides them while you hold `Ctrl+Alt` (`Ctrl+Option` on macOS). Other options include `@if` alias types, `@switch` expression types, two-way binding signal types, arrow-function parameter/return types and a required-input marker (`angular.inlayHints.bindingHints.requiredInputIndicator`). Search "angular.inlayHints" in the Settings UI to see them all.
 
-Create `.vscode/launch.json`:
+### Other extension settings
 
-```json
+| Setting | Default | Purpose |
+|---|---|---|
+| `angular.documentSymbols.enabled` | `true` | Angular symbols in Outline/breadcrumbs. |
+| `angular.documentSymbols.showImplicitForVariables` | `false` | Also list `$index`, `$first`, … for `@for`. |
+| `angular.suggest.autoImports` | `true` | Auto-import components when you type their selector. |
+| `angular.suppressAngularDiagnosticCodes` | `""` | Comma-separated template error codes to hide (use sparingly). |
+| `angular.forceStrictTemplates` | `false` | Use strict template checking in the editor even if the project doesn't. |
+| `angular.log` | `"off"` | Write a server log for bug reports. |
+
+## Recommended extensions
+
+| Extension | ID | Why |
+|---|---|---|
+| Angular Language Service | `Angular.ng-template` | Templates: completions, errors, navigation. **Required.** |
+| ESLint | `dbaeumer.vscode-eslint` | Shows [ESLint](/tools/eslint/) problems (TS + templates) as you type. |
+| Prettier – Code formatter | `esbenp.prettier-vscode` | Formats on save with the project's `.prettierrc` ([Prettier](/tools/prettier/)). |
+| EditorConfig | `EditorConfig.EditorConfig` | Applies the `.editorconfig` that `ng new` creates. |
+| GitHub Copilot Chat | `GitHub.copilot-chat` | AI chat/agent; pair it with the Angular MCP server (below). |
+| Tailwind CSS IntelliSense | `bradlc.vscode-tailwindcss` | Only if you chose `--style=tailwind`. |
+| Playwright Test | `ms-playwright.playwright` | Only if you use Playwright for [e2e tests](/testing/e2e-testing/). |
+| Error Lens (optional) | `usernamehw.errorlens` | Shows errors inline at the end of the line. |
+
+Share the list with your team by extending the generated file:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": [
+    "angular.ng-template",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "editorconfig.editorconfig"
+  ]
+}
+```
+
+## Recommended workspace settings
+
+Commit `.vscode/settings.json` so everyone gets the same behaviour:
+
+```json title=".vscode/settings.json"
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "eslint.validate": ["typescript", "html"],
+
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+
+  "files.exclude": { "**/.angular": true },
+  "search.exclude": { "**/.angular": true, "**/dist": true, "**/coverage": true }
+}
+```
+
+- `typescript.tsdk` makes VS Code use the project's TypeScript (Angular 22 uses TypeScript 6.0). Run **TypeScript: Select TypeScript Version → Use Workspace Version** once.
+- `eslint.validate` makes the ESLint extension also lint `.html` templates.
+- `.angular/` is the CLI's build cache — hide it from search.
+
+:::note
+User settings apply to every project; workspace settings (`.vscode/settings.json`) override them for this project only. Keep personal taste (theme, font) in user settings and team rules in workspace settings.
+:::
+
+## Debug the app in VS Code
+
+New projects already ship with `.vscode/launch.json` and `.vscode/tasks.json`. The **ng serve** configuration starts `npm start`, waits for the build, then opens Chrome with the debugger attached:
+
+```json title=".vscode/launch.json (generated)"
 {
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Angular App",
+      "name": "ng serve",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:4200",
-      "webRoot": "${workspaceFolder}",
-      "sourceMapPathOverrides": {
-        "webpack:/*": "${webRoot}/*"
-      }
-    },
-    {
-      "name": "Debug Angular Tests",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/node_modules/.bin/vitest",
-      "args": ["--run", "--reporter=verbose"],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}"
+      "preLaunchTask": "npm: start",
+      "url": "http://localhost:4200/"
     }
   ]
 }
 ```
 
-### How to Debug
+1. Set a breakpoint in any `.ts` file (click left of the line number).
+2. Open **Run and Debug** (`Cmd/Ctrl+Shift+D`), choose **ng serve**, press `F5`.
+3. Use the app — VS Code pauses on your breakpoint with variables, call stack and a debug console.
 
-1. Start the dev server: `ng serve`
-2. Set breakpoints in your `.ts` files by clicking the gutter
-3. Press **F5** or select **Debug Angular App** from the Run menu
-4. Chrome opens, and VS Code pauses at your breakpoints
+Source maps are on in the `development` configuration, so breakpoints map to your TypeScript files. Use `"type": "msedge"` instead of `"chrome"` for Edge.
 
-:::note
-Source maps are enabled by default in development mode. Your breakpoints in TypeScript files will work correctly with no extra configuration.
-:::
+### Debug Vitest tests
 
-## ⌨️ Keyboard Shortcuts for Angular Development
+The generated **ng test** launch config points to `http://localhost:9876/debug.html`, which only exists for **Karma**. With Vitest (the default), use one of these instead:
 
-Master these shortcuts to speed up your workflow:
+- **JavaScript Debug Terminal** (simplest): Command Palette → *Debug: JavaScript Debug Terminal*, then run `npx ng test --no-watch`. VS Code attaches to the Node processes automatically and stops at your breakpoints.
+- **`ng test --debug`** + attach: the test run waits for a debugger on the default Node inspector port. Add this configuration and press `F5` after starting the tests:
 
-| Shortcut (Mac / Win) | Action |
-|---|---|
-| `Cmd+Shift+P` / `Ctrl+Shift+P` | Command Palette |
-| `Cmd+P` / `Ctrl+P` | Quick Open file |
-| `Cmd+Shift+F` / `Ctrl+Shift+F` | Search across files |
-| `F12` | Go to Definition |
-| `Shift+F12` | Find All References |
-| `F2` | Rename Symbol |
-| `Cmd+.` / `Ctrl+.` | Quick Fix (auto-import, etc.) |
-| `Cmd+Shift+O` / `Ctrl+Shift+O` | Go to Symbol in file |
-| `Cmd+T` / `Ctrl+T` | Go to Symbol in workspace |
-| `Alt+Shift+F` | Format document |
-| `Cmd+D` / `Ctrl+D` | Select next occurrence |
-| `Cmd+Shift+L` / `Ctrl+Shift+L` | Select all occurrences |
-| `Alt+Up/Down` | Move line up/down |
-| `Cmd+/` / `Ctrl+/` | Toggle line comment |
-
-:::tip
-Use **Cmd+P** (Quick Open) and type `#` to search symbols across the workspace — great for finding components, services, or interfaces by name.
-:::
-
-## 🏢 Workspace vs User Settings
-
-VS Code has two settings scopes:
-
-- **User Settings** — Apply to all projects. Set your personal preferences here (font size, theme, keybindings).
-- **Workspace Settings** — Saved in `.vscode/settings.json` inside the project. Set project-specific config here (formatter, linting rules, excluded files).
-
-Workspace settings override user settings. Commit `.vscode/settings.json` to Git so team members share the same development experience.
-
-### Recommended `.vscode/extensions.json`
-
-Add a recommendations file so team members get prompted to install essential extensions:
-
-```json
+```json title=".vscode/launch.json"
 {
-  "recommendations": [
-    "Angular.ng-template",
-    "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
-    "usernameheo.errorlens",
-    "eamodio.gitlens"
-  ]
+  "name": "Attach to ng test --debug",
+  "type": "node",
+  "request": "attach",
+  "port": 9229
 }
 ```
 
-## 📁 Multi-Root Workspaces for Monorepos
+More techniques are in [Debugging Angular apps](/tools/debugging/#debugging-unit-tests-vitest).
 
-If you work with Angular monorepos (e.g., Nx workspaces), use multi-root workspaces:
+## AI assistants and the Angular MCP server
 
-1. Open the root folder containing multiple projects
-2. Go to **File → Add Folder to Workspace…**
-3. Save the workspace as a `.code-workspace` file:
+GitHub Copilot in VS Code (agent mode) gets much better at Angular when it can call the **Angular CLI MCP server**. The server gives the assistant tools to search the official docs for *your* Angular version, load Angular best practices, list your projects, start/stop the dev server, read build output and run targets like `test` or `build`.
 
-```json
+### Option 1: let the CLI configure it
+
+```bash
+ng g ai-config --tool=vscode     # in an existing project
+ng new my-app --ai-config=vscode # for a new project
+```
+
+This creates two files:
+
+- `AGENTS.md` — Angular best-practice instructions that VS Code Copilot can include as custom instructions.
+- `.vscode/mcp.json` — registers the Angular CLI MCP server.
+
+### Option 2: write `.vscode/mcp.json` yourself
+
+```json title=".vscode/mcp.json"
 {
-  "folders": [
-    { "path": "apps/frontend", "name": "Frontend App" },
-    { "path": "apps/admin", "name": "Admin App" },
-    { "path": "libs/shared", "name": "Shared Library" }
-  ],
-  "settings": {
-    "typescript.tsdk": "node_modules/typescript/lib"
+  "servers": {
+    "angular-cli": {
+      "command": "npx",
+      "args": ["-y", "@angular/cli", "mcp"]
+    }
   }
 }
 ```
 
-This gives each project its own file explorer root and lets you configure settings per folder.
-
-:::tip
-In a monorepo, point `typescript.tsdk` to the root `node_modules/typescript/lib` to ensure all projects use the same TypeScript version.
+:::caution[VS Code uses `servers`]
+VS Code's `mcp.json` uses a top-level `"servers"` key. Cursor (`.cursor/mcp.json`), Claude Code (`.mcp.json`) and Gemini CLI use `"mcpServers"` instead. Copying a config between tools without changing this key is the most common setup mistake.
 :::
+
+Open `mcp.json` and click **Start** above the server (or run *MCP: List Servers*), then switch Copilot Chat to **Agent** mode and check the tools list. Try prompts such as:
+
+- "Use the Angular docs to explain `linkedSignal` and add one to `cart.ts`."
+- "Start the dev server and tell me if the build has errors."
+- "Run the unit tests for this project and fix failures."
+
+### Useful server flags
+
+Add flags to the `args` array:
+
+```json
+"args": ["-y", "@angular/cli", "mcp", "--read-only", "--local-only"]
+```
+
+| Flag | Effect |
+|---|---|
+| `--read-only` | Only tools that don't change your project. |
+| `--local-only` | Only tools that work without internet (no online docs search). |
+| `--root <path>` | Limit which folders the server may access (repeatable). |
+
+The default tools are `search_documentation`, `get_best_practices`, `list_projects`, `devserver_start`, `devserver_stop`, `devserver_wait_for_build`, `run_target`, `onpush_zoneless_migration` and `ai_tutor` (an interactive Angular tutor).
+
+:::tip[Agent skills]
+The Angular team also publishes **agent skills** (`angular-developer`, `angular-new-app`) for tools that support skills: `npx skills add https://github.com/angular/skills`. Skills give the AI detailed instructions; the MCP server gives it actions. They work well together.
+:::
+
+## Keyboard shortcuts worth learning
+
+| macOS | Windows/Linux | Action |
+|---|---|---|
+| `Cmd+P` | `Ctrl+P` | Quick open a file (type `user-card`) |
+| `Cmd+Shift+P` | `Ctrl+Shift+P` | Command Palette (all "Angular:" commands) |
+| `F12` / `Shift+F12` | `F12` / `Shift+F12` | Go to definition / find references (works in templates) |
+| `F2` | `F2` | Rename symbol |
+| `Cmd+.` | `Ctrl+.` | Quick fix (e.g. import a component) |
+| `Cmd+Shift+O` | `Ctrl+Shift+O` | Go to symbol in file (includes template blocks) |
+| `Cmd+T` | `Ctrl+T` | Go to symbol in workspace |
+| `Shift+Option+F` | `Shift+Alt+F` | Format document |
+| `F5` | `F5` | Start debugging |
+
+## Monorepos
+
+For a workspace with several apps/libraries (Angular CLI multi-project or Nx), open the **repository root** so the Language Service finds `angular.json`/`tsconfig.json`, and keep a single TypeScript version with `"typescript.tsdk": "node_modules/typescript/lib"`. Multi-root `.code-workspace` files also work, but every folder must be able to resolve its own `tsconfig.json`.
+
+## Common mistakes
+
+- **No Angular Language Service installed** → templates look like plain HTML, with no errors until you build.
+- **Stale template errors** after switching branches → run *Angular: Restart Angular Language server*.
+- **Using the Karma "ng test" launch config with Vitest** → use the JavaScript Debug Terminal or `ng test --debug`.
+- **`mcpServers` in `.vscode/mcp.json`** → VS Code expects `servers`.
+- **Formatter fights** (Prettier vs. another formatter) → set `editor.defaultFormatter` in workspace settings.
+
+## Key takeaways
+
+- The Angular Language Service brings type checking, navigation, inlay hints and outline support to templates.
+- Commit `.vscode/extensions.json`, `settings.json` and `launch.json` to share one setup.
+- Debug the app with the generated **ng serve** config; debug Vitest with the JavaScript Debug Terminal or `ng test --debug`.
+- `ng g ai-config --tool=vscode` wires Copilot to the Angular MCP server in one command.
+
+## Next steps
+
+- [Angular CLI](/tools/angular-cli/) — every command and flag
+- [Angular DevTools](/tools/devtools/) — inspect components and signals in the browser
+- [Debugging Angular apps](/tools/debugging/) — techniques and error codes
+- [ESLint](/tools/eslint/) and [Prettier](/tools/prettier/) — code quality on save

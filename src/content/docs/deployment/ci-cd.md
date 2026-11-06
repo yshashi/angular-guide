@@ -1,386 +1,288 @@
 ---
 title: CI/CD Pipelines ⚙️
-description: Automate Angular deployments with CI/CD - GitHub Actions, GitLab CI, Jenkins, and Azure DevOps
+description: Automate Angular 22 builds — GitHub Actions with Node 24, npm ci, Vitest unit tests, Playwright e2e, production build and deploy, plus GitLab, Azure and Jenkins.
 sidebar:
   order: 3
 ---
 
-Automate your Angular application deployments with CI/CD pipelines. Learn to set up continuous integration and deployment across popular platforms for faster, more reliable releases.
+Continuous Integration (CI) runs your checks on every push and pull request; Continuous Deployment (CD) ships the result automatically. For an Angular app the pipeline is always the same handful of commands — this page shows them in **GitHub Actions** step by step, then gives short versions for other CI providers.
 
-## 🎯 CI/CD Fundamentals
+**What you'll learn**
 
-**Continuous Integration (CI):**
+- The five commands every Angular pipeline runs
+- How `ng test` (Vitest) behaves in CI — no watch mode, headless browsers
+- Running Playwright end-to-end tests in CI
+- A complete GitHub Actions workflow: test → build → deploy (static and Docker)
+- Caching, secrets, preview deployments and common pitfalls
 
-- Automated testing on every commit
-- Code quality checks
-- Build verification
-- Dependency scanning
+## The pipeline in five commands
 
-**Continuous Deployment (CD):**
+```bash
+npm ci                    # 1. install exactly what package-lock.json says
+npx ng lint               # 2. lint (if you added angular-eslint)
+npx ng test               # 3. unit tests with Vitest (single run on CI)
+npx ng build              # 4. production build → dist/<app>/
+npx playwright test       # 5. end-to-end tests (optional but recommended)
+```
 
-- Automated deployments
-- Environment management
-- Rollback capabilities
-- Release automation
+Everything else — caching, artifacts, deployment — is plumbing around these.
 
-**Benefits:**
+| Command | Notes for CI |
+|---|---|
+| `npm ci` | Faster and stricter than `npm install`; fails if `package-lock.json` is out of sync. |
+| `ng lint` | Needs a linter builder. Add one with `ng add angular-eslint` — see [ESLint](/tools/eslint/). |
+| `ng test` | Vitest is the default runner since v21. When the `CI` environment variable is set (GitHub Actions, GitLab and most CI services set it), `ng test` runs **once** without watch mode. Elsewhere, add `--no-watch --no-progress`. |
+| `ng build` | Uses the `production` configuration by default. Fails the job if a size budget's `maximumError` is exceeded. |
+| `playwright test` | Starts your app, drives a real browser, and fails on broken user flows. |
 
-- **⚡ Faster Releases** - Deploy multiple times per day
-- **🛡️ Quality Assurance** - Automated testing
-- **🔄 Consistency** - Repeatable deployments
-- **📊 Visibility** - Track all changes
-- **🚀 Confidence** - Automated validation
+:::note[Use Node 22, 24 or 26]
+Angular 22 needs Node.js `^22.22.3 || ^24.15.0 || >=26`. Pipelines still pinned to Node 20 fail with an engine error. The examples use **Node 24**.
+:::
 
-## 🚀 GitHub Actions
+## Unit tests in CI (Vitest)
 
-### Complete CI/CD Workflow
+New projects run unit tests with Vitest in a simulated DOM (jsdom), which needs no browser — perfect for CI. Useful flags:
 
-```yaml
-# .github/workflows/ci-cd.yml
-name: CI/CD Pipeline
+```bash
+npx ng test                          # single run when CI=true
+npx ng test --no-watch --no-progress # force single run anywhere
+npx ng test --coverage               # coverage report in coverage/<project>/
+```
+
+Coverage needs the provider package: `npm install --save-dev @vitest/coverage-v8`. To upload coverage to a service, choose report formats and thresholds in `angular.json`:
+
+```json title="angular.json (excerpt)"
+"test": {
+  "builder": "@angular/build:unit-test",
+  "options": {
+    "coverageReporters": ["lcov", "text-summary"],
+    "coverageThresholds": { "statements": 80, "branches": 70, "functions": 80, "lines": 80 }
+  }
+}
+```
+
+If you configured **browser mode** (for example with `@vitest/browser-playwright` and `"browsers": ["chromium"]`), tests run **headless automatically when `CI` is set**. You can also force it with `--headless` or a browser name ending in `Headless` (`--browsers=chromiumHeadless`). Install the browser binary in the job with `npx playwright install --with-deps chromium`.
+
+See [Unit Testing](/testing/unit-testing/) and [Code Coverage](/testing/coverage/) for writing the tests themselves.
+
+## End-to-end tests with Playwright
+
+Add Playwright with its Angular schematic (it creates an `e2e` target so `ng e2e` works) or install it directly:
+
+```bash
+ng add playwright-ng-schematics   # or: npm init playwright@latest
+```
+
+Let Playwright start the app itself with `webServer`:
+
+```ts title="playwright.config.ts"
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env['CI'],          // fail if someone committed test.only
+  retries: process.env['CI'] ? 2 : 0,
+  reporter: process.env['CI'] ? [['html', { open: 'never' }], ['github']] : 'list',
+  use: {
+    baseURL: 'http://localhost:4200',
+    trace: 'on-first-retry',                // keep a trace for flaky tests
+  },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  webServer: {
+    command: 'npm run start',
+    url: 'http://localhost:4200',
+    reuseExistingServer: !process.env['CI'],
+    timeout: 120_000,
+  },
+});
+```
+
+```ts title="e2e/home.spec.ts"
+import { test, expect } from '@playwright/test';
+
+test('home page shows the app title', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+});
+
+test('deep link renders the right page', async ({ page }) => {
+  await page.goto('/products/42');
+  await expect(page).toHaveURL(/\/products\/42$/);
+});
+```
+
+More patterns in [E2E Testing](/testing/e2e-testing/).
+
+## GitHub Actions: complete workflow
+
+This workflow runs on every push and pull request. Pull requests get lint, unit tests, e2e tests and a build; pushes to `main` also deploy.
+
+```yaml title=".github/workflows/ci.yml"
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
 
-env:
-  NODE_VERSION: '20'
-  CACHE_KEY: node-modules-${{ hashFiles('**/package-lock.json') }}
+# Cancel older runs of the same branch/PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  # Job 1: Install and Cache Dependencies
-  install:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Cache node modules
-        uses: actions/cache@v3
-        with:
-          path: node_modules
-          key: ${{ env.CACHE_KEY }}
-
-  # Job 2: Lint
-  lint:
-    needs: install
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Restore cache
-        uses: actions/cache@v3
-        with:
-          path: node_modules
-          key: ${{ env.CACHE_KEY }}
-
-      - name: Run linter
-        run: npm run lint
-
-  # Job 3: Test
   test:
-    needs: install
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Restore cache
-        uses: actions/cache@v3
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx ng lint
+      - run: npx ng test --coverage
+      - uses: actions/upload-artifact@v7
+        if: always()
         with:
-          path: node_modules
-          key: ${{ env.CACHE_KEY }}
+          name: coverage
+          path: coverage/
+          retention-days: 7
 
-      - name: Run tests
-        run: npm run test:ci
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          files: ./coverage/lcov.info
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
 
-  # Job 4: Build
   build:
-    needs: [lint, test]
+    needs: [test, e2e]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Restore cache
-        uses: actions/cache@v3
-        with:
-          path: node_modules
-          key: ${{ env.CACHE_KEY }}
-
-      - name: Build application
-        run: npm run build -- --configuration production
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx ng build
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
-          path: dist/
+          path: dist/my-app/
+          retention-days: 7
 
-  # Job 5: Deploy to Staging
-  deploy-staging:
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build
-    if: github.ref == 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    environment:
-      name: staging
-      url: https://staging.example.com
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: dist
-
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v2
-        with:
-          publish-dir: './dist/your-app/browser'
-          production-deploy: false
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_STAGING_SITE_ID }}
-
-  # Job 6: Deploy to Production
-  deploy-production:
-    needs: build
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://example.com
+      url: https://my-app.example.com
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
+      - uses: actions/checkout@v7      # for firebase.json
+      - uses: actions/download-artifact@v8
         with:
           name: dist
-
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v2
+          path: dist/my-app/
+      - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          publish-dir: './dist/your-app/browser'
-          production-deploy: true
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-
-      - name: Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.run_number }}
-          release_name: Release v${{ github.run_number }}
-          draft: false
-          prerelease: false
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: my-firebase-project
+          channelId: live
 ```
 
-## 🎨 GitLab CI/CD
+How it fits together:
 
-### Complete Pipeline Configuration
+- **`test`** and **`e2e`** run in parallel; `build` waits for both (`needs`).
+- **`cache: npm`** in `setup-node` caches the npm download cache keyed on `package-lock.json` — you don't need a separate cache step for dependencies.
+- **Artifacts** pass `dist/` from `build` to `deploy`, so you deploy exactly what you tested.
+- **`environment: production`** lets you require manual approval and scope secrets in *Settings → Environments*.
+
+:::tip[Swap the deploy step for your host]
+The `deploy` job is the only host-specific part. Replace the Firebase step with, for example, `npx netlify-cli deploy --prod --dir=dist/my-app/browser` (with `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` secrets as env vars), `npx wrangler deploy` for Cloudflare, or the GitHub Pages actions from [Deployment Strategies](/deployment/strategies/#github-pages).
+:::
+
+### Preview deployments for pull requests
+
+Firebase can publish every PR to a temporary URL and comment it on the PR. Add a job that runs on `pull_request` with a non-`live` channel:
 
 ```yaml
-# .gitlab-ci.yml
-image: node:20-alpine
-
-stages:
-  - install
-  - lint
-  - test
-  - build
-  - deploy
-
-variables:
-  npm_config_cache: "$CI_PROJECT_DIR/.npm"
-  CYPRESS_CACHE_FOLDER: "$CI_PROJECT_DIR/cache/Cypress"
-
-cache:
-  key:
-    files:
-      - package-lock.json
-  paths:
-    - .npm
-    - node_modules
-    - cache/Cypress
-
-# Install Dependencies
-install:
-  stage: install
-  script:
-    - npm ci
-  artifacts:
-    paths:
-      - node_modules
-    expire_in: 1 hour
-
-# Lint Code
-lint:
-  stage: lint
-  dependencies:
-    - install
-  script:
-    - npm run lint
-
-# Unit Tests
-test:unit:
-  stage: test
-  dependencies:
-    - install
-  script:
-    - npm run test:ci
-  coverage: '/Lines\s*:\s*(\d+\.\d+)%/'
-  artifacts:
-    reports:
-      junit: coverage/junit.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage/cobertura-coverage.xml
-
-# E2E Tests
-test:e2e:
-  stage: test
-  dependencies:
-    - install
-  script:
-    - npm run e2e:ci
-  artifacts:
-    when: on_failure
-    paths:
-      - cypress/screenshots
-      - cypress/videos
-    expire_in: 1 week
-
-# Build Application
-build:
-  stage: build
-  dependencies:
-    - install
-  script:
-    - npm run build -- --configuration production
-  artifacts:
-    paths:
-      - dist/
-    expire_in: 1 week
-
-# Deploy to Staging
-deploy:staging:
-  stage: deploy
-  dependencies:
-    - build
-  environment:
-    name: staging
-    url: https://staging.example.com
-  script:
-    - npm install -g netlify-cli
-    - netlify deploy --dir=dist/your-app/browser --site=$NETLIFY_STAGING_SITE_ID --auth=$NETLIFY_AUTH_TOKEN
-  only:
-    - develop
-
-# Deploy to Production
-deploy:production:
-  stage: deploy
-  dependencies:
-    - build
-  environment:
-    name: production
-    url: https://example.com
-  script:
-    - npm install -g netlify-cli
-    - netlify deploy --prod --dir=dist/your-app/browser --site=$NETLIFY_SITE_ID --auth=$NETLIFY_AUTH_TOKEN
-  only:
-    - main
-  when: manual
+  preview:
+    if: github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # to post the preview URL
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/my-app/
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: my-firebase-project
+          expires: 7d
 ```
 
-## 🎨 Real-World Examples
+Netlify, Vercel and Cloudflare offer the same feature through their Git integrations.
 
-<blockquote>
-<p><strong>Note:</strong> Always test CI/CD pipelines in a separate branch first.</p>
-</blockquote>
+### Build and push a Docker image
 
-### 1. **Docker Build and Push**
+For container deployments (see [Docker & Containers](/deployment/docker/)), build the image in CI and push it to GitHub Container Registry:
 
-Let's create a pipeline that builds and pushes Docker images.
-
-```yaml
-# .github/workflows/docker.yml
-name: Docker Build and Push
+```yaml title=".github/workflows/docker.yml"
+name: Docker
 
 on:
   push:
-    branches: [ main ]
-    tags:
-      - 'v*'
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches: [main]
+    tags: ['v*']
 
 jobs:
-  build-and-push:
+  image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
+      - id: meta
+        uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
+            type=sha
+      - uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -388,406 +290,164 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            NODE_VERSION=20
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
-            VCS_REF=${{ github.sha }}
 ```
 
-### 2. **Multi-Environment Deployment**
+The Dockerfile's build stage runs `npm ci` and `ng build` itself, so this job doesn't need Node.js installed.
 
-Let's create a pipeline for deploying to multiple environments.
+### Speed up builds with the Angular cache
 
-```yaml
-# .github/workflows/multi-env.yml
-name: Multi-Environment Deployment
+The Angular CLI keeps a build cache in `.angular/cache`, but by default it's **only enabled outside CI**. Turn it on for CI and persist it between runs:
 
-on:
-  push:
-    branches: [ main, develop, staging ]
-
-jobs:
-  determine-environment:
-    runs-on: ubuntu-latest
-    outputs:
-      environment: ${{ steps.set-env.outputs.environment }}
-      url: ${{ steps.set-env.outputs.url }}
-    steps:
-      - name: Set environment
-        id: set-env
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "environment=production" >> $GITHUB_OUTPUT
-            echo "url=https://example.com" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
-            echo "environment=staging" >> $GITHUB_OUTPUT
-            echo "url=https://staging.example.com" >> $GITHUB_OUTPUT
-          else
-            echo "environment=development" >> $GITHUB_OUTPUT
-            echo "url=https://dev.example.com" >> $GITHUB_OUTPUT
-          fi
-
-  build-and-deploy:
-    needs: determine-environment
-    runs-on: ubuntu-latest
-    environment:
-      name: ${{ needs.determine-environment.outputs.environment }}
-      url: ${{ needs.determine-environment.outputs.url }}
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build -- --configuration ${{ needs.determine-environment.outputs.environment }}
-
-      - name: Deploy
-        run: |
-          echo "Deploying to ${{ needs.determine-environment.outputs.environment }}"
-          # Add deployment commands here
-```
-
-### 3. **Automated Testing with Cypress**
-
-Let's add E2E testing to the pipeline.
-
-```yaml
-# .github/workflows/e2e-tests.yml
-name: E2E Tests
-
-on:
-  pull_request:
-    branches: [ main, develop ]
-
-jobs:
-  cypress-run:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        browser: [chrome, firefox, edge]
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Cypress run
-        uses: cypress-io/github-action@v6
-        with:
-          build: npm run build
-          start: npm start
-          wait-on: 'http://localhost:4200'
-          wait-on-timeout: 120
-          browser: ${{ matrix.browser }}
-          record: true
-          parallel: true
-        env:
-          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload screenshots
-        uses: actions/upload-artifact@v3
-        if: failure()
-        with:
-          name: cypress-screenshots-${{ matrix.browser }}
-          path: cypress/screenshots
-
-      - name: Upload videos
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: cypress-videos-${{ matrix.browser }}
-          path: cypress/videos
-```
-
-### 4. **Azure DevOps Pipeline**
-
-Let's create an Azure DevOps pipeline.
-
-```yaml
-# azure-pipelines.yml
-trigger:
-  branches:
-    include:
-      - main
-      - develop
-
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  nodeVersion: '20.x'
-  buildConfiguration: 'production'
-
-stages:
-  - stage: Build
-    displayName: 'Build Stage'
-    jobs:
-      - job: BuildJob
-        displayName: 'Build Angular App'
-        steps:
-          - task: NodeTool@0
-            inputs:
-              versionSpec: $(nodeVersion)
-            displayName: 'Install Node.js'
-
-          - task: Npm@1
-            inputs:
-              command: 'ci'
-            displayName: 'npm ci'
-
-          - task: Npm@1
-            inputs:
-              command: 'custom'
-              customCommand: 'run lint'
-            displayName: 'Run Linter'
-
-          - task: Npm@1
-            inputs:
-              command: 'custom'
-              customCommand: 'run test:ci'
-            displayName: 'Run Tests'
-
-          - task: PublishTestResults@2
-            inputs:
-              testResultsFormat: 'JUnit'
-              testResultsFiles: '**/TESTS-*.xml'
-            displayName: 'Publish Test Results'
-
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: 'Cobertura'
-              summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage/cobertura-coverage.xml'
-            displayName: 'Publish Code Coverage'
-
-          - task: Npm@1
-            inputs:
-              command: 'custom'
-              customCommand: 'run build -- --configuration $(buildConfiguration)'
-            displayName: 'Build Application'
-
-          - task: PublishBuildArtifacts@1
-            inputs:
-              PathtoPublish: 'dist'
-              ArtifactName: 'dist'
-            displayName: 'Publish Artifacts'
-
-  - stage: Deploy
-    displayName: 'Deploy Stage'
-    dependsOn: Build
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    jobs:
-      - deployment: DeployProduction
-        displayName: 'Deploy to Production'
-        environment: 'production'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - task: DownloadBuildArtifacts@1
-                  inputs:
-                    buildType: 'current'
-                    downloadType: 'single'
-                    artifactName: 'dist'
-                    downloadPath: '$(System.ArtifactsDirectory)'
-
-                - task: AzureWebApp@1
-                  inputs:
-                    azureSubscription: 'Azure-Subscription'
-                    appType: 'webApp'
-                    appName: 'your-app-name'
-                    package: '$(System.ArtifactsDirectory)/dist'
-```
-
-### 5. **Jenkins Pipeline**
-
-Let's create a Jenkinsfile for Jenkins CI/CD.
-
-```groovy
-// Jenkinsfile
-pipeline {
-    agent {
-        docker {
-            image 'node:20-alpine'
-        }
-    }
-
-    environment {
-        npm_config_cache = 'npm-cache'
-        HOME = '.'
-    }
-
-    stages {
-        stage('Install') {
-            steps {
-                sh 'npm ci'
-            }
-        }
-
-        stage('Lint') {
-            steps {
-                sh 'npm run lint'
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh 'npm run test:ci'
-            }
-            post {
-                always {
-                    junit 'coverage/junit.xml'
-                    publishHTML([
-                        reportDir: 'coverage',
-                        reportFiles: 'index.html',
-                        reportName: 'Coverage Report'
-                    ])
-                }
-            }
-        }
-
-        stage('Build') {
-            steps {
-                sh 'npm run build -- --configuration production'
-            }
-        }
-
-        stage('Deploy to Staging') {
-            when {
-                branch 'develop'
-            }
-            steps {
-                sh '''
-                    npm install -g netlify-cli
-                    netlify deploy --dir=dist/your-app/browser --site=$NETLIFY_STAGING_SITE_ID --auth=$NETLIFY_AUTH_TOKEN
-                '''
-            }
-        }
-
-        stage('Deploy to Production') {
-            when {
-                branch 'main'
-            }
-            steps {
-                input message: 'Deploy to production?', ok: 'Deploy'
-                sh '''
-                    npm install -g netlify-cli
-                    netlify deploy --prod --dir=dist/your-app/browser --site=$NETLIFY_SITE_ID --auth=$NETLIFY_AUTH_TOKEN
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            cleanWs()
-        }
-        success {
-            echo 'Pipeline succeeded!'
-        }
-        failure {
-            echo 'Pipeline failed!'
-        }
-    }
+```json title="angular.json (excerpt)"
+{
+  "cli": {
+    "cache": { "environment": "all" }
+  }
 }
 ```
 
-## ✅ Best Practices
-
-### 1. **Use Caching**
-
 ```yaml
-# ✅ Good - Cache dependencies
-- uses: actions/cache@v3
-  with:
-    path: node_modules
-    key: ${{ hashFiles('package-lock.json') }}
-
-# ❌ Avoid - No caching
-- run: npm install
+      - uses: actions/cache@v6
+        with:
+          path: .angular/cache
+          key: ng-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: ng-cache-${{ runner.os }}-
 ```
 
-### 2. **Parallel Jobs**
+### Testing on several Node versions (libraries)
+
+Apps usually test on one Node version. Libraries can use a matrix of the versions Angular supports:
 
 ```yaml
-# ✅ Good - Run tests in parallel
-jobs:
-  test:
     strategy:
       matrix:
-        node: [18, 20]
-        os: [ubuntu-latest, windows-latest]
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
 ```
 
-### 3. **Environment Secrets**
+## Other CI providers (short versions)
 
-```yaml
-# ✅ Good - Use secrets
-env:
-  API_KEY: ${{ secrets.API_KEY }}
+The commands don't change — only the YAML around them.
 
-# ❌ Avoid - Hardcoded values
-env:
-  API_KEY: 'my-api-key'
+### GitLab CI
+
+```yaml title=".gitlab-ci.yml"
+image: node:24
+
+stages: [test, build, deploy]
+
+cache:
+  key:
+    files: [package-lock.json]
+  paths: [.npm/]
+
+default:
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+
+unit:
+  stage: test
+  script:
+    - npx ng test --coverage
+
+e2e:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.65.0-noble   # match your @playwright/test version
+  script:
+    - npx playwright test
+
+build:
+  stage: build
+  script:
+    - npx ng build
+  artifacts:
+    paths: [dist/]
+    expire_in: 1 week
+
+deploy:
+  stage: deploy
+  script:
+    - npx netlify-cli deploy --prod --dir=dist/my-app/browser
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
 ```
 
-### 4. **Fail Fast**
+### Azure Pipelines
 
-```yaml
-# ✅ Good - Fail fast on errors
-- name: Run tests
-  run: npm test
-  continue-on-error: false
+```yaml title="azure-pipelines.yml"
+trigger: [main]
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '24.x'
+  - script: npm ci
+  - script: npx ng test --coverage
+  - script: npx ng build
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: dist/my-app
+      artifact: dist
 ```
 
-### 5. **Artifact Management**
+### Jenkins
 
-```yaml
-# ✅ Good - Upload artifacts
-- uses: actions/upload-artifact@v3
-  with:
-    name: build
-    path: dist/
-    retention-days: 7
+```groovy title="Jenkinsfile"
+pipeline {
+  agent { docker { image 'node:24' } }
+  environment { CI = 'true' }
+  stages {
+    stage('Install') { steps { sh 'npm ci' } }
+    stage('Test')    { steps { sh 'npx ng test --coverage' } }
+    stage('Build')   { steps { sh 'npx ng build' } }
+    stage('Deploy') {
+      when { branch 'main' }
+      steps { sh 'npx netlify-cli deploy --prod --dir=dist/my-app/browser' }
+    }
+  }
+}
 ```
 
-## 🎯 CI/CD Checklist
+Jenkins doesn't always set `CI`, which is why the example sets it — otherwise `ng test` would start in watch mode and never finish.
 
-- [ ] Automated testing on every commit
-- [ ] Code quality checks (linting)
-- [ ] Build verification
-- [ ] Automated deployments
-- [ ] Environment-specific configurations
-- [ ] Secrets management
-- [ ] Rollback strategy
-- [ ] Monitoring and notifications
-- [ ] Documentation
+## Best practices
 
-## 🎓 Learning Checklist
+- **Fail fast on pull requests** — run lint, unit tests and the build on every PR and make them required checks (branch protection).
+- **Build once** — deploy the artifact (or image) produced by the pipeline; don't rebuild on the server.
+- **Keep secrets in the CI secret store** — `${{ secrets.NAME }}`, GitLab CI/CD variables, etc. Never commit tokens, and remember anything in Angular environment files ends up public.
+- **Least-privilege permissions** — set `permissions:` per workflow/job in GitHub Actions.
+- **Pin tool versions** — commit `package-lock.json`, pin Node major versions and action versions.
+- **Keep artifacts short-lived** — `retention-days` saves storage.
+- **Upload reports on failure** — Playwright traces and HTML reports make flaky failures debuggable.
 
-- [ ] Understand CI/CD concepts
-- [ ] Set up GitHub Actions
-- [ ] Configure GitLab CI/CD
-- [ ] Create Azure DevOps pipelines
-- [ ] Write Jenkinsfiles
-- [ ] Implement automated testing
-- [ ] Manage secrets securely
-- [ ] Deploy to multiple environments
+## Common mistakes
 
-## 🚀 Next Steps
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ng test` never finishes | Watch mode because `CI` isn't set | Set `CI=true` or pass `--no-watch` |
+| `EBADENGINE` / engine error | Node 20 in the pipeline | Use Node 24 (or 22.22.3+/26) |
+| `npm ci` fails: lock file out of sync | `package.json` changed without updating the lock | Run `npm install` locally and commit `package-lock.json` |
+| Playwright: "Executable doesn't exist" | Browsers not installed | `npx playwright install --with-deps` |
+| Coverage flag fails | Missing `@vitest/coverage-v8` | Install it as a dev dependency |
+| Deployed site 404s on refresh | Host lacks SPA fallback | See [Deployment Strategies](/deployment/strategies/) |
+| Using Karma's `--browsers=ChromeHeadless` after migrating | Vitest uses Playwright/WebdriverIO browser names | `--browsers=chromiumHeadless` (Playwright provider) |
 
-1. **[Deployment Strategies](/deployment/strategies/)** - Choose deployment approach
-2. **[Docker & Containers](/deployment/docker/)** - Containerize applications
-3. **[Performance Optimization](/advanced/performance/)** - Optimize before deploying
+## Key takeaways
 
----
+- Every Angular pipeline is `npm ci` → `ng lint` → `ng test` → `ng build` → (e2e) → deploy.
+- `ng test` uses Vitest and runs once, headless, when `CI` is set.
+- Use Node 24 (or 22.22.3+/26) — Angular 22 dropped Node 20.
+- Pass `dist/` between jobs as an artifact so you deploy exactly what you tested.
+- Only the deploy step is host-specific.
 
-**Pro Tip**: Start simple and iterate! Begin with basic CI (build + test), then add CD (deployment). Use branch protection rules and require CI checks before merging. Monitor pipeline performance and optimize caching! ⚙️
+## Next steps
+
+1. **[Deployment Strategies](/deployment/strategies/)** — host-specific configuration
+2. **[Docker & Containers](/deployment/docker/)** — containerized deployments
+3. **[E2E Testing](/testing/e2e-testing/)** — write reliable Playwright tests

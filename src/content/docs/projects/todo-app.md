@@ -1,824 +1,857 @@
 ---
-title: Todo App with Signals
-description: Build a complete todo application using Angular Signals, standalone components, and modern best practices
+title: Todo App with Signals ✅
+description: Build a complete Angular 22 todo app step by step with signals, an @Service store, Signal Forms, route-based filters, localStorage and Vitest tests.
 sidebar:
   order: 1
 ---
 
-Build a fully functional Todo App using **Angular Signals**, **standalone components**, and **modern Angular best practices**. This project covers CRUD operations, local storage, filtering, and more!
+In this project you build a complete **Todo app** with modern Angular 22, from `ng new` to passing tests. Every file is shown in full, so you can follow along from start to finish and end up with a working app.
 
-## 🎯 What You'll Build
+## What you'll build
 
-A modern Todo application with:
+- ✅ Add todos with a validated **Signal Form**
+- ✅ Toggle, edit (double-click), and delete todos
+- ✅ "Mark all as complete" and "Clear completed"
+- ✅ Filters **All / Active / Completed** that live in the URL (`/all`, `/active`, `/completed`)
+- ✅ Todos saved to `localStorage`, so they survive a page refresh
+- ✅ Unit tests with **Vitest**
 
-- ✅ Add, edit, delete, and toggle todos
-- ✅ Filter by status (All, Active, Completed)
-- ✅ Mark all as complete
-- ✅ Clear completed todos
-- ✅ Persist data in localStorage
-- ✅ Responsive design
-- ✅ TypeScript strict mode
-- ✅ Signal-based state management
+## What you'll learn
 
-## 📋 Prerequisites
+- How to keep app state in a **signal store** made with `@Service()`, `signal()`, and `computed()`
+- How to save state automatically with `effect()`
+- How to build a form with **Signal Forms** (`form()`, `[formField]`, `[formRoot]`)
+- How to split the UI into small components with `input()` and `output()`
+- How to read a **route parameter as a component input** with `withComponentInputBinding()`
+- How to test a store and a component with Vitest and `TestBed`
 
-Before starting this project, make sure you have:
+## Prerequisites
 
-- **Node.js** (v18 or higher) installed
-- **Angular CLI** installed globally
-- Basic understanding of TypeScript
-- Familiarity with Angular components and signals
+- **Node.js** `^22.22.3`, `^24.15.0`, or `^26` (required by Angular 22)
+- Basic TypeScript, and a rough idea of what a component is
+- New to the setup? Read [Prerequisites](/prerequisites/) and [Setup](/setup/) first.
 
-**For project setup instructions, please refer to:**
-- [Prerequisites & Setup Guide](/getting-started/prerequisites/)
-- [Creating Your First App](/getting-started/first-app/)
+## Step 1: Create the project
 
-## 🚀 Project Setup
-
-### Step 1: Create New Angular Project
+Install the Angular CLI (once), then create the app:
 
 ```bash
-ng new todo-app --routing=false --style=css --strict
+npm install -g @angular/cli@22
+ng new todo-app --style=css --ssr=false --ai-config=none
 cd todo-app
 ```
 
-**Options explained:**
-- `--routing=false` - We don't need routing for this simple app
-- `--style=css` - Use CSS for styling
-- `--strict` - Enable strict TypeScript checking
+The flags skip the interactive questions. Routing is turned on by default, and we use it for the filters.
 
-### Step 2: Project Structure
+A new Angular 22 project already gives you the modern defaults:
 
-Create the following folder structure:
+| Default | What it means for this project |
+|---|---|
+| Standalone components | No NgModules anywhere |
+| Zoneless change detection | No `zone.js`. Signals tell Angular what to update. |
+| `OnPush` change detection | OnPush is the default since v22, so we never write `changeDetection` |
+| Vitest | `ng test` runs Vitest |
+| Strict TypeScript and strict templates | Template mistakes become build errors |
 
-```
-src/app/
-├── components/
-│   ├── todo-list/
-│   │   └── todo-list.component.ts
-│   ├── todo-item/
-│   │   └── todo-item.component.ts
-│   ├── todo-form/
-│   │   └── todo-form.component.ts
-│   └── todo-filters/
-│       └── todo-filters.component.ts
-├── models/
-│   └── todo.model.ts
-├── services/
-│   └── todo.service.ts
-└── app.component.ts
+Start the dev server to check that everything works, then stop it with `Ctrl+C`:
+
+```bash
+ng serve
 ```
 
-## 📝 Step-by-Step Implementation
+## Step 2: Plan the files
 
-### Step 1: Create the Todo Model
+We put everything about todos in one folder. Each file has one job:
 
-Create `src/app/models/todo.model.ts`:
+```text
+src/
+├── styles.css                 ← global styles (Step 10)
+└── app/
+    ├── app.ts                 ← root component: <router-outlet />
+    ├── app.config.ts          ← providers (router)
+    ├── app.routes.ts          ← /all, /active, /completed
+    └── todos/
+        ├── todo.ts            ← Todo type + helper functions
+        ├── todo-store.ts      ← state + actions (signals)
+        ├── todo-form.ts       ← "What needs to be done?" form
+        ├── todo-item.ts       ← one todo row
+        ├── todo-footer.ts     ← counter, filters, "Clear completed"
+        ├── todo-page.ts       ← puts it all together
+        ├── todo-store.spec.ts ← store tests
+        └── todo-page.spec.ts  ← component test
+```
 
-```typescript
+Data flows in one direction. Components **read** signals from the store and **call** store methods. They never change the data directly.
+
+```text
+TodoForm ──add()──────────┐
+TodoItem ──(outputs)──► TodoPage ──toggle()/remove()/rename()──► TodoStore
+TodoFooter ──(output)─────┘                                         │
+        ▲                                                           │
+        └──────────── todos(), activeCount(), … (signals) ──────────┘
+```
+
+## Step 3: The Todo model
+
+Create `src/app/todos/todo.ts`. It holds the `Todo` type, the filter type, and two small helper functions:
+
+```ts title="src/app/todos/todo.ts"
 export interface Todo {
   id: string;
   title: string;
   completed: boolean;
-  createdAt: Date;
 }
 
-export type FilterType = 'all' | 'active' | 'completed';
+export type TodoFilter = 'all' | 'active' | 'completed';
+
+export function toTodoFilter(value: string | undefined): TodoFilter {
+  return value === 'active' || value === 'completed' ? value : 'all';
+}
+
+export function filterTodos(todos: Todo[], filter: TodoFilter): Todo[] {
+  switch (filter) {
+    case 'active':
+      return todos.filter((todo) => !todo.completed);
+    case 'completed':
+      return todos.filter((todo) => todo.completed);
+    default:
+      return todos;
+  }
+}
 ```
 
-### Step 2: Create the Todo Service
+- `toTodoFilter()` turns any text from the URL into a safe `TodoFilter`. Unknown values become `'all'`.
+- `filterTodos()` is a **pure function**: same input, same output, no side effects. Pure functions are easy to test and easy to use inside `computed()`.
 
-Create `src/app/services/todo.service.ts`:
+## Step 4: The store (state + actions)
 
-```typescript
-import { Injectable, signal, computed } from '@angular/core';
-import { Todo, FilterType } from '../models/todo.model';
+The store is a service that owns the list of todos. Create `src/app/todos/todo-store.ts`:
 
-@Injectable({
-  providedIn: 'root'
-})
-export class TodoService {
-  // State
-  private todos = signal<Todo[]>(this.loadFromStorage());
-  private filter = signal<FilterType>('all');
+```ts title="src/app/todos/todo-store.ts"
+import { Service, computed, effect, signal } from '@angular/core';
+import { Todo } from './todo';
 
-  // Public read-only signals
-  allTodos = this.todos.asReadonly();
-  currentFilter = this.filter.asReadonly();
+const STORAGE_KEY = 'ng-guide-todos';
 
-  // Computed values
-  filteredTodos = computed(() => {
-    const todos = this.todos();
-    const filterType = this.filter();
+@Service()
+export class TodoStore {
+  // Private, writable state. Only this class can change it.
+  private readonly _todos = signal<Todo[]>(loadTodos());
 
-    switch (filterType) {
-      case 'active':
-        return todos.filter(todo => !todo.completed);
-      case 'completed':
-        return todos.filter(todo => todo.completed);
-      default:
-        return todos;
+  // Public, read-only state and derived values.
+  readonly todos = this._todos.asReadonly();
+  readonly activeCount = computed(() => this._todos().filter((todo) => !todo.completed).length);
+  readonly completedCount = computed(() => this._todos().length - this.activeCount());
+  readonly allCompleted = computed(() => this._todos().length > 0 && this.activeCount() === 0);
+
+  constructor() {
+    // Runs once now and again every time `_todos` changes.
+    effect(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this._todos()));
+    });
+  }
+
+  add(title: string): void {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const todo: Todo = { id: crypto.randomUUID(), title: trimmed, completed: false };
+    this._todos.update((todos) => [...todos, todo]);
+  }
+
+  toggle(id: string): void {
+    this._todos.update((todos) =>
+      todos.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)),
+    );
+  }
+
+  rename(id: string, title: string): void {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      this.remove(id);
+      return;
     }
-  });
-
-  activeCount = computed(() => 
-    this.todos().filter(todo => !todo.completed).length
-  );
-
-  completedCount = computed(() => 
-    this.todos().filter(todo => todo.completed).length
-  );
-
-  // Actions
-  addTodo(title: string): void {
-    if (!title.trim()) return;
-
-    const newTodo: Todo = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      completed: false,
-      createdAt: new Date()
-    };
-
-    this.todos.update(todos => [...todos, newTodo]);
-    this.saveToStorage();
-  }
-
-  toggleTodo(id: string): void {
-    this.todos.update(todos =>
-      todos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
+    this._todos.update((todos) =>
+      todos.map((todo) => (todo.id === id ? { ...todo, title: trimmed } : todo)),
     );
-    this.saveToStorage();
   }
 
-  deleteTodo(id: string): void {
-    this.todos.update(todos => todos.filter(todo => todo.id !== id));
-    this.saveToStorage();
-  }
-
-  updateTodo(id: string, title: string): void {
-    if (!title.trim()) return;
-
-    this.todos.update(todos =>
-      todos.map(todo =>
-        todo.id === id ? { ...todo, title: title.trim() } : todo
-      )
-    );
-    this.saveToStorage();
+  remove(id: string): void {
+    this._todos.update((todos) => todos.filter((todo) => todo.id !== id));
   }
 
   toggleAll(): void {
-    const allCompleted = this.todos().every(todo => todo.completed);
-    
-    this.todos.update(todos =>
-      todos.map(todo => ({ ...todo, completed: !allCompleted }))
-    );
-    this.saveToStorage();
+    const completed = !this.allCompleted();
+    this._todos.update((todos) => todos.map((todo) => ({ ...todo, completed })));
   }
 
   clearCompleted(): void {
-    this.todos.update(todos => todos.filter(todo => !todo.completed));
-    this.saveToStorage();
+    this._todos.update((todos) => todos.filter((todo) => !todo.completed));
   }
+}
 
-  setFilter(filter: FilterType): void {
-    this.filter.set(filter);
-  }
-
-  // LocalStorage
-  private saveToStorage(): void {
-    localStorage.setItem('todos', JSON.stringify(this.todos()));
-  }
-
-  private loadFromStorage(): Todo[] {
-    const stored = localStorage.getItem('todos');
-    if (!stored) return [];
-
-    try {
-      const parsed = JSON.parse(stored);
-      return parsed.map((todo: any) => ({
-        ...todo,
-        createdAt: new Date(todo.createdAt)
-      }));
-    } catch {
-      return [];
-    }
+function loadTodos(): Todo[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? (JSON.parse(saved) as Todo[]) : [];
+  } catch {
+    return [];
   }
 }
 ```
 
-### Step 3: Create Todo Form Component
+Here is what each part does:
 
-Create `src/app/components/todo-form/todo-form.component.ts`:
+| Code | Why |
+|---|---|
+| `@Service()` | Makes one shared instance for the whole app (auto-provided in root). |
+| `private readonly _todos = signal(...)` | The only writable state. Only the store can change it. |
+| `this._todos.asReadonly()` | Components can read `todos()`, but they can't call `.set()` on it. |
+| `computed(...)` | Derived values. They update automatically and are cached until `_todos` changes. |
+| `effect(...)` in the constructor | Runs once, then runs again whenever `_todos` changes, and saves the list to `localStorage`. |
+| `update(todos => [...])` | Always creates a **new** array or object. Signals compare by reference, so changing an array in place would not notify anyone. |
 
-```typescript
-import { Component, signal, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { TodoService } from '../../services/todo.service';
+:::note[Angular 21 and earlier]
+`@Service()` is new in Angular 22. On older versions, use `@Injectable({ providedIn: 'root' })` instead. The rest of the class stays the same.
+:::
+
+:::tip[Why not save in every method?]
+With an `effect()`, saving happens in one place. When you add a new action later (for example `duplicate()`), it is saved automatically.
+:::
+
+## Step 5: The "new todo" form (Signal Forms)
+
+Create `src/app/todos/todo-form.ts`:
+
+```ts title="src/app/todos/todo-form.ts"
+import { Component, inject, signal } from '@angular/core';
+import { form, FormField, FormRoot, maxLength, required } from '@angular/forms/signals';
+import { TodoStore } from './todo-store';
 
 @Component({
   selector: 'app-todo-form',
-  imports: [FormsModule],
+  imports: [FormField, FormRoot],
   template: `
-    <form (submit)="onSubmit($event)" class="todo-form">
+    <form [formRoot]="todoForm">
       <input
-        type="text"
-        [(ngModel)]="newTodoTitle"
+        class="new-todo"
         placeholder="What needs to be done?"
-        class="todo-input"
-        [disabled]="isSubmitting()"
-      >
+        aria-label="New todo"
+        autocomplete="off"
+        [formField]="todoForm.title"
+      />
+      @if (todoForm.title().touched() && todoForm.title().invalid()) {
+        <p class="error" role="alert">{{ todoForm.title().errors()[0].message }}</p>
+      }
     </form>
   `,
-  styles: [`
-    .todo-form {
-      margin-bottom: 20px;
-    }
-
-    .todo-input {
-      width: 100%;
-      padding: 16px;
-      font-size: 24px;
-      border: none;
-      border-bottom: 1px solid #ededed;
-      outline: none;
-      box-sizing: border-box;
-    }
-
-    .todo-input::placeholder {
-      font-style: italic;
-      color: #e6e6e6;
-    }
-
-    .todo-input:disabled {
-      opacity: 0.6;
-    }
-  `]
 })
-export class TodoFormComponent {
-  private todoService = inject(TodoService);
-  
-  newTodoTitle = '';
-  isSubmitting = signal(false);
+export class TodoForm {
+  private readonly store = inject(TodoStore);
 
-  onSubmit(event: Event): void {
-    event.preventDefault();
-    
-    if (!this.newTodoTitle.trim()) return;
+  protected readonly model = signal({ title: '' });
 
-    this.isSubmitting.set(true);
-    this.todoService.addTodo(this.newTodoTitle);
-    this.newTodoTitle = '';
-    this.isSubmitting.set(false);
-  }
+  protected readonly todoForm = form(
+    this.model,
+    (path) => {
+      required(path.title, { message: 'Type something first.' });
+      maxLength(path.title, 100, { message: 'Keep it under 100 characters.' });
+    },
+    {
+      submission: {
+        action: async (field) => {
+          this.store.add(field.title().value());
+          field().reset({ title: '' });
+        },
+      },
+    },
+  );
 }
 ```
 
-### Step 4: Create Todo Item Component
+How Signal Forms work here:
 
-Create `src/app/components/todo-item/todo-item.component.ts`:
+1. **The model is a signal.** `model = signal({ title: '' })` is the single source of truth for the form's value.
+2. **`form(model, schema, options)`** creates a *field tree*. `todoForm.title` is the field for `model().title`.
+3. **The schema function** adds validation rules: `required()` and `maxLength()`, each with a friendly message.
+4. **`[formField]="todoForm.title"`** connects the `<input>` to the field in both directions. You don't need `FormsModule` or `ngModel`.
+5. **`[formRoot]="todoForm"`** on the `<form>` stops the page from reloading and calls `submit()` when the user presses <kbd>Enter</kbd>.
+6. **`submission.action`** runs only when the form is valid. It adds the todo, then calls `field().reset({ title: '' })` to clear the value and the *touched* and *dirty* flags.
+7. Calling a field gives you its state: `todoForm.title().touched()`, `.invalid()`, `.errors()`. We show the first error only after the user has touched the field.
 
-```typescript
-import { Component, input, output, signal, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Todo } from '../../models/todo.model';
-import { TodoService } from '../../services/todo.service';
+:::note[Signal Forms are stable]
+Signal Forms (`@angular/forms/signals`) are stable in Angular 22. In v21 they were experimental. Read the [Signal Forms guide](/modern/signal-forms/) to learn more.
+:::
+
+## Step 6: One todo row
+
+Create `src/app/todos/todo-item.ts`. This is a **presentational** component. It gets a todo through an input and reports what the user did through outputs. It doesn't know the store exists.
+
+```ts title="src/app/todos/todo-item.ts"
+import {
+  Component,
+  ElementRef,
+  afterRenderEffect,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { Todo } from './todo';
 
 @Component({
   selector: 'app-todo-item',
-  imports: [FormsModule],
+  host: {
+    '[class.completed]': 'todo().completed',
+    '[class.editing]': 'editing()',
+  },
   template: `
-    <li [class.completed]="todo().completed" [class.editing]="isEditing()">
+    @if (editing()) {
+      <input
+        #editInput
+        class="edit"
+        aria-label="Edit todo"
+        [value]="todo().title"
+        (keydown.enter)="save(editInput.value)"
+        (keydown.escape)="cancel()"
+        (blur)="save(editInput.value)"
+      />
+    } @else {
       <div class="view">
         <input
           type="checkbox"
           class="toggle"
           [checked]="todo().completed"
-          (change)="onToggle()"
-        >
-        <label (dblclick)="startEdit()">{{ todo().title }}</label>
-        <button class="destroy" (click)="onDelete()"></button>
-      </div>
-      
-      @if (isEditing()) {
-        <input
-          #editInput
-          type="text"
-          class="edit"
-          [(ngModel)]="editTitle"
-          (blur)="finishEdit()"
-          (keyup.enter)="finishEdit()"
-          (keyup.escape)="cancelEdit()"
-        >
-      }
-    </li>
-  `,
-  styles: [`
-    li {
-      position: relative;
-      font-size: 24px;
-      border-bottom: 1px solid #ededed;
-      list-style: none;
-    }
-
-    li:last-child {
-      border-bottom: none;
-    }
-
-    li.editing {
-      border-bottom: none;
-      padding: 0;
-    }
-
-    li.editing .view {
-      display: none;
-    }
-
-    li.completed label {
-      color: #d9d9d9;
-      text-decoration: line-through;
-    }
-
-    .view {
-      display: flex;
-      align-items: center;
-      padding: 15px;
-    }
-
-    .toggle {
-      width: 40px;
-      height: 40px;
-      margin-right: 15px;
-      cursor: pointer;
-    }
-
-    label {
-      flex: 1;
-      cursor: pointer;
-      word-break: break-all;
-    }
-
-    .destroy {
-      width: 40px;
-      height: 40px;
-      margin-left: auto;
-      border: none;
-      background: none;
-      font-size: 30px;
-      color: #cc9a9a;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-
-    .destroy:after {
-      content: '×';
-    }
-
-    li:hover .destroy {
-      opacity: 1;
-    }
-
-    .edit {
-      width: 100%;
-      padding: 12px 16px;
-      font-size: 24px;
-      border: 1px solid #999;
-      box-shadow: inset 0 -1px 5px 0 rgba(0, 0, 0, 0.2);
-      box-sizing: border-box;
-    }
-  `]
-})
-export class TodoItemComponent {
-  private todoService = inject(TodoService);
-  
-  todo = input.required<Todo>();
-  
-  isEditing = signal(false);
-  editTitle = '';
-
-  onToggle(): void {
-    this.todoService.toggleTodo(this.todo().id);
-  }
-
-  onDelete(): void {
-    this.todoService.deleteTodo(this.todo().id);
-  }
-
-  startEdit(): void {
-    this.editTitle = this.todo().title;
-    this.isEditing.set(true);
-  }
-
-  finishEdit(): void {
-    if (this.isEditing()) {
-      this.todoService.updateTodo(this.todo().id, this.editTitle);
-      this.isEditing.set(false);
-    }
-  }
-
-  cancelEdit(): void {
-    this.isEditing.set(false);
-  }
-}
-```
-
-### Step 5: Create Todo Filters Component
-
-Create `src/app/components/todo-filters/todo-filters.component.ts`:
-
-```typescript
-import { Component, inject } from '@angular/core';
-import { TodoService } from '../../services/todo.service';
-import { FilterType } from '../../models/todo.model';
-
-@Component({
-  selector: 'app-todo-filters',
-  template: `
-    <footer class="footer">
-      <span class="todo-count">
-        <strong>{{ todoService.activeCount() }}</strong>
-        {{ todoService.activeCount() === 1 ? 'item' : 'items' }} left
-      </span>
-
-      <ul class="filters">
-        <li>
-          <a
-            [class.selected]="todoService.currentFilter() === 'all'"
-            (click)="setFilter('all')"
-          >
-            All
-          </a>
-        </li>
-        <li>
-          <a
-            [class.selected]="todoService.currentFilter() === 'active'"
-            (click)="setFilter('active')"
-          >
-            Active
-          </a>
-        </li>
-        <li>
-          <a
-            [class.selected]="todoService.currentFilter() === 'completed'"
-            (click)="setFilter('completed')"
-          >
-            Completed
-          </a>
-        </li>
-      </ul>
-
-      @if (todoService.completedCount() > 0) {
-        <button class="clear-completed" (click)="clearCompleted()">
-          Clear completed
+          [attr.aria-label]="'Toggle ' + todo().title"
+          (change)="toggled.emit()"
+        />
+        <label (dblclick)="editing.set(true)">{{ todo().title }}</label>
+        <button type="button" class="destroy" aria-label="Delete todo" (click)="removed.emit()">
+          ×
         </button>
-      }
-    </footer>
+      </div>
+    }
   `,
-  styles: [`
-    .footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 15px;
-      color: #777;
-      border-top: 1px solid #e6e6e6;
-    }
-
-    .todo-count {
-      text-align: left;
-    }
-
-    .filters {
-      display: flex;
-      gap: 10px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .filters a {
-      padding: 3px 7px;
-      border: 1px solid transparent;
-      border-radius: 3px;
-      cursor: pointer;
-      text-decoration: none;
-      color: inherit;
-    }
-
-    .filters a:hover {
-      border-color: rgba(175, 47, 47, 0.1);
-    }
-
-    .filters a.selected {
-      border-color: rgba(175, 47, 47, 0.2);
-    }
-
-    .clear-completed {
-      padding: 0;
-      border: none;
-      background: none;
-      cursor: pointer;
-      color: inherit;
-    }
-
-    .clear-completed:hover {
-      text-decoration: underline;
-    }
-  `]
 })
-export class TodoFiltersComponent {
-  todoService = inject(TodoService);
+export class TodoItem {
+  readonly todo = input.required<Todo>();
 
-  setFilter(filter: FilterType): void {
-    this.todoService.setFilter(filter);
+  readonly toggled = output<void>();
+  readonly removed = output<void>();
+  readonly renamed = output<string>();
+
+  protected readonly editing = signal(false);
+  private readonly editInput = viewChild<ElementRef<HTMLInputElement>>('editInput');
+
+  constructor() {
+    // Focus the edit box as soon as it appears in the DOM.
+    afterRenderEffect(() => this.editInput()?.nativeElement.focus());
   }
 
-  clearCompleted(): void {
-    this.todoService.clearCompleted();
+  protected save(title: string): void {
+    if (!this.editing()) return; // already saved or cancelled
+    this.editing.set(false);
+    this.renamed.emit(title);
+  }
+
+  protected cancel(): void {
+    this.editing.set(false);
   }
 }
 ```
 
-### Step 6: Create Todo List Component
+Things to notice:
 
-Create `src/app/components/todo-list/todo-list.component.ts`:
+- `input.required<Todo>()` means the parent **must** pass a todo. `todo()` reads it like any other signal.
+- `output<void>()` and `output<string>()` create events. The parent listens with `(toggled)="…"`.
+- The `host` object adds the CSS classes `completed` and `editing` to the `<app-todo-item>` element. Use `host` instead of `@HostBinding`.
+- `#editInput` is a **template reference variable**. `save(editInput.value)` reads the text straight from the DOM element, so we don't need a form for one input.
+- `viewChild()` is a **signal query**. It becomes the element once `@if (editing())` creates it. `afterRenderEffect()` runs after Angular updates the DOM, which makes it the right place to call `.focus()`.
+- `save()` checks `editing()` first. When <kbd>Enter</kbd> saves and hides the input, the browser may also fire `blur`. The check stops the todo from being saved twice.
 
-```typescript
-import { Component, inject } from '@angular/core';
-import { TodoService } from '../../services/todo.service';
-import { TodoItemComponent } from '../todo-item/todo-item.component';
+## Step 7: The footer (counter + filter links)
+
+Create `src/app/todos/todo-footer.ts`:
+
+```ts title="src/app/todos/todo-footer.ts"
+import { Component, input, output } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+import { TodoFilter } from './todo';
 
 @Component({
-  selector: 'app-todo-list',
-  imports: [TodoItemComponent],
+  selector: 'app-todo-footer',
+  imports: [RouterLink, RouterLinkActive],
+  host: { class: 'footer' },
   template: `
-    <section class="main">
-      @if (todoService.allTodos().length > 0) {
-        <input
-          id="toggle-all"
-          class="toggle-all"
-          type="checkbox"
-          [checked]="allCompleted()"
-          (change)="toggleAll()"
-        >
-        <label for="toggle-all">Mark all as complete</label>
+    <span class="todo-count">
+      <strong>{{ activeCount() }}</strong> {{ activeCount() === 1 ? 'item' : 'items' }} left
+    </span>
+
+    <nav class="filters" aria-label="Filter todos">
+      @for (link of links; track link.filter) {
+        <a [routerLink]="['/', link.filter]" routerLinkActive="selected" ariaCurrentWhenActive="page">
+          {{ link.label }}
+        </a>
       }
+    </nav>
 
-      <ul class="todo-list">
-        @for (todo of todoService.filteredTodos(); track todo.id) {
-          <app-todo-item [todo]="todo" />
-        }
-      </ul>
-    </section>
+    @if (completedCount() > 0) {
+      <button type="button" class="clear-completed" (click)="clearCompleted.emit()">
+        Clear completed
+      </button>
+    }
   `,
-  styles: [`
-    .main {
-      position: relative;
-      border-top: 1px solid #e6e6e6;
-    }
-
-    .toggle-all {
-      width: 1px;
-      height: 1px;
-      border: none;
-      opacity: 0;
-      position: absolute;
-    }
-
-    .toggle-all + label {
-      width: 60px;
-      height: 34px;
-      font-size: 0;
-      position: absolute;
-      top: -52px;
-      left: -13px;
-      transform: rotate(90deg);
-    }
-
-    .toggle-all + label:before {
-      content: '❯';
-      font-size: 22px;
-      color: #e6e6e6;
-      padding: 10px 27px;
-    }
-
-    .toggle-all:checked + label:before {
-      color: #737373;
-    }
-
-    .todo-list {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-  `]
 })
-export class TodoListComponent {
-  todoService = inject(TodoService);
+export class TodoFooter {
+  readonly activeCount = input.required<number>();
+  readonly completedCount = input.required<number>();
+  readonly clearCompleted = output<void>();
 
-  allCompleted(): boolean {
-    const todos = this.todoService.allTodos();
-    return todos.length > 0 && todos.every(todo => todo.completed);
-  }
-
-  toggleAll(): void {
-    this.todoService.toggleAll();
-  }
+  protected readonly links: { filter: TodoFilter; label: string }[] = [
+    { filter: 'all', label: 'All' },
+    { filter: 'active', label: 'Active' },
+    { filter: 'completed', label: 'Completed' },
+  ];
 }
 ```
 
-### Step 7: Update Main App Component
+The filters are plain links: `/all`, `/active`, `/completed`. `routerLinkActive="selected"` adds the `selected` class to the link for the current URL. `ariaCurrentWhenActive="page"` tells screen readers which filter is active. Because the filter lives in the URL, it survives a refresh, and the browser's Back button works too.
 
-Update `src/app/app.component.ts`:
+## Step 8: The page that puts it all together
 
-```typescript
-import { Component, inject } from '@angular/core';
-import { TodoFormComponent } from './components/todo-form/todo-form.component';
-import { TodoListComponent } from './components/todo-list/todo-list.component';
-import { TodoFiltersComponent } from './components/todo-filters/todo-filters.component';
-import { TodoService } from './services/todo.service';
+Create `src/app/todos/todo-page.ts`:
+
+```ts title="src/app/todos/todo-page.ts"
+import { Component, computed, inject, input } from '@angular/core';
+import { filterTodos, toTodoFilter, TodoFilter } from './todo';
+import { TodoFooter } from './todo-footer';
+import { TodoForm } from './todo-form';
+import { TodoItem } from './todo-item';
+import { TodoStore } from './todo-store';
 
 @Component({
-  selector: 'app-root',
-  imports: [
-    TodoFormComponent,
-    TodoListComponent,
-    TodoFiltersComponent
-  ],
+  selector: 'app-todo-page',
+  imports: [TodoForm, TodoItem, TodoFooter],
   template: `
-    <div class="todoapp">
+    <section class="todoapp">
       <header class="header">
         <h1>todos</h1>
         <app-todo-form />
       </header>
 
-      @if (todoService.allTodos().length > 0) {
-        <app-todo-list />
-        <app-todo-filters />
+      @if (store.todos().length > 0) {
+        <section class="main">
+          <label class="toggle-all">
+            <input type="checkbox" [checked]="store.allCompleted()" (change)="store.toggleAll()" />
+            Mark all as complete
+          </label>
+
+          <ul class="todo-list">
+            @for (todo of visibleTodos(); track todo.id) {
+              <li>
+                <app-todo-item
+                  [todo]="todo"
+                  (toggled)="store.toggle(todo.id)"
+                  (removed)="store.remove(todo.id)"
+                  (renamed)="store.rename(todo.id, $event)"
+                />
+              </li>
+            } @empty {
+              <li class="empty">Nothing to show here.</li>
+            }
+          </ul>
+        </section>
+
+        <app-todo-footer
+          [activeCount]="store.activeCount()"
+          [completedCount]="store.completedCount()"
+          (clearCompleted)="store.clearCompleted()"
+        />
       }
-    </div>
-
-    <footer class="info">
-      <p>Double-click to edit a todo</p>
-      <p>Created with Angular Signals</p>
-    </footer>
+    </section>
   `,
-  styles: [`
-    :host {
-      display: block;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      font-size: 14px;
-      color: #4d4d4d;
-      background: #f5f5f5;
-      min-height: 100vh;
-    }
-
-    .todoapp {
-      background: #fff;
-      margin: 130px auto 40px;
-      max-width: 550px;
-      box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2),
-                  0 25px 50px 0 rgba(0, 0, 0, 0.1);
-    }
-
-    .header h1 {
-      font-size: 100px;
-      font-weight: 100;
-      text-align: center;
-      color: rgba(175, 47, 47, 0.15);
-      margin: 0;
-      padding: 20px 0;
-    }
-
-    .info {
-      margin: 65px auto 0;
-      color: #bfbfbf;
-      font-size: 10px;
-      text-align: center;
-    }
-
-    .info p {
-      line-height: 1;
-    }
-  `]
 })
-export class AppComponent {
-  todoService = inject(TodoService);
+export class TodoPage {
+  protected readonly store = inject(TodoStore);
+
+  // Filled from the `:filter` route parameter by withComponentInputBinding().
+  readonly filter = input<TodoFilter, string | undefined>('all', { transform: toTodoFilter });
+
+  protected readonly visibleTodos = computed(() => filterTodos(this.store.todos(), this.filter()));
 }
 ```
 
-### Step 8: Update Global Styles
+- `filter` is an **input that the router fills in**. When the URL is `/active`, the router sets `filter` to `'active'`. The `transform` checks the value and turns anything unexpected into `'all'`.
+- `visibleTodos` is a `computed()` that combines two signals: the store's todos and the current filter. It updates when either one changes.
+- `@for (…; track todo.id)` tells Angular how to recognise each row. Then only the rows that changed are re-rendered. `@empty` shows a message when the filtered list is empty.
+- The page connects the item's outputs to store methods. For `(renamed)`, `$event` holds the new title.
 
-Update `src/styles.css`:
+## Step 9: Routes, config, and the root component
 
-```css
+Replace `src/app/app.routes.ts`:
+
+```ts title="src/app/app.routes.ts"
+import { Routes } from '@angular/router';
+import { TodoPage } from './todos/todo-page';
+
+export const routes: Routes = [
+  { path: '', redirectTo: 'all', pathMatch: 'full' },
+  { path: ':filter', component: TodoPage, title: 'Todos' },
+  { path: '**', redirectTo: 'all' },
+];
+```
+
+The `:filter` segment is a **route parameter**. Visiting `/` redirects to `/all`.
+
+Replace `src/app/app.config.ts`. The only change from the generated file is `withComponentInputBinding()`, which lets the router pass `:filter` to the `filter` input:
+
+```ts title="src/app/app.config.ts"
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { routes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes, withComponentInputBinding()),
+  ],
+};
+```
+
+Replace `src/app/app.ts`. It now uses an inline template, so you can **delete** `src/app/app.html` and `src/app/app.css`. Also delete `src/app/app.spec.ts`: the generated test looks for a welcome heading that no longer exists, and we write our own tests in Step 12.
+
+```ts title="src/app/app.ts"
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+
+@Component({
+  selector: 'app-root',
+  imports: [RouterOutlet],
+  template: `
+    <router-outlet />
+    <footer class="info">
+      <p>Double-click a todo to edit it</p>
+    </footer>
+  `,
+})
+export class App {}
+```
+
+`src/main.ts` stays as the CLI generated it:
+
+```ts title="src/main.ts"
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { App } from './app/app';
+
+bootstrapApplication(App, appConfig).catch((err) => console.error(err));
+```
+
+## Step 10: Styles
+
+Replace `src/styles.css` with these global styles. We keep all the CSS in one file, so the components only contain logic and markup.
+
+```css title="src/styles.css"
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.4em;
+  min-height: 100vh;
+  font: 16px/1.4 system-ui, sans-serif;
+  color: #333;
   background: #f5f5f5;
-  color: #4d4d4d;
-  font-weight: 300;
 }
 
-button {
+.todoapp {
+  max-width: 550px;
+  margin: 3rem auto 1rem;
+  background: #fff;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.2), 0 25px 50px rgb(0 0 0 / 0.1);
+}
+
+.header h1 {
+  margin: 0;
+  padding: 1rem 0 0.5rem;
+  font-size: 4rem;
+  font-weight: 200;
+  text-align: center;
+  color: #b83f45;
+}
+
+.new-todo,
+.edit {
+  width: 100%;
+  padding: 1rem;
+  font: inherit;
+  font-size: 1.25rem;
+  border: none;
+  border-bottom: 1px solid #eee;
+}
+
+.error {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  color: #b00020;
+  font-size: 0.875rem;
+}
+
+.main {
+  position: relative;
+  border-top: 1px solid #eee;
+}
+
+.toggle-all {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: #777;
+  cursor: pointer;
+}
+
+.todo-list {
   margin: 0;
   padding: 0;
-  border: 0;
-  background: none;
-  font-size: 100%;
-  vertical-align: baseline;
-  font-family: inherit;
-  font-weight: inherit;
-  color: inherit;
+  list-style: none;
 }
 
-button:focus {
-  outline: none;
+.todo-list li {
+  border-bottom: 1px solid #eee;
+}
+
+.todo-list .empty {
+  padding: 1rem;
+  color: #999;
+  text-align: center;
+}
+
+app-todo-item {
+  display: block;
+}
+
+.view {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.view label {
+  flex: 1;
+  font-size: 1.25rem;
+  word-break: break-word;
+}
+
+app-todo-item.completed label {
+  color: #aaa;
+  text-decoration: line-through;
+}
+
+.toggle {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.destroy {
+  border: none;
+  background: none;
+  font-size: 1.5rem;
+  color: #b83f45;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.view:hover .destroy,
+.destroy:focus-visible {
+  opacity: 1;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #777;
+}
+
+.filters {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.filters a {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.filters a.selected {
+  border-color: #b83f45;
+}
+
+.clear-completed {
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.info {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #999;
 }
 ```
 
-## 🚀 Running the Application
+## Step 11: Run the app
 
 ```bash
-# Start development server
 ng serve
-
-# Open browser to
-http://localhost:4200
 ```
 
-## ✅ Testing Your App
+Open `http://localhost:4200`. You are redirected to `/all`. Now try this:
 
-Try these features:
+1. Press <kbd>Enter</kbd> in the empty input. You see "Type something first."
+2. Add a few todos. The input clears after each one.
+3. Tick a checkbox. The counter goes down.
+4. Click **Active** and **Completed**. The URL changes, and so does the list.
+5. Double-click a todo, change the text, and press <kbd>Enter</kbd>. Press <kbd>Esc</kbd> to cancel an edit. If you clear the text and save, the todo is deleted.
+6. Refresh the page. Your todos are still there (open DevTools → Application → Local Storage → `ng-guide-todos`).
 
-1. **Add todos** - Type and press Enter
-2. **Toggle completion** - Click checkbox
-3. **Edit todo** - Double-click on todo text
-4. **Delete todo** - Click × button
-5. **Filter todos** - Click All/Active/Completed
-6. **Toggle all** - Click the down arrow
-7. **Clear completed** - Click "Clear completed" button
-8. **Refresh page** - Data persists in localStorage!
+## Step 12: Test it with Vitest
 
-## 🎯 Key Concepts Demonstrated
+New Angular projects use **Vitest** for unit tests. Create `src/app/todos/todo-store.spec.ts`:
 
-### ✅ Angular Best Practices
+```ts title="src/app/todos/todo-store.spec.ts"
+import { TestBed } from '@angular/core/testing';
+import { TodoStore } from './todo-store';
 
-- **Standalone components** - No NgModules needed
-- **Signals for state** - Reactive state management
-- **Computed values** - Derived state automatically updates
-- **inject() function** - Modern dependency injection
-- **input() and output()** - Modern component API
-- **Native control flow** - @if, @for instead of directives
+describe('TodoStore', () => {
+  let store: TodoStore;
 
-### ✅ TypeScript Best Practices
+  beforeEach(() => {
+    localStorage.clear();
+    store = TestBed.inject(TodoStore);
+  });
 
-- **Strict mode** - Type safety everywhere
-- **Interfaces** - Clear data structures
-- **Type inference** - Let TypeScript infer types
-- **Readonly signals** - Expose read-only state
+  it('adds a trimmed todo', () => {
+    store.add('  Learn signals  ');
 
-### ✅ Architecture Patterns
+    expect(store.todos()).toEqual([
+      expect.objectContaining({ title: 'Learn signals', completed: false }),
+    ]);
+    expect(store.activeCount()).toBe(1);
+  });
 
-- **Service layer** - Business logic separated
-- **Component composition** - Small, focused components
-- **Unidirectional data flow** - Predictable state changes
-- **LocalStorage persistence** - Data survives refresh
+  it('ignores blank titles', () => {
+    store.add('   ');
+    expect(store.todos()).toEqual([]);
+  });
 
-## 🚀 Next Steps
+  it('toggles and clears completed todos', () => {
+    store.add('A');
+    store.add('B');
+    store.toggle(store.todos()[0].id);
 
-Enhance your Todo app with:
+    expect(store.completedCount()).toBe(1);
 
-1. **Add categories/tags** to todos
-2. **Add due dates** with date picker
-3. **Add priority levels** (high, medium, low)
-4. **Add search functionality**
-5. **Add animations** with Angular animations
-6. **Add dark mode** toggle
-7. **Add backend API** integration
-8. **Add user authentication**
-9. **Add unit tests** with Vitest (the default test runner since Angular 19)
-10. **Deploy to production** (Netlify, Vercel, etc.)
+    store.clearCompleted();
+    expect(store.todos().map((todo) => todo.title)).toEqual(['B']);
+  });
 
-## 📚 Related Topics
+  it('saves todos to localStorage', () => {
+    store.add('Persist me');
+    TestBed.tick(); // flush pending effects
 
-- [Signals Guide](/modern/signals/)
-- [Reactive Forms](/intermediate/reactive-forms/)
-- [Services & DI](/basics/services/)
-- [Component Communication](/basics/component-communication/)
-- [Testing](/testing/unit-testing/)
+    const saved = JSON.parse(localStorage.getItem('ng-guide-todos') ?? '[]');
+    expect(saved[0].title).toBe('Persist me');
+  });
+});
+```
 
----
+`TestBed.inject(TodoStore)` gives you a fresh store for each test. Effects don't run right away, so `TestBed.tick()` runs any pending effects before we check `localStorage`.
 
-**Congratulations!** 🎉 You've built a complete Todo app using modern Angular best practices! This project demonstrates signals, standalone components, and clean architecture patterns.
+Now test the page component with a filter. Create `src/app/todos/todo-page.spec.ts`:
+
+```ts title="src/app/todos/todo-page.spec.ts"
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { TodoPage } from './todo-page';
+import { TodoStore } from './todo-store';
+
+describe('TodoPage', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+  });
+
+  it('shows only completed todos for the "completed" filter', async () => {
+    const store = TestBed.inject(TodoStore);
+    store.add('Write code');
+    store.add('Ship it');
+    store.toggle(store.todos()[0].id);
+
+    const fixture = TestBed.createComponent(TodoPage);
+    fixture.componentRef.setInput('filter', 'completed');
+    await fixture.whenStable();
+
+    const items = (fixture.nativeElement as HTMLElement).querySelectorAll('app-todo-item');
+    expect(items.length).toBe(1);
+    expect(items[0].textContent).toContain('Write code');
+  });
+});
+```
+
+- `provideRouter([])` is needed because the footer uses `routerLink`.
+- `fixture.componentRef.setInput('filter', 'completed')` sets the input just like the router would.
+- `await fixture.whenStable()` waits until Angular has rendered. The app is zoneless, so you don't call `detectChanges()` by hand.
+
+Run the tests:
+
+```bash
+ng test
+```
+
+You should see `Test Files  2 passed` and `Tests  5 passed`. Use `ng test --watch=false` to run them once, for example in CI. Learn more in [Unit Testing](/testing/unit-testing/) and [Testing Signals](/testing/testing-signals/).
+
+## Common mistakes
+
+| Mistake | Fix |
+|---|---|
+| `this._todos().push(todo)` | Changing the array in place does not notify signals. Use `update(todos => [...todos, todo])`. |
+| Writing to `localStorage` in every method | Save in a single `effect()` that reads the state. |
+| Forgetting `withComponentInputBinding()` | `filter` stays `'all'` on every URL. Add it to `provideRouter()`. |
+| `[formField]` without importing `FormField` | Add `FormField` (and `FormRoot`) to the component's `imports`. |
+| A test that changes a signal and then checks `localStorage` right away | Call `TestBed.tick()` first, so pending effects run. |
+| `*ngFor` / `*ngIf` from old tutorials | Use `@for (…; track …)` and `@if`. The old directives are deprecated. |
+
+## Ideas to extend the app
+
+1. **Due dates**: add `dueDate?: string` to `Todo` and an `<input type="date" [formField]="…">` to the form.
+2. **Undo delete**: keep the last deleted todo in a signal and show an "Undo" button.
+3. **Search**: add a `?q=` query parameter as another input and filter in `visibleTodos`.
+4. **Animations**: add `animate.enter="fade-in"` to each `<li>` and define the CSS class (see [Control Flow](/modern/control-flow/)).
+5. **Backend sync**: load todos with `httpResource()` (see [httpResource](/modern/http-resource-api/)), or build the [Blog Platform](/projects/blog/) next.
+
+## Key takeaways
+
+- A **signal store** is a service: private writable signals, public read-only signals, `computed()` for derived values, and methods for actions.
+- An `effect()` is the right tool to **sync state to the outside world**, such as `localStorage`.
+- **Signal Forms** keep the form value in a signal and the validation rules in a schema function. `[formRoot]` and `submission.action` handle submitting.
+- Keep presentational components simple: **data in through `input()`, events out through `output()`**.
+- With `withComponentInputBinding()`, **route parameters become inputs**, so the URL can hold UI state like filters.
+
+## Next steps
+
+- [Blog Platform – Part 1](/projects/blog/): routing, `httpResource`, and a real REST API
+- [Signals](/modern/signals/) · [Computed Signals](/modern/computed-signals/) · [Effects](/modern/effects/)
+- [Signal Forms](/modern/signal-forms/)
+- [Component Communication](/intermediate/component-communication/)

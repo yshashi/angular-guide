@@ -1,601 +1,387 @@
 ---
 title: Docker & Containers 🐳
-description: Containerize Angular applications with Docker - multi-stage builds, optimization, and orchestration
+description: Containerize Angular 22 apps — multi-stage Dockerfiles for static (nginx) and SSR (Node 24) builds, dev containers, PORT, allowed hosts and Kubernetes.
 sidebar:
   order: 2
 ---
 
-Containerize your Angular applications with Docker for consistent, portable, and scalable deployments. Learn Docker best practices, multi-stage builds, and container orchestration.
+A container image bundles your built app with exactly the web server or Node.js runtime it needs, so it runs the same on your laptop, in CI and in production. This page gives you production-ready Dockerfiles for both kinds of Angular apps — **static (client-side rendered)** and **server-side rendered (SSR)** — plus a development container and a Kubernetes example.
 
-## 🎯 Why Docker for Angular?
+**What you'll learn**
 
-**Benefits:**
+- Which Node.js versions Angular 22 supports (and which image to pick)
+- A multi-stage Dockerfile for a static app served by nginx
+- A multi-stage Dockerfile for an SSR app running on Node.js
+- How `PORT`, `allowedHosts` and `NG_ALLOWED_HOSTS` work inside containers
+- Build-once-deploy-many with runtime configuration
+- Running `ng serve` in a dev container
 
-- **🔄 Consistency** - Same environment everywhere
-- **📦 Portability** - Run anywhere Docker runs
-- **⚡ Isolation** - No dependency conflicts
-- **🚀 Scalability** - Easy horizontal scaling
-- **🔧 DevOps Ready** - CI/CD integration
+:::note
+If you haven't yet, read [Deployment Strategies](/deployment/strategies/) first — it explains the `dist/<app>/browser` and `dist/<app>/server` folders these Dockerfiles copy.
+:::
 
-**Use Cases:**
+## Pick the right Node.js image
 
-- Production deployments
-- Development environments
-- Microservices architecture
-- Cloud-native applications
-- Kubernetes deployments
+Angular 22 requires **Node.js `^22.22.3 || ^24.15.0 || >=26.0.0`**. Node 20 is no longer supported, so old `node:20-alpine` images will fail with an engine error.
 
-## 🚀 Basic Dockerfile
+| Image | Use it? |
+|---|---|
+| `node:24-alpine` | ✅ Recommended default (LTS, small) |
+| `node:26-alpine` | ✅ Supported (newest LTS line) |
+| `node:22-alpine` | ✅ Supported (make sure the image is 22.22.3 or newer) |
+| `node:20-*` | ❌ Not supported by Angular 22 |
 
-### Simple Production Dockerfile
+Pin a version in production (for example `node:24.15-alpine` or a digest) so rebuilds are reproducible. The examples below use `node:24-alpine` for readability.
 
-```dockerfile
-# Stage 1: Build the Angular application
-FROM node:20-alpine AS build
+## Start with a `.dockerignore`
 
-WORKDIR /app
+Keep the build context small and avoid copying your local `node_modules` (which may contain binaries for the wrong OS):
 
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build for production
-RUN npm run build -- --configuration production
-
-# Stage 2: Serve with Nginx
-FROM nginx:alpine
-
-# Copy built app to nginx
-COPY --from=build /app/dist/your-app-name/browser /usr/share/nginx/html
-
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Expose port
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+```text title=".dockerignore"
+node_modules
+dist
+.angular
+.git
+.vscode
+coverage
+playwright-report
+test-results
+*.log
+Dockerfile*
+docker-compose*.yml
 ```
 
-### Nginx Configuration
+## Static app: build with Node, serve with nginx
 
-```nginx
-# nginx.conf
+A **multi-stage build** compiles the app in a Node image, then copies only the output into a tiny nginx image. The final image contains no Node.js, no source code and no `node_modules`.
+
+```dockerfile title="Dockerfile"
+# ---- Stage 1: build ----
+FROM node:24-alpine AS build
+WORKDIR /app
+
+# Install dependencies first so this layer is cached between builds
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+ARG CONFIGURATION=production
+RUN npx ng build --configuration=${CONFIGURATION}
+
+# ---- Stage 2: serve ----
+FROM nginx:alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy ONLY the browser folder
+COPY --from=build /app/dist/my-app/browser /usr/share/nginx/html
+
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -q --spider http://127.0.0.1/ || exit 1
+```
+
+:::caution[`npm ci`, not `npm ci --omit=dev`]
+The Angular CLI, compiler and TypeScript are dev dependencies — the **build** stage needs them. Skipping dev dependencies there breaks `ng build`. They never reach the final image anyway.
+:::
+
+The nginx config adds the SPA fallback (so deep links work) and sensible caching:
+
+```nginx title="nginx.conf"
 server {
-    listen 80;
-    server_name localhost;
-    root /usr/share/nginx/html;
-    index index.html;
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
 
-    # Gzip compression
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types text/plain text/css text/xml text/javascript 
-               application/x-javascript application/xml+rss 
-               application/javascript application/json;
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
 
-    # Cache static assets
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
+  # Hashed bundles: cache for a year
+  location ~* \.(?:js|css|woff2?|ttf|svg|png|jpe?g|gif|webp|avif|ico)$ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
 
-    # Angular routing
-    location / {
-        try_files $uri $uri/ /index.html;
-        add_header Cache-Control "no-cache";
-    }
+  # Runtime config must always be fresh
+  location = /config.json {
+    add_header Cache-Control "no-cache";
+  }
 
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
+  # Everything else goes to Angular's router
+  location / {
+    add_header Cache-Control "no-cache";
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    try_files $uri $uri/ /index.html;
+  }
 }
 ```
 
-## 🎨 Optimized Multi-Stage Build
+Build and run it:
 
-### Production-Ready Dockerfile
-
-```dockerfile
-# Stage 1: Build
-FROM node:20-alpine AS builder
-
-# Set working directory
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies with clean install
-RUN npm ci --only=production && \
-    npm cache clean --force
-
-# Copy source
-COPY . .
-
-# Build with production configuration
-RUN npm run build -- --configuration production --output-hashing=all
-
-# Stage 2: Production
-FROM nginx:1.25-alpine
-
-# Install curl for health checks
-RUN apk add --no-cache curl
-
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copy built application
-COPY --from=builder /app/dist/your-app-name/browser /usr/share/nginx/html
-
-# Add non-root user
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
-
-# Expose port
-EXPOSE 80
-
-# Run as non-root user
-USER nginx
-
-CMD ["nginx", "-g", "daemon off;"]
+```bash
+docker build -t my-app:1.0.0 .
+docker run --rm -p 8080:80 my-app:1.0.0
+# open http://localhost:8080
 ```
 
-## 🎨 Real-World Examples
+Build a different configuration with the build argument: `docker build --build-arg CONFIGURATION=staging -t my-app:staging .`
 
-<blockquote>
-<p><strong>Note:</strong> Always use multi-stage builds to minimize image size.</p>
-</blockquote>
+:::tip[Run nginx as a non-root user]
+Swap the runtime image for `nginxinc/nginx-unprivileged:alpine`. It runs as a non-root user and listens on port **8080**, so change `listen 80;` to `listen 8080;` and `EXPOSE 8080`.
+:::
 
-### 1. **Development Docker Setup**
+:::note[Prerendered (SSG) apps]
+With `"outputMode": "static"`, use `try_files $uri $uri/ /index.csr.html;` as the fallback — `index.html` there is the prerendered home page.
+:::
 
-Let's create a Docker setup for development with hot reload.
+## SSR app: build with Node, run with Node
 
-```dockerfile
-# Dockerfile.dev
-FROM node:20-alpine
+An SSR build produces `dist/my-app/server/server.mjs`, an Express server that also serves the files in `dist/my-app/browser`. The server bundle already includes its npm dependencies (Express, `@angular/ssr`, …), so the runtime image only needs the `dist` folder.
 
+```dockerfile title="Dockerfile"
+# ---- Stage 1: build ----
+FROM node:24-alpine AS build
 WORKDIR /app
-
-# Install dependencies
-COPY package*.json ./
-RUN npm install
-
-# Copy source
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
+RUN npx ng build
 
-# Expose port
+# ---- Stage 2: run ----
+FROM node:24-alpine
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=4000
+
+# browser/ and server/ must stay side by side
+COPY --from=build --chown=node:node /app/dist/my-app ./dist/my-app
+
+# The official Node image ships a non-root "node" user
+USER node
+EXPOSE 4000
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -q --spider http://127.0.0.1:4000/healthz || exit 1
+CMD ["node", "dist/my-app/server/server.mjs"]
+```
+
+The health check calls a `/healthz` endpoint. Add it to `src/server.ts` **before** the Angular handler (see [Deployment Strategies](/deployment/strategies/#deploying-an-ssr-app-on-nodejs)):
+
+```ts title="src/server.ts (excerpt)"
+app.get('/healthz', (_req, res) => {
+  res.status(200).send('ok');
+});
+```
+
+:::tip
+If you used the `externalDependencies` build option to keep some packages out of the server bundle, also copy `package.json`/`package-lock.json` into the runtime stage and run `npm ci --omit=dev` there.
+:::
+
+### Allowed hosts: avoid `400 Bad Request`
+
+The SSR engine only renders requests whose `Host` header is allow-listed (SSRF protection). Since Angular 22, unknown hosts get a **`400 Bad Request`** instead of silently falling back to client rendering. In a container, the easiest way is the `NG_ALLOWED_HOSTS` environment variable (comma-separated, wildcards allowed):
+
+```bash
+docker run --rm -p 4000:4000 \
+  -e NG_ALLOWED_HOSTS="localhost,example.com,*.example.com" \
+  my-ssr-app:1.0.0
+```
+
+You can instead hard-code them in `angular.json` under `build.options.security.allowedHosts` — those are always included. `NG_ALLOWED_HOSTS` is ignored if you pass `allowedHosts` directly to `new AngularNodeAppEngine({...})` in `server.ts`.
+
+Running behind a load balancer or ingress that adds `X-Forwarded-Host`/`X-Forwarded-Proto`? Angular strips those headers unless you trust them:
+
+```bash
+-e NG_TRUST_PROXY_HEADERS="x-forwarded-host,x-forwarded-proto"
+```
+
+Only do this when the proxy in front of the container sets or validates these headers.
+
+### `PORT` inside the container
+
+The generated `server.ts` listens on `process.env.PORT` (default `4000`). The Dockerfile sets `PORT=4000`; platforms such as Cloud Run inject their own `PORT`, and the server picks it up automatically. Keep `EXPOSE` and your `-p host:container` mapping in sync with it.
+
+## Build once, deploy many (runtime config)
+
+Building a separate image per environment is slow and means the image you tested isn't the one you ship. Instead, build **one image** and supply environment-specific settings at runtime with a `config.json` loaded by `provideAppInitializer()` (code in [Deployment Strategies → Runtime configuration](/deployment/strategies/#runtime-configuration-build-once-deploy-many)).
+
+Mount the file when starting the static container:
+
+```bash
+docker run --rm -p 8080:80 \
+  -v "$(pwd)/config.staging.json:/usr/share/nginx/html/config.json:ro" \
+  my-app:1.0.0
+```
+
+In Kubernetes, the same file usually comes from a `ConfigMap`.
+
+## Development container
+
+Want teammates to run the dev server without installing Node? Use a dev image and bind-mount the source:
+
+```dockerfile title="Dockerfile.dev"
+FROM node:24-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
 EXPOSE 4200
-
-# Start development server
-CMD ["npm", "start", "--", "--host", "0.0.0.0", "--poll", "2000"]
+# --host 0.0.0.0 makes the server reachable from outside the container
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0"]
 ```
 
-**docker-compose.yml for Development:**
-
-```yaml
-version: '3.8'
-
+```yaml title="compose.yaml"
 services:
-  angular-app:
+  web:
     build:
       context: .
       dockerfile: Dockerfile.dev
     ports:
       - "4200:4200"
+    environment:
+      - PORT=4200
     volumes:
       - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-    command: npm start -- --host 0.0.0.0 --poll 2000
+      - /app/node_modules   # keep the container's own node_modules
 ```
-
-**Usage:**
 
 ```bash
-# Start development environment
-docker-compose up
-
-# Rebuild and start
-docker-compose up --build
-
-# Stop
-docker-compose down
+docker compose up --build
 ```
 
-### 2. **Production Docker Compose**
+Dev-server details worth knowing:
 
-Let's create a complete production setup with nginx and backend.
+- **`PORT` wins.** Since Angular 22, `ng serve` gives the `PORT` environment variable the **highest priority** — it overrides `--port` and the `port` in `angular.json`. If the server starts on an unexpected port, check whether `PORT` is set in your container or shell.
+- **File watching.** If changes on a mounted volume aren't detected (common on Windows/macOS hosts), add `--poll 2000`.
+- **Allowed hosts.** The dev server (Vite) answers requests for `localhost` and IP addresses. If you reach it through another hostname — a compose service name like `http://web:4200`, or a tunnel — add it: `ng serve --host 0.0.0.0 --allowed-hosts web` or `"allowedHosts": ["web"]` in the `serve` options. Avoid `true` (allow everything).
 
-```yaml
-# docker-compose.prod.yml
-version: '3.8'
+:::caution
+`ng serve` is for development only. Never use the dev container as your production image.
+:::
 
+## Compose: app + API
+
+A typical local stack runs the SSR container next to a backend:
+
+```yaml title="compose.yaml"
 services:
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  web:
+    build: .
     ports:
-      - "80:80"
+      - "4000:4000"
     environment:
-      - NODE_ENV=production
-    restart: unless-stopped
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  backend:
-    image: your-backend-image:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-    restart: unless-stopped
-    networks:
-      - app-network
+      NG_ALLOWED_HOSTS: "localhost"
     depends_on:
-      - database
-
-  database:
-    image: postgres:15-alpine
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=myapp
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - api
     restart: unless-stopped
-    networks:
-      - app-network
 
-networks:
-  app-network:
-    driver: bridge
-
-volumes:
-  postgres-data:
+  api:
+    image: my-org/api:latest
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    restart: unless-stopped
 ```
 
-### 3. **Environment-Specific Builds**
+Secrets like `DATABASE_URL` come from a `.env` file or your secret manager — never from Angular environment files.
 
-Let's create Dockerfiles for different environments.
+## Kubernetes example (SSR)
 
-```dockerfile
-# Dockerfile.staging
-FROM node:20-alpine AS build
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci
-
-COPY . .
-
-# Build for staging
-RUN npm run build -- --configuration staging
-
-FROM nginx:alpine
-
-COPY --from=build /app/dist/your-app-name/browser /usr/share/nginx/html
-COPY nginx.staging.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-**Build Script:**
-
-```bash
-#!/bin/bash
-# build-docker.sh
-
-ENV=${1:-production}
-
-case $ENV in
-  development)
-    docker build -f Dockerfile.dev -t myapp:dev .
-    ;;
-  staging)
-    docker build -f Dockerfile.staging -t myapp:staging .
-    ;;
-  production)
-    docker build -f Dockerfile -t myapp:prod .
-    ;;
-  *)
-    echo "Usage: ./build-docker.sh [development|staging|production]"
-    exit 1
-    ;;
-esac
-
-echo "✅ Built image: myapp:$ENV"
-```
-
-### 4. **Docker with Build Arguments**
-
-Let's use build arguments for flexible configurations.
-
-```dockerfile
-# Dockerfile with build args
-ARG NODE_VERSION=20
-FROM node:${NODE_VERSION}-alpine AS build
-
-ARG CONFIGURATION=production
-ARG API_URL
-ARG APP_VERSION
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci
-
-COPY . .
-
-# Pass build args to Angular
-RUN npm run build -- \
-    --configuration ${CONFIGURATION} \
-    --base-href / \
-    --deploy-url /
-
-# Replace environment variables in built files
-RUN sed -i "s|API_URL_PLACEHOLDER|${API_URL}|g" /app/dist/*/browser/main*.js
-
-FROM nginx:alpine
-
-LABEL version="${APP_VERSION}"
-LABEL description="Angular Application"
-
-COPY --from=build /app/dist/your-app-name/browser /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-**Build with Arguments:**
-
-```bash
-# Build with custom arguments
-docker build \
-  --build-arg NODE_VERSION=20 \
-  --build-arg CONFIGURATION=production \
-  --build-arg API_URL=https://api.example.com \
-  --build-arg APP_VERSION=1.0.0 \
-  -t myapp:1.0.0 \
-  .
-```
-
-### 5. **Kubernetes Deployment**
-
-Let's create Kubernetes manifests for deploying the containerized app.
-
-```yaml
-# k8s/deployment.yaml
+```yaml title="k8s/web.yaml"
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: angular-app
-  labels:
-    app: angular-app
+  name: my-app
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: angular-app
+      app: my-app
   template:
     metadata:
       labels:
-        app: angular-app
+        app: my-app
     spec:
       containers:
-      - name: angular-app
-        image: your-registry/angular-app:latest
-        ports:
-        - containerPort: 80
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - name: web
+          image: ghcr.io/my-org/my-app:1.0.0
+          ports:
+            - containerPort: 4000
+          env:
+            - name: NG_ALLOWED_HOSTS
+              value: "app.example.com"
+            - name: NG_TRUST_PROXY_HEADERS
+              value: "x-forwarded-host,x-forwarded-proto"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: angular-app-service
+  name: my-app
 spec:
   selector:
-    app: angular-app
+    app: my-app
   ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 80
-  type: LoadBalancer
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: angular-app-ingress
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  tls:
-  - hosts:
-    - app.example.com
-    secretName: angular-app-tls
-  rules:
-  - host: app.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: angular-app-service
-            port:
-              number: 80
+    - port: 80
+      targetPort: 4000
 ```
 
-## ✅ Best Practices
+Expose the Service through your cluster's Ingress or Gateway, and only trust forwarding headers that your ingress controller actually sets.
 
-### 1. **Use Multi-Stage Builds**
+## Best practices
 
-```dockerfile
-# ✅ Good - Multi-stage build
-FROM node:20-alpine AS build
-# Build stage...
+- **Multi-stage builds** — build tools stay in the build stage; the final image only has nginx or Node plus `dist`.
+- **Copy `package*.json` before the source** so `npm ci` is cached until dependencies change.
+- **Use `npm ci`** for reproducible installs from the lock file.
+- **Run as non-root** — `USER node` for Node, `nginx-unprivileged` for nginx.
+- **Pin base images** and rebuild regularly to pick up security patches; scan images in CI.
+- **One image for all environments** — inject settings via `config.json`, env vars and secrets.
+- **Add health checks** so Docker, Kubernetes or your platform can restart unhealthy containers.
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+## Common mistakes
 
-# ❌ Avoid - Single stage with build tools
-FROM node:20
-RUN npm install && npm run build
-# Includes unnecessary build dependencies
-```
+| Symptom | Cause | Fix |
+|---|---|---|
+| `npm ci` fails with an engine error | `node:20` base image | Use `node:24-alpine` (or 22.22.3+/26) |
+| `ng: not found` / build fails | Installed with `--omit=dev` in the build stage | Plain `npm ci` in the build stage |
+| nginx shows its welcome page | Copied `dist/my-app` instead of `dist/my-app/browser` | Copy the `browser` folder |
+| 404 on refresh | No `try_files ... /index.html` | Add the SPA fallback |
+| SSR container returns `400` | Host not allow-listed | Set `NG_ALLOWED_HOSTS` or `security.allowedHosts` |
+| Dev server on wrong port | `PORT` env var overrides `--port` (v22+) | Unset `PORT` or set it to the port you want |
+| Image is huge | Single-stage build with `node_modules` and source | Multi-stage build |
 
-### 2. **Minimize Image Size**
-
-```dockerfile
-# ✅ Good - Alpine base, clean cache
-FROM node:20-alpine
-RUN npm ci && npm cache clean --force
-
-# ❌ Avoid - Full node image
-FROM node:20
-RUN npm install
-```
-
-### 3. **Use .dockerignore**
+## Docker cheat sheet
 
 ```bash
-# .dockerignore
-node_modules
-dist
-.git
-.gitignore
-*.md
-.angular
-.vscode
-coverage
-e2e
+docker build -t my-app:1.0.0 .                  # build an image
+docker run --rm -p 8080:80 my-app:1.0.0         # run (static)
+docker run -d --name web -p 4000:4000 my-ssr-app:1.0.0   # run in background (SSR)
+docker logs -f web                               # follow logs
+docker exec -it web sh                           # shell into a container
+docker compose up --build                        # start a compose stack
+docker image ls && docker system prune           # list / clean up
 ```
 
-### 4. **Security Best Practices**
+## Key takeaways
 
-```dockerfile
-# ✅ Good - Run as non-root user
-FROM nginx:alpine
-RUN addgroup -g 1001 -S appuser && \
-    adduser -u 1001 -S appuser -G appuser
-USER appuser
+- Angular 22 needs Node 22.22.3+, 24.15+ or 26 — `node:24-alpine` is a good default.
+- Static apps: build in Node, copy `dist/<app>/browser` into nginx with an `index.html` fallback.
+- SSR apps: copy `dist/<app>` into a slim Node image and run `node dist/<app>/server/server.mjs`.
+- Configure `NG_ALLOWED_HOSTS` (and `NG_TRUST_PROXY_HEADERS` behind a proxy) or SSR answers `400`.
+- In v22 the `PORT` env var takes priority over `--port` for `ng serve`.
 
-# ✅ Good - Health checks
-HEALTHCHECK --interval=30s CMD curl -f http://localhost/ || exit 1
-```
+## Next steps
 
-### 5. **Optimize Layer Caching**
-
-```dockerfile
-# ✅ Good - Copy package files first
-COPY package*.json ./
-RUN npm ci
-COPY . .
-
-# ❌ Avoid - Copy everything first
-COPY . .
-RUN npm ci
-```
-
-## 🎯 Docker Commands Cheat Sheet
-
-```bash
-# Build image
-docker build -t myapp:latest .
-
-# Run container
-docker run -p 8080:80 myapp:latest
-
-# Run in background
-docker run -d -p 8080:80 --name myapp myapp:latest
-
-# View logs
-docker logs myapp
-docker logs -f myapp  # Follow logs
-
-# Stop container
-docker stop myapp
-
-# Remove container
-docker rm myapp
-
-# Remove image
-docker rmi myapp:latest
-
-# Execute command in container
-docker exec -it myapp sh
-
-# View running containers
-docker ps
-
-# View all containers
-docker ps -a
-
-# Clean up
-docker system prune -a
-```
-
-## 🎓 Learning Checklist
-
-- [ ] Understand Docker basics
-- [ ] Create multi-stage Dockerfiles
-- [ ] Optimize image size
-- [ ] Configure nginx for Angular
-- [ ] Use docker-compose
-- [ ] Implement health checks
-- [ ] Deploy to Kubernetes
-- [ ] Follow security best practices
-
-## 🚀 Next Steps
-
-1. **[CI/CD Pipelines](/deployment/ci-cd/)** - Automate Docker builds
-2. **[Deployment Strategies](/deployment/strategies/)** - Choose deployment approach
-3. **[Performance Optimization](/advanced/performance/)** - Optimize before containerizing
-
----
-
-**Pro Tip**: Always use multi-stage builds to keep images small! Use Alpine-based images, implement health checks, and run containers as non-root users for security! 🐳
+1. **[CI/CD Pipelines](/deployment/ci-cd/)** — build and push images automatically
+2. **[Deployment Strategies](/deployment/strategies/)** — static hosts, SSR and environments
+3. **[Performance Optimization](/advanced/performance/)** — make the app fast before you ship it

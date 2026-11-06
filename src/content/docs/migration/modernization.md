@@ -1,6 +1,6 @@
 ---
 title: Codebase Modernization 🚀
-description: Comprehensive guide to modernizing legacy Angular codebases to Angular 21
+description: A phased guide to modernizing legacy Angular codebases for Angular 22
 sidebar:
   order: 4
 ---
@@ -29,8 +29,8 @@ grep -rl "\*ngFor" src/ --include="*.ts" --include="*.html" | wc -l
 # Count BehaviorSubject usage
 grep -rl "BehaviorSubject" src/ --include="*.ts" | wc -l
 
-# Count components without OnPush
-grep -rl "ChangeDetectionStrategy.Default" src/ --include="*.ts" | wc -l
+# Find explicit change-detection strategies for review
+grep -rn "ChangeDetectionStrategy\\." src/ --include="*.ts"
 ```
 
 :::tip
@@ -46,11 +46,12 @@ Follow this order — each step builds on the previous one:
 | 1 | Standalone components | `@angular/core:standalone` | Low |
 | 2 | Control flow (`@if`/`@for`) | `@angular/core:control-flow` | Low |
 | 3 | `inject()` function | `@angular/core:inject` | Low |
-| 4 | Signal inputs/outputs | `@angular/core:signal-input`, `@angular/core:output` | Medium |
-| 5 | Signal queries | `@angular/core:signal-queries` | Medium |
-| 6 | Signals for state | Manual | Medium |
-| 7 | OnPush everywhere | Manual | Low |
-| 8 | Zoneless preparation | Manual | High |
+| 4 | `@Service()` decorator | `@angular/core:service` | Low |
+| 5 | Signal inputs/outputs | `@angular/core:signal-input`, `@angular/core:outputs` (or `signals`) | Medium |
+| 6 | Signal queries | `@angular/core:signal-queries` | Medium |
+| 7 | Signals for state | Manual | Medium |
+| 8 | Review change-detection behavior | Angular update migration + manual review | Medium |
+| 9 | Zoneless preparation | Manual | High |
 
 :::note
 Start with the low-risk, high-tooling migrations at the top. These have automated schematics and are unlikely to introduce bugs. Save manual, higher-risk migrations for later.
@@ -258,10 +259,7 @@ export class UserCardComponent implements OnChanges {
 **After:**
 
 ```typescript
-import {
-  Component, input, output, computed,
-  ChangeDetectionStrategy,
-} from '@angular/core';
+import { Component, input, output, computed } from '@angular/core';
 
 @Component({
   selector: 'app-user-card',
@@ -272,7 +270,6 @@ import {
       <button (click)="onSelect()">Select</button>
     </div>
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserCardComponent {
   firstName = input('');
@@ -289,9 +286,9 @@ export class UserCardComponent {
 ```
 
 ```bash
-# Automated migration
+# Automated migration (or run `@angular/core:signals` for inputs, outputs and queries together)
 ng generate @angular/core:signal-input
-ng generate @angular/core:output
+ng generate @angular/core:outputs
 ```
 
 ## 5️⃣ Signal Queries
@@ -325,10 +322,7 @@ export class DashboardComponent implements AfterViewInit {
 **After:**
 
 ```typescript
-import {
-  Component, viewChild, viewChildren, afterNextRender,
-  ElementRef, ChangeDetectionStrategy,
-} from '@angular/core';
+import { Component, viewChild, viewChildren, afterNextRender, ElementRef } from '@angular/core';
 import { ChartComponent } from './chart.component';
 
 @Component({
@@ -339,7 +333,6 @@ import { ChartComponent } from './chart.component';
       <app-chart [data]="data" />
     }
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {
   searchInput = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
@@ -390,10 +383,7 @@ export class CounterComponent {
 **After:**
 
 ```typescript
-import {
-  Component, signal, computed,
-  ChangeDetectionStrategy,
-} from '@angular/core';
+import { Component, signal, computed } from '@angular/core';
 
 @Component({
   selector: 'app-counter',
@@ -404,7 +394,6 @@ import {
     <button (click)="decrement()">-</button>
     <button (click)="reset()">Reset</button>
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CounterComponent {
   count = signal(0);
@@ -418,51 +407,32 @@ export class CounterComponent {
 
 For services with BehaviorSubject state, see the [Signals Migration](/migration/signals/) guide.
 
-## 7️⃣ OnPush Change Detection Everywhere
+## 7️⃣ Review change-detection behavior
 
-With signals and signal inputs, `OnPush` becomes safe to use everywhere. It prevents unnecessary change detection cycles by only checking when inputs change or signals are read.
+Angular 22 defaults components to `ChangeDetectionStrategy.OnPush`. When upgrading, run the Angular update migrations and review any components where the previous eager behavior was required; the migration can preserve that behavior with `ChangeDetectionStrategy.Eager`. Do not add `OnPush` boilerplate to every component in a v22 application.
 
-```typescript
-import { Component, ChangeDetectionStrategy } from '@angular/core';
-
-@Component({
-  selector: 'app-my-component',
-  template: `...`,
-  changeDetection: ChangeDetectionStrategy.OnPush, // add this
-})
-export class MyComponent {}
-```
-
-:::caution
-If your component mutates objects or arrays in place (without creating new references), `OnPush` may miss changes. Fix mutations first:
+Regardless of strategy, prefer immutable updates and signals for state read by templates:
 
 ```typescript
-// ❌ Mutation — OnPush won't detect this
-this.items.push(newItem);
-
-// ✅ New reference — OnPush detects this
-this.items = [...this.items, newItem];
-
-// ✅ Even better — use signals
-this.items.update((list) => [...list, newItem]);
+items.update((current) => [...current, newItem]);
 ```
-:::
+
+In-place mutation can make state changes harder to reason about and may not notify Angular when the state is held in a signal.
 
 ## 8️⃣ Zoneless Preparation
 
-Angular 20+ defaults to zoneless for new projects. Preparing your existing app for zoneless ensures you can remove `zone.js` and get the best performance.
+Angular 21+ creates new applications as zoneless by default. Existing applications can migrate gradually; verify all asynchronous work notifies Angular before removing Zone.js. Zoneless is not automatically faster for every workload, so measure the result in your application.
 
-### Step 1: Enable Zoneless Experimentally
+### Step 1: Check the target application's zoneless setup
+
+Angular 21+ new applications are zoneless by default. Angular 20 applications can opt in with `provideZonelessChangeDetection()`; existing projects may need to remove `provideZoneChangeDetection()` if they explicitly selected Zone-based change detection.
 
 ```typescript
-// main.ts
+// Angular 20 opt-in only. Angular 21+ new projects are zoneless by default.
 import { provideZonelessChangeDetection } from '@angular/core';
 
 bootstrapApplication(AppComponent, {
-  providers: [
-    provideZonelessChangeDetection(),
-    // ... other providers
-  ],
+  providers: [provideZonelessChangeDetection()],
 });
 ```
 
@@ -475,14 +445,9 @@ bootstrapApplication(AppComponent, {
 }
 ```
 
-### Step 3: Ensure All State Uses Signals
+### Step 3: Ensure state updates notify Angular
 
-Zoneless change detection relies on signals to know when to re-render. Ensure:
-- All component state is in signals
-- All inputs use `input()`
-- All template expressions read signals
-- `OnPush` is set on every component
-- No direct DOM manipulation outside of Angular's awareness
+Signals are a convenient option, but not the only notification mechanism. Zoneless-compatible updates can also use template or host listeners, `AsyncPipe`, `ChangeDetectorRef.markForCheck()` and `ComponentRef.setInput()`. Review timers, subscriptions, third-party callbacks, Reactive Forms and SSR work; see the [Zoneless Angular guide](/modern/zoneless/).
 
 ## 📊 Measuring Improvement
 
@@ -524,7 +489,7 @@ For a large application (500+ components), here's a realistic timeline:
 | Signal inputs/outputs | 2–3 weeks | Schematic + manual review |
 | Signal queries | 1 week | Schematic + manual review |
 | Signals for state | 3–4 weeks | Manual, component by component |
-| OnPush everywhere | 1–2 weeks | Manual, test carefully |
+| Change-detection behavior | Varies | Review update migrations and test affected components |
 | Zoneless preparation | 2–4 weeks | Manual, needs thorough testing |
 
 :::tip
@@ -544,17 +509,20 @@ ng generate @angular/core:standalone --mode=standalone-bootstrap
 # 2. Control flow
 ng generate @angular/core:control-flow
 
-# 3. Inject function
+# 3. Inject function and @Service() decorator
 ng generate @angular/core:inject
+ng generate @angular/core:service
 
-# 4. Signal inputs
+# 4. Signal inputs, outputs and queries (individually or all at once with `@angular/core:signals`)
 ng generate @angular/core:signal-input
-
-# 5. Signal outputs
-ng generate @angular/core:output
-
-# 6. Signal queries
+ng generate @angular/core:outputs
 ng generate @angular/core:signal-queries
+
+# 5. Cleanup and template modernizations
+ng generate @angular/core:ngclass-to-class
+ng generate @angular/core:ngstyle-to-style
+ng generate @angular/core:self-closing-tag
+ng generate @angular/core:cleanup-unused-imports
 ```
 
 :::caution
@@ -570,8 +538,8 @@ Run `ng build` and your test suite after **each** schematic. Do not batch all sc
 - [ ] All outputs use `output()`
 - [ ] All view/content queries use `viewChild()` / `contentChild()` / `viewChildren()` / `contentChildren()`
 - [ ] Component state uses `signal()` and `computed()`
-- [ ] All components use `ChangeDetectionStrategy.OnPush`
-- [ ] `zone.js` removed, using `provideZonelessChangeDetection()`
+- [ ] Angular 22 change-detection migration reviewed; eager behavior retained only where needed
+- [ ] Zoneless compatibility verified; Zone.js removed only if the application and its dependencies support it
 - [ ] Bundle size reduced compared to pre-migration baseline
 - [ ] All tests pass
 - [ ] Performance benchmarks maintained or improved

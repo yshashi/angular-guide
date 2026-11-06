@@ -1,462 +1,212 @@
 ---
-title: Angular Cheat Sheet 📋
-description: Quick reference for Angular syntax, APIs, and common patterns
+title: Angular Cheat Sheet ⚡
+description: A practical Angular 22 quick reference for CLI commands, components, signals, templates, DI, routing, HTTP, Signal Forms, testing and SSR.
 sidebar:
   order: 3
 ---
 
-A quick-reference card for Angular 21 syntax and APIs. Bookmark this page for when you need to look something up fast.
+Use this page as a compact reference while working through the guide. It targets Angular 22.2; check the short version notes when maintaining an older project.
 
-## 🛠️ CLI Commands
+## Create and run a project
 
 ```bash
-# Create a new project
-ng new my-app
-
-# Generate components, services, etc.
-ng generate component features/users/user-list
-ng generate service core/auth
-ng generate pipe shared/pipes/truncate
-ng generate directive shared/directives/highlight
-ng generate guard core/auth
-ng generate interceptor core/api
-
-# Serve, build, test
-ng serve                     # Dev server on localhost:4200
-ng build                     # Production build
-ng test                      # Unit tests
-ng e2e                       # End-to-end tests
-
-# Useful flags
-ng serve --port 4300         # Custom port
-ng build --configuration=staging
-ng generate component my-comp --inline-template --inline-style
+ng new my-app                 # standalone, zoneless, Vitest by default
+cd my-app
+ng serve                      # development server
+ng test                       # Vitest unit tests
+ng build                      # production build
+ng update @angular/core @angular/cli
 ```
 
-## 🧩 Component Syntax
+Add SSR to an existing app with `ng add @angular/ssr`. Generate code with `ng generate component products/product-list`, `ng generate service data/catalog`, or `ng generate ai-config`.
 
-```typescript
-import { Component, ChangeDetectionStrategy, input, output, computed, signal } from '@angular/core';
+Angular 22 supports Node.js `^22.22.3 || ^24.15.0 || ^26` and TypeScript `>=6.0 <6.1`. See [Setup](/setup/) and [Version Upgrades](/migration/version-upgrade/).
+
+## Component
+
+```ts title="counter.ts"
+import { Component, computed, input, output, signal } from '@angular/core';
 
 @Component({
-  selector: 'app-example',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<h1>{{ title() }}</h1>`,
-  styles: `h1 { color: blue; }`,
+  selector: 'app-counter',
+  template: `
+    <button type="button" (click)="decrement()">−</button>
+    <span>{{ count() }} / {{ doubled() }}</span>
+    <button type="button" (click)="increment()">+</button>
+  `,
 })
-export class ExampleComponent {
-  // Inputs
-  title = input.required<string>();       // required
-  count = input(0);                       // with default
-  label = input('default', {              // with alias
-    alias: 'buttonLabel'
-  });
+export class Counter {
+  readonly initial = input(0);
+  readonly changed = output<number>();
+  protected readonly count = signal(this.initial());
+  protected readonly doubled = computed(() => this.count() * 2);
 
-  // Two-way binding
-  value = model(0);                       // model signal
+  protected increment() {
+    this.count.update((value) => value + 1);
+    this.changed.emit(this.count());
+  }
 
-  // Outputs
-  clicked = output<MouseEvent>();
-  closed = output<void>();
-
-  // State
-  isOpen = signal(false);
-
-  // Derived state
-  displayText = computed(() => `${this.title()} (${this.count()})`);
+  protected decrement() {
+    this.count.update((value) => value - 1);
+    this.changed.emit(this.count());
+  }
 }
 ```
 
-## 📝 Template Syntax
+Standalone is the default: do not add `standalone: true`. OnPush is the default in Angular 22, so explicit change-detection metadata is usually unnecessary. For template-only members use `protected`.
 
-### Control Flow
+| API | Use |
+|---|---|
+| `input<T>(initial)` | Optional signal input |
+| `input.required<T>()` | Required signal input |
+| `output<T>()` | Event output |
+| `model<T>(initial)` | Two-way model input/output |
+| `viewChild(locator)` / `viewChildren(locator)` | Signal-based view queries |
+| `contentChild(locator)` / `contentChildren(locator)` | Signal-based content queries |
 
-```html
-<!-- Conditional -->
-@if (user()) {
-  <p>Hello, {{ user()!.name }}</p>
-} @else if (loading()) {
-  <app-spinner />
-} @else {
-  <p>Please log in.</p>
-}
+## Signals and reactive state
 
-<!-- Loops -->
-@for (item of items(); track item.id) {
-  <div>{{ $index + 1 }}. {{ item.name }}</div>
-} @empty {
-  <p>No items found.</p>
-}
-
-<!-- Switch -->
-@switch (status()) {
-  @case ('active') { <span class="badge green">Active</span> }
-  @case ('inactive') { <span class="badge red">Inactive</span> }
-  @default { <span class="badge gray">Unknown</span> }
-}
-
-<!-- Local variable -->
-@let fullName = firstName() + ' ' + lastName();
-<p>{{ fullName }}</p>
-```
-
-### Bindings
-
-```html
-<!-- Property binding -->
-<input [value]="name()" />
-<div [class.active]="isActive()">...</div>
-<div [style.color]="textColor()">...</div>
-<img [attr.aria-label]="description()" />
-
-<!-- Event binding -->
-<button (click)="handleClick()">Click</button>
-<input (input)="onInput($event)" />
-<form (ngSubmit)="onSubmit()">...</form>
-
-<!-- Two-way binding -->
-<input [(ngModel)]="name" />
-<app-slider [(value)]="volume" />
-
-<!-- Template reference -->
-<input #nameInput />
-<button (click)="nameInput.focus()">Focus</button>
-```
-
-### Defer Blocks
-
-```html
-@defer (on viewport) {
-  <app-heavy-widget />
-} @placeholder {
-  <div>Widget placeholder</div>
-} @loading (minimum 200ms) {
-  <app-spinner />
-} @error {
-  <p>Failed to load widget.</p>
-}
-
-<!-- Other triggers -->
-@defer (on idle) { ... }
-@defer (on interaction) { ... }
-@defer (on hover) { ... }
-@defer (on timer(3s)) { ... }
-@defer (when condition()) { ... }
-```
-
-## 📡 Signals API
-
-```typescript
-import { signal, computed, effect, linkedSignal, untracked } from '@angular/core';
-
-// Writable signal
+```ts
 const count = signal(0);
-count();                    // read → 0
-count.set(5);               // set
-count.update(c => c + 1);   // update based on current
-
-// Computed (read-only, auto-tracked)
 const double = computed(() => count() * 2);
-
-// Effect (side effects)
-effect(() => {
-  console.log('Count is now:', count());
-});
-
-// Linked signal (derived + writable)
-const selectedIndex = linkedSignal(() => {
-  // Re-derives when items change
-  return items().length > 0 ? 0 : -1;
-});
-selectedIndex.set(3);       // can also be set manually
-
-// Untracked reads (don't create dependency)
-effect(() => {
-  const c = count();
-  const name = untracked(() => userName());
-  console.log(c, name);
-});
-
-// Resource API (async data)
-const usersResource = resource({
-  request: () => ({ page: currentPage() }),
-  loader: async ({ request }) => {
-    const res = await fetch(`/api/users?page=${request.page}`);
-    return res.json();
-  },
-});
-usersResource.value();      // the data
-usersResource.isLoading();  // loading state
-usersResource.error();      // error state
-usersResource.reload();     // trigger reload
+count.set(1);
+count.update((value) => value + 1);
 ```
 
-## 💉 Dependency Injection
+Use `linkedSignal()` for writable state that resets when its source changes. Use `effect()` for side effects such as syncing to `localStorage`, not for copying one signal into another. `resource()`, `rxResource()` and `httpResource()` are stable in v22; `debounced()` is experimental.
 
-```typescript
-// Injectable service
-@Injectable({ providedIn: 'root' })
-export class MyService {
-  private readonly http = inject(HttpClient);
+## Template control flow
+
+```html
+@if (user(); as currentUser) {
+  <p>Hello, {{ currentUser.name }}</p>
+} @else {
+  <p>Please sign in.</p>
 }
 
-// Injection token
-const API_URL = new InjectionToken<string>('API_URL');
+@for (product of products(); track product.id) {
+  <app-product-card [product]="product" />
+} @empty {
+  <p>No products found.</p>
+}
 
-// inject() options
-inject(MyService);                          // required
-inject(MyService, { optional: true });      // nullable
-inject(MyService, { self: true });          // only from self
-inject(MyService, { skipSelf: true });      // skip self, check parent
+@switch (status()) {
+  @case ('loading') { <app-spinner /> }
+  @case ('error') { <app-error /> }
+  @default { <app-results /> }
+}
 
-// Providing values
-const appConfig: ApplicationConfig = {
-  providers: [
-    provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor])),
-    provideAnimations(),
-    { provide: API_URL, useValue: 'https://api.example.com' },
-    { provide: Logger, useClass: ConsoleLogger },
-    { provide: Config, useFactory: () => loadConfig() },
-    { provide: Token, useExisting: OtherToken },
-  ],
-};
+@let total = price() * quantity();
+<p>{{ total | currency }}</p>
 ```
 
-## 🧭 Routing
+`NgIf`, `NgFor` and `NgSwitch` are deprecated; use `@if`, `@for` and `@switch`. Always use a stable `track` key for repeated items.
 
-```typescript
-// Route configuration
+## Dependency injection
+
+```ts
+import { Service, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+
+@Service()
+export class CatalogApi {
+  private readonly http = inject(HttpClient);
+}
+```
+
+Use `@Service()` for a root-provided service in v22. `@Injectable({ providedIn: 'root' })` remains available, including for constructor injection and older-version compatibility. `inject()` must run in an injection context, such as a field initializer, provider factory or constructor.
+
+## Routing
+
+```ts
+import { Routes } from '@angular/router';
+
 export const routes: Routes = [
-  { path: '', component: HomeComponent },
-  { path: 'about', component: AboutComponent },
-  {
-    path: 'products/:id',
-    component: ProductDetailComponent,
-    resolve: { product: productResolver },
-  },
-  {
-    path: 'admin',
-    loadChildren: () => import('./admin/admin.routes').then(m => m.adminRoutes),
-    canActivate: [authGuard],
-  },
-  {
-    path: 'dashboard',
-    loadComponent: () => import('./dashboard.component').then(m => m.DashboardComponent),
-  },
-  { path: '**', component: NotFoundComponent },
+  { path: '', loadComponent: () => import('./home/home').then((m) => m.Home) },
+  { path: 'products/:id', loadComponent: () => import('./product/product').then((m) => m.Product) },
+  { path: '**', redirectTo: '' },
 ];
-
-// Functional guard
-export const authGuard: CanActivateFn = (route, state) => {
-  const auth = inject(AuthService);
-  const router = inject(Router);
-
-  return auth.isLoggedIn() ? true : router.createUrlTree(['/login']);
-};
-
-// Functional resolver
-export const productResolver: ResolveFn<Product> = (route) => {
-  return inject(ProductService).getById(route.paramMap.get('id')!);
-};
 ```
 
-```html
-<!-- Template -->
-<a routerLink="/products" routerLinkActive="active">Products</a>
-<a [routerLink]="['/products', product.id]">{{ product.name }}</a>
-<router-outlet />
-```
+Register with `provideRouter(routes, withComponentInputBinding())`. Route parameters can then bind to `input()` properties. In v22, `paramsInheritanceStrategy` defaults to `'always'`.
 
-## 📋 Forms
+## HTTP
 
-### Reactive Forms
+```ts
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
-```typescript
-@Component({ /* ... */ })
-export class LoginComponent {
-  private readonly fb = inject(FormBuilder);
-
-  form = this.fb.group({
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(8)]],
-    rememberMe: [false],
-  });
-
-  onSubmit() {
-    if (this.form.valid) {
-      console.log(this.form.value);
-    }
-  }
-}
-```
-
-```html
-<form [formGroup]="form" (ngSubmit)="onSubmit()">
-  <input formControlName="email" type="email" />
-  @if (form.controls.email.errors?.['required']) {
-    <span class="error">Email is required</span>
-  }
-
-  <input formControlName="password" type="password" />
-  <label>
-    <input formControlName="rememberMe" type="checkbox" /> Remember me
-  </label>
-
-  <button type="submit" [disabled]="form.invalid">Login</button>
-</form>
-```
-
-## 🌐 HTTP
-
-```typescript
-// Using HttpClient
-@Injectable({ providedIn: 'root' })
-export class ApiService {
-  private readonly http = inject(HttpClient);
-
-  getUsers(): Observable<User[]> {
-    return this.http.get<User[]>('/api/users');
-  }
-
-  createUser(user: CreateUserDto): Observable<User> {
-    return this.http.post<User>('/api/users', user);
-  }
-
-  updateUser(id: string, data: Partial<User>): Observable<User> {
-    return this.http.put<User>(`/api/users/${id}`, data);
-  }
-
-  deleteUser(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/users/${id}`);
-  }
-}
-
-// Using httpResource (Angular 21)
-const usersResource = httpResource<User[]>('/api/users');
-usersResource.value();       // User[] | undefined
-usersResource.isLoading();   // boolean
-usersResource.error();       // Error | undefined
-
-// With reactive URL
-const userResource = httpResource<User>(() => `/api/users/${userId()}`);
-
-// Functional interceptor
-export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const token = inject(AuthService).token();
-  if (token) {
-    req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
-  }
-  return next(req);
+export const appConfig = {
+  providers: [provideHttpClient(withInterceptors([authInterceptor]))],
 };
 ```
 
-## 🔄 Lifecycle Hooks
+`HttpClient` uses Fetch by default. `withFetch()` is deprecated; use `withXhr()` only when upload progress reporting is required. Use `httpResource()` for reactive reads, `HttpClient` for imperative requests and mutations, and functional interceptors with `withInterceptors()`.
 
-```typescript
-export class MyComponent implements OnInit, OnDestroy {
-  // In order of execution:
-  // constructor        → DI resolution
-  // ngOnChanges        → when input bindings change
-  // ngOnInit           → after first ngOnChanges
-  // ngDoCheck          → every change detection run
-  // ngAfterContentInit → after content projection
-  // ngAfterContentChecked
-  // ngAfterViewInit    → after view initialization
-  // ngAfterViewChecked
-  // ngOnDestroy        → before component is destroyed
+## Signal Forms
 
-  ngOnInit() { /* one-time setup */ }
-  ngOnDestroy() { /* cleanup */ }
-}
+```ts
+import { form, FormField, required } from '@angular/forms/signals';
+import { Component, signal } from '@angular/core';
 
-// Modern alternative — DestroyRef
-export class MyComponent {
-  private readonly destroyRef = inject(DestroyRef);
+@Component({
+  imports: [FormField],
+  template: `
+    <form (submit)="save($event)">
+      <label>
+        Email
+        <input type="email" [formField]="profileForm.email" />
+      </label>
+      @if (profileForm.email().touched() && profileForm.email().invalid()) {
+        <p>{{ profileForm.email().errors()[0]?.message }}</p>
+      }
+      <button type="submit">Save</button>
+    </form>
+  `,
+})
+export class ProfileEditor {
+  private readonly model = signal({ email: '' });
+  protected readonly profileForm = form(this.model, (path) => {
+    required(path.email);
+  });
 
-  constructor() {
-    someObservable$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(val => { /* ... */ });
+  protected save(event: SubmitEvent) {
+    event.preventDefault();
+    if (this.profileForm().valid()) console.log(this.model());
   }
 }
 ```
 
-## 🔧 Built-in Pipes
+Signal Forms are stable in v22. Import `FormField` and bind with `[formField]` (not `[field]`). See [Signal Forms](/modern/signal-forms/) for validation, async operations, custom controls and submission.
 
-```html
-<!-- Text transforms -->
-{{ 'hello' | uppercase }}          <!-- HELLO -->
-{{ 'HELLO' | lowercase }}          <!-- hello -->
-{{ 'hello world' | titlecase }}    <!-- Hello World -->
+## Testing with Vitest
 
-<!-- Numbers -->
-{{ 3.14159 | number:'1.2-2' }}     <!-- 3.14 -->
-{{ 0.85 | percent }}               <!-- 85% -->
-{{ 99.99 | currency:'USD' }}       <!-- $99.99 -->
+```ts
+import { TestBed } from '@angular/core/testing';
+import { describe, expect, it } from 'vitest';
+import { Counter } from './counter';
 
-<!-- Dates -->
-{{ today | date:'short' }}         <!-- 1/15/25, 3:30 PM -->
-{{ today | date:'fullDate' }}      <!-- Wednesday, January 15, 2025 -->
-{{ today | date:'yyyy-MM-dd' }}    <!-- 2025-01-15 -->
-
-<!-- Objects -->
-{{ myObject | json }}              <!-- JSON string -->
-{{ myObject | keyvalue }}          <!-- key-value pairs for @for -->
-
-<!-- Async -->
-{{ observable$ | async }}          <!-- unwrap observable -->
-
-<!-- Array -->
-{{ items | slice:0:5 }}            <!-- first 5 items -->
-```
-
-## 🧪 Testing Quick Reference
-
-```typescript
-// Component test setup
-describe('MyComponent', () => {
-  let fixture: ComponentFixture<MyComponent>;
-  let component: MyComponent;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [MyComponent],
-      providers: [
-        { provide: MyService, useValue: mockService },
-      ],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(MyComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-  });
-
-  it('should render title', () => {
-    const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('h1')?.textContent).toContain('Hello');
-  });
-});
-
-// Service test
-describe('AuthService', () => {
-  let service: AuthService;
-  let httpMock: HttpTestingController;
-
-  beforeEach(() => {
-    TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
-    });
-    service = TestBed.inject(AuthService);
-    httpMock = TestBed.inject(HttpTestingController);
-  });
-
-  it('should login', () => {
-    service.login({ email: 'a@b.com', password: '123' }).subscribe(user => {
-      expect(user.email).toBe('a@b.com');
-    });
-    const req = httpMock.expectOne('/api/auth/login');
-    req.flush({ email: 'a@b.com', name: 'Test' });
+describe('Counter', () => {
+  it('creates', async () => {
+    await TestBed.configureTestingModule({ imports: [Counter] }).compileComponents();
+    const fixture = TestBed.createComponent(Counter);
+    fixture.componentRef.setInput('initial', 2);
+    await fixture.whenStable();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });
 ```
+
+New projects use Vitest by default since Angular 21. For HTTP tests, provide `provideHttpClient()` and `provideHttpClientTesting()`, then inject `HttpTestingController`. See [Unit Testing](/testing/unit-testing/).
+
+## SSR and hydration
+
+- Add SSR: `ng new my-app --ssr` or `ng add @angular/ssr`.
+- Configure per-route rendering with `RenderMode.Server`, `RenderMode.Prerender` or `RenderMode.Client`.
+- Enable hydration using `provideClientHydration()`. Incremental hydration is enabled by default with hydration in v22.
+- Use `afterNextRender()` or `isPlatformBrowser()` for browser-only APIs.
+
+## Version notes
+
+- **Angular 21 and earlier:** OnPush is not the default; add `changeDetection: ChangeDetectionStrategy.OnPush` when appropriate. `@Service()` is not available before v22; use `@Injectable({ providedIn: 'root' })`.
+- **Angular 20 and earlier:** Vitest is not the default until v21. Zone.js-based change detection is the default.
+- For removed APIs and version compatibility, see [Version Upgrades](/migration/version-upgrade/).

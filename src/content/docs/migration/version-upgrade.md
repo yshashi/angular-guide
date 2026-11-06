@@ -1,236 +1,351 @@
 ---
 title: Version Upgrade Guide 🔄
-description: Step-by-step guide for upgrading between Angular versions
+description: Upgrade to Angular 22 with ng update — requirements, every v21→v22 and v20→v21 breaking change, automatic migrations, and the version support table.
 sidebar:
   order: 1
 ---
 
-Keeping your Angular application up-to-date ensures you benefit from performance improvements, security patches, and modern APIs. This guide walks you through a reliable, repeatable process for upgrading between Angular major versions — from preparation to verification.
+Staying on a supported Angular version gets you security fixes, faster builds and the newest APIs. Thanks to `ng update`, most upgrades are a single command plus a review of what changed. This guide shows the safe process and lists **every breaking change and automatic migration** for the last two majors, so you know exactly what to expect.
 
-## 🎯 The Golden Rule
+**What you'll learn**
 
-Angular supports upgrading **one major version at a time**. If you're on v17 and want to reach v21, you must go through v17 → v18 → v19 → v20 → v21 sequentially. Skipping versions is not supported and will likely break your application.
+- How Angular versions and support windows work (and what changed in v22)
+- Node.js, TypeScript and RxJS requirements per version
+- The step-by-step `ng update` process — one major at a time
+- Every v21 → v22 breaking change and the migrations that fix them
+- Every v20 → v21 breaking change (zoneless default, `BootstrapContext`, Vitest …)
+- How to handle third-party libraries and failed upgrades
 
-:::caution
-Never attempt to skip major versions. Each major release includes migration schematics that expect the previous version's code structure. Skipping versions means those schematics won't run correctly.
+## How Angular versions work
+
+Angular follows semantic versioning: **major.minor.patch** (for example `22.2.4`).
+
+| Release | What it contains | Effort to update |
+|---|---|---|
+| Major (22.0) | New features and planned breaking changes | `ng update` + review |
+| Minor (22.2) | New features, fully backward compatible | Usually none |
+| Patch (22.2.4) | Bug fixes | None |
+
+**Release cadence.** Starting with v22, Angular ships **one major version per year** with 4–6 minors in between (until v21 it was a major every six months). Each major is supported for **24 months**: 12 months of active support followed by 12 months of long-term support (LTS, critical and security fixes only).
+
+### Supported versions (November 2026)
+
+| Version | Status | Released | Active support ends | LTS ends |
+|---|---|---|---|---|
+| **22.x** | Active | 2026-06-03 | 2027-06 | 2028-06 |
+| 21.x | LTS | 2025-11-19 | 2026-06-03 | 2027-06 |
+| 20.x | LTS | 2025-05-28 | 2025-11-19 | **2026-11-28** |
+| 19 and older | ❌ Unsupported | — | — | — |
+
+The next major, **v23, is planned for around June 2027**. If you're on v20, its LTS ends at the end of November 2026 — upgrade now.
+
+### Version requirements
+
+| Angular | Node.js | TypeScript | RxJS |
+|---|---|---|---|
+| **22.x** | `^22.22.3` \|\| `^24.15.0` \|\| `^26.0.0` | `>=6.0 <6.1` | `^6.5.3` \|\| `^7.4.0` |
+| 21.x | `^20.19.0` \|\| `^22.12.0` \|\| `^24.0.0` | `>=5.9 <6.0` | `^6.5.3` \|\| `^7.4.0` |
+| 20.2.x – 20.3.x | `^20.19.0` \|\| `^22.12.0` \|\| `^24.0.0` | `>=5.8 <6.0` | `^6.5.3` \|\| `^7.4.0` |
+| 20.0.x – 20.1.x | `^20.19.0` \|\| `^22.12.0` \|\| `^24.0.0` | `>=5.8 <5.9` | `^6.5.3` \|\| `^7.4.0` |
+
+:::caution[Upgrade Node.js first]
+Angular 22 **drops Node 20**. Update your machine, CI images and Dockerfiles to Node 24 (or 22.22.3+ / 26) *before* running `ng update`, or the update fails with an engine error. `ng update` installs the right TypeScript version for you.
 :::
 
-## 📋 Pre-Upgrade Checklist
+## The golden rule: one major at a time
 
-Before running any upgrade commands, complete this checklist:
-
-1. **Commit all changes** — start from a clean git state
-2. **Run your test suite** — ensure all tests pass before upgrading
-3. **Check third-party dependencies** — verify they support the target Angular version
-4. **Review the changelog** — read the breaking changes for your target version
-5. **Back up `package.json` and `package-lock.json`** — in case you need to rollback
-6. **Check Node.js version** — each Angular version has minimum Node.js requirements
+`ng update` only supports moving **one major version per step**. To go from v20 to v22, run the update to v21, verify, commit, then update to v22:
 
 ```bash
-# Verify clean git state
-git status
-
-# Run existing tests
-ng test --watch=false
-ng build
-
-# Check current versions
-ng version
-node --version
-npm --version
+ng update @angular/core@21 @angular/cli@21   # 20 → 21, then build, test, commit
+ng update @angular/core@22 @angular/cli@22   # 21 → 22, then build, test, commit
 ```
 
-## 🔧 Using update.angular.dev
-
-The official [Angular Update Guide](https://update.angular.dev/) is your best friend. Select your current version, target version, and app complexity to get a customized migration checklist.
+Each major's migrations expect the code shape produced by the previous one — skipping a version means skipping migrations.
 
 :::tip
-Bookmark [update.angular.dev](https://update.angular.dev/) — it's maintained by the Angular team and always reflects the latest migration requirements.
+Use the interactive **[Angular Update Guide](https://angular.dev/update-guide)**: pick your current and target versions and app complexity, and it produces a checklist of manual steps. This page covers the same ground for v20 → v22 in more detail.
 :::
 
-## ⚡ Step-by-Step Upgrade Process
+## Step-by-step upgrade
 
-### Step 1: Update Angular CLI and Core
-
-Always update `@angular/cli` and `@angular/core` together using `ng update`:
+### 1. Prepare
 
 ```bash
-# Update the Angular CLI first
-ng update @angular/cli @angular/core
+git status                      # start from a clean, committed state
+node --version                  # v22.22.3+, v24.15+ or v26 for Angular 22
+ng version                      # what you have now
+npx ng test --no-watch          # tests green before you start
+npx ng build                    # build green before you start
 ```
 
-The `ng update` command does three things:
-- Updates package versions in `package.json`
-- Runs `npm install` to fetch new packages
-- Executes **migration schematics** that automatically update your code
+Also check that your key third-party libraries (component libraries, NgRx, i18n libraries, …) have released a version that supports the target Angular major.
 
-### Step 2: Update Additional Angular Packages
+### 2. See what can be updated
 
 ```bash
-# Update Angular Material (if used)
-ng update @angular/material
-
-# Update Angular CDK
-ng update @angular/cdk
+ng update
 ```
 
-### Step 3: Update Third-Party Libraries
+Without arguments, `ng update` lists the packages that have updates and the command to run for each.
+
+### 3. Update Angular core and the CLI together
 
 ```bash
-# Check for outdated packages
-npm outdated
-
-# Update RxJS (if needed)
-npm install rxjs@latest
-
-# Update other libraries one at a time
-npm install <package>@latest
+ng update @angular/core@22 @angular/cli@22
 ```
 
-### Step 4: Verify the Upgrade
+This command:
+
+1. Updates `@angular/*` packages (and TypeScript, zone.js etc. if needed) in `package.json`
+2. Installs the new versions
+3. Runs **migration schematics** that rewrite your code for breaking changes
+4. Formats the files it changed (with Prettier, if your project has it)
+
+During the update you may be asked whether to run **optional migrations** (for example, switching to the `application` builder or migrating Karma to Vitest). You can say no and run them later.
+
+### 4. Update other Angular-related packages
 
 ```bash
-# Build the application
-ng build
-
-# Run all tests
-ng test --watch=false
-
-# Run e2e tests if available
-ng e2e
-
-# Start the dev server and manually verify
-ng serve
+ng update @angular/material@22   # also updates @angular/cdk and related packages
+ng update @ngrx/store             # third-party packages with ng update support
+npm outdated                      # find the rest
 ```
 
-## 🚀 Version-by-Version Highlights
-
-### Angular 17 → 18
-
-Key changes in Angular 18:
-- **Zoneless change detection (experimental)** — opt-in with `provideZonelessChangeDetection()`
-- **Stable signal APIs** — `input()`, `output()`, `model()`, `viewChild()`, `contentChild()`
-- **Route redirects with functions** — `redirectTo` accepts a function
-- **Material 3 stable** — Angular Material components use M3 by default
-
-```typescript
-// v18: Function-based redirect
-const routes: Routes = [
-  {
-    path: 'old-path',
-    redirectTo: ({ queryParams }) => {
-      const id = queryParams['id'];
-      return id ? `/new-path/${id}` : '/new-path';
-    },
-  },
-];
-```
-
-### Angular 18 → 19
-
-Key changes in Angular 19:
-- **Standalone is the default** — no need to set `standalone: true`
-- **`linkedSignal()`** — reactive state derived from other signals with reset capability
-- **`resource()` API (experimental)** — declarative async data loading
-- **Incremental hydration** — `@defer` blocks work with SSR hydration
-- **Strict unused imports** — compiler flags unused imports in templates
-
-```typescript
-// v19: linkedSignal for derived state with reset
-import { signal, linkedSignal } from '@angular/core';
-
-const items = signal(['apple', 'banana', 'cherry']);
-const selectedItem = linkedSignal(() => items()[0]); // resets when items change
-```
-
-### Angular 19 → 20
-
-Key changes in Angular 20:
-- **Zoneless by default** — new projects no longer include zone.js
-- **Stable `resource()` and `rxResource()`** — declarative data fetching
-- **`httpResource()`** — HTTP-specific resource API
-- **Signal-based forms (experimental)** — reactive forms with signals
-- **`outputToObservable()` / `outputFromObservable()`** — bridge output signals and RxJS
-
-```typescript
-// v20: httpResource for declarative HTTP
-import { httpResource } from '@angular/common/http';
-
-const usersResource = httpResource<User[]>({
-  url: '/api/users',
-});
-```
-
-### Angular 20 → 21
-
-Key changes in Angular 21:
-- **Stable signal-based forms** — `FormSignal`, `FormSignalGroup`
-- **Enhanced `effect()` scheduling** — improved effect timing
-- **Improved `@let` syntax** — template local variables with more flexibility
-- **Build performance improvements** — faster rebuilds with esbuild optimizations
-
-```typescript
-// v21: Stable signal-based forms
-import { FormSignal, FormSignalGroup } from '@angular/forms';
-
-const name = new FormSignal('');
-const email = new FormSignal('');
-const form = new FormSignalGroup({ name, email });
-```
-
-## 🛠️ Automated Migration Schematics
-
-Angular ships migration schematics that automatically transform your code during `ng update`. Here are some commonly encountered ones:
+### 5. Review, build, test
 
 ```bash
-# See what schematics are available without running them
-ng update @angular/core --dry-run
-
-# Force re-run schematics if they failed
-ng update @angular/core --migrate-only
-
-# Run a specific schematic
-ng generate @angular/core:control-flow
-ng generate @angular/core:standalone
-ng generate @angular/core:inject
-ng generate @angular/core:signal-input
-ng generate @angular/core:signal-queries
-ng generate @angular/core:output
+git diff                          # read what the migrations changed
+npx ng build
+npx ng test --no-watch
+npx ng e2e                        # or npx playwright test
+npx ng serve                      # click through key flows
 ```
 
-:::tip
-Always run `ng update` with `--dry-run` first to preview what changes will be made. This helps you understand the scope of the migration before committing to it.
+Look for `TODO` comments left by migrations — they mark code the schematic couldn't convert safely.
+
+### Useful `ng update` options
+
+| Option | What it does |
+|---|---|
+| `--create-commits` | Creates a Git commit for the update and for **each** migration — great for reviewing |
+| `--allow-dirty` | Allows updating with uncommitted changes (not recommended) |
+| `--force` | Ignores peer-dependency mismatches (use only when a library lags behind) |
+| `--next` | Updates to the next pre-release (`-next`, `-rc`) for early testing |
+| `--migrate-only --name <migration>` | Re-runs one migration of a package without changing versions |
+| `--migrate-only --from 21 --to 22` | Re-runs all migrations in a version range |
+| `--verbose` | Prints detailed logs |
+
+```bash
+# Re-run the OnPush/Eager migration after reverting a file by mistake
+ng update @angular/core --migrate-only --name change-detection-eager
+```
+
+:::note
+`ng update` has **no `--dry-run` flag**. Use a clean branch plus `--create-commits` to review every change, and `git reset` if you want to start over.
 :::
 
-## 📦 Handling Third-Party Compatibility
+## Angular 21 → 22
 
-Third-party libraries often lag behind Angular releases. Here's how to handle compatibility issues:
+### Automatic migrations run by `ng update`
 
-### Check Peer Dependency Warnings
+| Migration (name) | What it changes | Why |
+|---|---|---|
+| `change-detection-eager` | Adds `changeDetection: ChangeDetectionStrategy.Eager` to components that had **no** `changeDetection`, and replaces `ChangeDetectionStrategy.Default` with `Eager` | Components are now **OnPush by default**; this keeps your app behaving exactly as before |
+| `http-xhr-backend` | Adds `withXhr()` to `provideHttpClient()` where your app relied on `HttpXhrBackend` | `HttpClient` now uses the Fetch API by default |
+| `strict-templates-default` | Adds `"strictTemplates": false` to `angularCompilerOptions` if you never set it | Strict template type checking is now **on by default** |
+| `strict-safe-navigation-narrow` | Sets the `nullishCoalescingNotNullable` and `optionalChainNotNullable` extended diagnostics to `suppress` | Smarter null narrowing would otherwise surface many new warnings |
+| `safe-optional-chaining` | Wraps existing template `?.` expressions in `$safeNavigationMigration(...)` | Template `?.` now returns `undefined` (like JavaScript) instead of `null` |
+| `can-match-snapshot-required` | Adds the third `currentSnapshot` argument to direct `canMatch` call sites | The parameter is now required |
+| `incremental-hydration` | Adds `withNoIncrementalHydration()` to `provideClientHydration()` if you didn't use incremental hydration | **Incremental hydration is now the default** |
+| `model-output` | Fixes components that declare both a `model()` and a separate `@Output()` with the same `…Change` name | Duplicate outputs are now a compile error |
+| `trust-proxy-headers` (CLI) | Adds `trustProxyHeaders: ['x-forwarded-host', 'x-forwarded-proto']` with a TODO to `AngularNodeAppEngine`/`AngularAppEngine` in `server.ts` | Proxy headers are now ignored unless trusted |
+| `update-workspace-config` (CLI) | Renames `ssr.experimentalPlatform` to `ssr.platform` in `angular.json` | Option graduated |
+| `add-istanbul-instrumenter` (CLI) | Adds `istanbul-lib-instrument` to `devDependencies` for Karma projects | It's now an optional peer dependency |
+| `use-application-builder` (CLI, optional) | Moves Webpack `browser` builders to `@angular/build:application` | Webpack builders are deprecated |
+| `migrate-karma-to-vitest` (CLI, optional) | Switches the legacy Karma test target to the `unit-test` builder with Vitest | Vitest is the default runner |
 
-```bash
-# Install with legacy peer deps if needed temporarily
-npm install --legacy-peer-deps
+Most of these migrations **preserve old behaviour** so your app keeps working on day one. Plan follow-up work to adopt the new defaults (remove `Eager`, re-enable strict templates, remove `$safeNavigationMigration`) — see [Codebase Modernization](/migration/modernization/).
 
-# Or force the install (less safe)
-npm install --force
+### Breaking changes explained
+
+#### Components are OnPush by default
+
+A component without a `changeDetection` property now uses `OnPush`. It re-renders only when an input changes, a template event fires, a signal it reads changes, an `async` pipe emits, or you call `markForCheck()`. Code that mutates plain fields from timers or callbacks stops updating the view.
+
+The migration pins existing components to the old behaviour:
+
+```ts ins={5}
+@Component({
+  selector: 'app-legacy-widget',
+  template: `<p>{{ count }}</p>`,
+  // Added by ng update: keep the pre-v22 "check every time" behaviour
+  changeDetection: ChangeDetectionStrategy.Eager,
+})
+export class LegacyWidget {
+  count = 0;
+}
 ```
 
-### Common Library Compatibility Checklist
+`ChangeDetectionStrategy.Eager` (added in 21.2) is the new name for the old `Default`; **`Default` is deprecated**. New components need no `changeDetection` at all — OnPush is the default since v22. Once a component uses signals for its state, delete the `Eager` line.
 
-| Library | Check URL |
-|---------|-----------|
-| Angular Material | github.com/angular/components |
-| NgRx | ngrx.io |
-| PrimeNG | primeng.org |
-| Transloco | github.com/jsverse/transloco |
-| Angular Fire | github.com/angular/angularfire |
+#### `HttpClient` uses `fetch` by default
 
-### Temporary Version Pinning
+`provideHttpClient()` now uses `FetchBackend`. `withFetch()` is deprecated and can simply be deleted. Fetch can't report **upload** progress, so if you need upload progress events, opt back into XHR:
 
-If a library hasn't updated yet, pin it to the last working version:
+```ts
+provideHttpClient(withXhr());
+```
 
-```json
+The `reportProgress` request option is deprecated — use `reportUploadProgress` and/or `reportDownloadProgress`:
+
+```ts
+this.http.post('/api/upload', formData, { observe: 'events', reportUploadProgress: true });
+```
+
+#### Strict templates and smarter null checks
+
+- `strictTemplates` now defaults to `true`. The migration writes `"strictTemplates": false` into existing projects; remove it and fix the reported errors when you can.
+- Safe navigation now narrows nullables correctly, which triggers the `nullishCoalescingNotNullable` and `optionalChainNotNullable` diagnostics on existing code (temporarily suppressed by the migration).
+- In templates, `a?.b` now evaluates to `undefined` instead of `null` when `a` is nullish, matching JavaScript. The migration wraps existing expressions as `{{ $safeNavigationMigration(user?.name) }}` to keep the old `null` result. It's a temporary aid — remove it once your code doesn't depend on `null` vs `undefined`.
+
+#### Router
+
+- `paramsInheritanceStrategy` now defaults to **`'always'`**: child routes inherit params from all parents. Restore the old behaviour with `provideRouter(routes, withRouterConfig({ paramsInheritanceStrategy: 'emptyOnly' }))`.
+- The third `currentSnapshot` parameter of `CanMatchFn` and `CanMatch.canMatch` is now **required** in the types. Class guards must declare it:
+
+```ts
+@Service()
+export class AdminMatchGuard implements CanMatch {
+  private readonly auth = inject(AuthService);
+
+  canMatch(route: Route, segments: UrlSegment[], currentSnapshot: PartialMatchRouteSnapshot): MaybeAsync<GuardResult> {
+    return this.auth.isAdmin();
+  }
+}
+```
+
+- `provideRoutes()` was removed — use `provideRouter()` (or the `ROUTES` multi token).
+- `TitleStrategy.getResolvedTitleForRoute` now returns `string | undefined` instead of `any`.
+
+#### Removed APIs
+
+| Removed | Use instead |
+|---|---|
+| `ComponentFactoryResolver`, `ComponentFactory` | `viewContainerRef.createComponent(MyComponent)` or `createComponent(MyComponent, {...})` |
+| `createNgModuleRef` | `createNgModule` |
+| `ChangeDetectorRef.checkNoChanges` | In tests, `fixture.detectChanges()` |
+| HammerJS integration (`HammerModule`, gesture config) | Your own pointer-event handling or a gesture library |
+| `provideRoutes()` | `provideRouter()` / `ROUTES` |
+| `getAngularLib` / `setAngularLib` (upgrade) | `getAngularJSGlobal` / `setAngularJSGlobal` |
+
+#### Smaller compiler and runtime changes
+
+- Attributes prefixed with `data-` no longer bind to inputs or outputs.
+- Binding the same input, output or `model` twice on one element is a compile error; so is an element matched by **multiple components**.
+- The second argument of `ApplicationRef.bootstrap()` no longer accepts `any` — pass a non-null element or selector.
+- Component styles are removed from the page when no host uses them anymore. Global CSS that accidentally relied on a component's styles may lose styling.
+- `animate.leave` animations are no longer limited to the removed element (nested leave animations run, scoped to component boundaries), and `AnimationCallbackEvent.animationComplete` changed signature.
+- Signal Forms: the `min` and `max` rules accept only numbers (or `null`), not strings.
+- TypeScript **6.0** is required; TypeScript 5.9 is no longer supported.
+
+#### CLI and tooling changes
+
+- **Node.js 20 is no longer supported** (`^22.22.3 || ^24.15.0 || >=26`).
+- `ng serve` gives the **`PORT` environment variable the highest priority**, overriding `--port` and `angular.json`.
+- SSR: a request whose `Host` isn't in `allowedHosts` now gets **`400 Bad Request`** instead of falling back to client rendering. Configure `security.allowedHosts` in `angular.json` or the `NG_ALLOWED_HOSTS` env var (see [Deployment Strategies](/deployment/strategies/#configure-allowed-hosts)).
+- The experimental `@angular-devkit/build-angular:jest` and `:web-test-runner` builders were removed; the `@angular-devkit/architect-cli` package was folded into `@angular-devkit/architect`.
+- `istanbul-lib-instrument` is now an optional peer dependency (the migration adds it for Karma users).
+
+### New deprecations in v22.x
+
+| Deprecated | Replacement |
+|---|---|
+| `withFetch()` | Nothing — fetch is the default (delete it) |
+| `reportProgress` option | `reportUploadProgress` / `reportDownloadProgress` |
+| `ChangeDetectionStrategy.Default` | `ChangeDetectionStrategy.Eager` (or OnPush) |
+| `withIncrementalHydration()` | Nothing — it's the default (`withNoIncrementalHydration()` to opt out) |
+| `CommonEngine` (`@angular/ssr/node`) | `AngularNodeAppEngine` / `AngularAppEngine` |
+| Webpack builders (`@angular-devkit/build-angular`, `build-webpack`, `@ngtools/webpack`) | `@angular/build` builders |
+| `HttpClient.jsonp`, `HttpClientJsonpModule`, `withJsonpSupport` (22.1) | Regular HTTP requests (CORS) |
+| `splitting` option of the unit-test builder (22.2) | Not needed with Vitest 5 |
+
+### Optional: adopt `@Service()` (22.1+)
+
+v22 added the `@Service()` decorator — a shorter `@Injectable({ providedIn: 'root' })`. It is **not** applied automatically by `ng update`; run it yourself when ready:
+
+```bash
+ng generate @angular/core:service
+```
+
+See [Codebase Modernization](/migration/modernization/#injectable--service) for details and limitations.
+
+## Angular 20 → 21
+
+### Highlights and breaking changes
+
+**Zoneless by default.** New v21 projects don't include zone.js. Existing apps keep zone.js, but Angular no longer adds the zone-based scheduler implicitly — you must provide it. The v21 `ng update` migration adds it for you:
+
+```ts title="app.config.ts"
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideZoneChangeDetection({ eventCoalescing: true }),
+    // ...
+  ],
+};
+```
+
+Leave it in place until you migrate to zoneless (see [Zoneless](/modern/zoneless/)). The `ignoreChangesOutsideZone` option was removed.
+
+**SSR bootstrapping uses `BootstrapContext`.** Server bootstrap functions now receive a context instead of relying on a global platform. A migration updates `main.server.ts`:
+
+```ts title="main.server.ts" del={1} ins={2-3}
+const bootstrap = () => bootstrapApplication(App, config);
+const bootstrap = (context: BootstrapContext) =>
+  bootstrapApplication(App, config, context);
+export default bootstrap;
+```
+
+On the server, `getPlatform()` returns `null` and `destroyPlatform()` is a no-op.
+
+**Vitest is the default test runner for new projects.** Existing Karma projects keep working on v21. To switch, use the optional v22 `migrate-karma-to-vitest` migration plus `ng g @schematics/angular:refactor-jasmine-vitest` (see [Codebase Modernization](/migration/modernization/#karma--jasmine--vitest)).
+
+Other v21 changes:
+
+- **TypeScript 5.9** required (5.8 dropped).
+- **Host bindings are type-checked** by default. Fix the new errors or set `"typeCheckHostBindings": false` temporarily.
+- Removed: `NgModuleFactory` (use `NgModule` classes), the component `moduleId` and `interpolation` options, `UpgradeAdapter` (use `@angular/upgrade/static`), and the `ApplicationConfig` export from `@angular/platform-browser` (import it from `@angular/core`).
+- Router: `lastSuccessfulNavigation` is now a **signal** — call it: `router.lastSuccessfulNavigation()`. Navigations may take a few extra microtasks; tests should wait for navigation to finish.
+- Tests: `TestBed` provides a fake `PlatformLocation` that supports the Navigation API, and errors are rethrown even when `provideZoneChangeDetection` is in TestBed providers.
+- `ngComponentOutletContent` is typed `Node[][] | undefined`.
+- Custom elements: signal inputs are read like plain properties (`el.myInput`, not `el.myInput()`).
+- Forms: the new `FormArrayDirective` (`[formArray]`) can conflict with existing directives or inputs named `formArray`.
+- The compiler errors when `emitDeclarationOnly` is enabled.
+- CLI: `cnpm` is no longer auto-detected; Less `javascriptEnabled` is no longer supported.
+- Deprecated: `HttpResponseBase.statusText`.
+
+v21 also added the `ngclass-to-class`, `ngstyle-to-style`, `common-to-standalone` and `router-testing-module-migration` schematics — optional, run them with `ng generate` (see [Codebase Modernization](/migration/modernization/)).
+
+## Coming from older versions
+
+Upgrade one major at a time and follow the Update Guide for each step. The big themes you'll pass through:
+
+| Version | Notable changes to expect |
+|---|---|
+| 17 | Built-in control flow (`@if`, `@for`), `@defer`, new `application` builder (esbuild + Vite) |
+| 18 | Signal inputs/outputs/queries/`model()` matured, zoneless experimental, `@let` (18.1) |
+| 19 | **Standalone is the default** (`standalone: false` added to NgModule-declared components by the migration), `linkedSignal`, `resource` (experimental), incremental hydration preview |
+| 20 | `effect`, `linkedSignal`, `toSignal` stable; zoneless stable (20.2); `@angular/animations` deprecated (20.2) in favour of `animate.enter`/`animate.leave` |
+
+## Third-party libraries
+
+Libraries often release support for a new Angular major a few days or weeks later.
+
+- Check each library's release notes or `peerDependencies` (`npm info <pkg> peerDependencies`).
+- Prefer waiting for a compatible release over forcing the install.
+- If you must proceed, `ng update ... --force` or an npm `overrides` entry can unblock you temporarily:
+
+```json title="package.json (temporary!)"
 {
   "overrides": {
     "some-angular-library": {
@@ -241,82 +356,44 @@ If a library hasn't updated yet, pin it to the last working version:
 ```
 
 :::caution
-Using `overrides` or `--legacy-peer-deps` is a temporary workaround. Always update to properly compatible versions as soon as they're available.
+`--force`, `--legacy-peer-deps` and `overrides` hide real incompatibilities. Remove them as soon as the library ships official support.
 :::
 
-## 🔍 Troubleshooting Failed Upgrades
+## Troubleshooting
 
-### Problem: `ng update` Fails Mid-Migration
+| Problem | Fix |
+|---|---|
+| `ng update` refuses to run: "repository is not clean" | Commit or stash changes (or `--allow-dirty`) |
+| Engine error / "Node.js version … is not supported" | Install Node 22.22.3+, 24.15+ or 26 |
+| Peer dependency conflict with a library | Update that library first, or wait for a compatible release |
+| A migration failed halfway | `git checkout .`, fix the reported file, then `ng update @angular/core --migrate-only --from 21 --to 22` |
+| Many new template type errors | Expected after enabling strict templates — fix them, or keep `"strictTemplates": false` temporarily |
+| Views don't update after the upgrade | A component lost `Eager` and relies on mutation — add `ChangeDetectionStrategy.Eager` or move state to signals |
+| Upload progress events stopped | Add `withXhr()` to `provideHttpClient()` |
+| SSR returns 400 | Add your domains to `allowedHosts` / `NG_ALLOWED_HOSTS` |
+| Strange build errors | Delete `.angular/cache` and `node_modules`, then `npm install` |
 
-```bash
-# Reset to pre-upgrade state
-git checkout .
-npm install
+## Post-upgrade checklist
 
-# Try again with verbose logging
-ng update @angular/core --verbose
-```
+- [ ] `ng build` succeeds (production configuration)
+- [ ] Unit tests (`ng test`) and e2e tests pass
+- [ ] App starts and key user flows work in the browser
+- [ ] No new console errors or warnings in dev mode
+- [ ] Reviewed migration diffs and `TODO` comments
+- [ ] CI, Docker images and hosting use a supported Node version
+- [ ] Bundle size is comparable (check the build summary and budgets)
+- [ ] Planned follow-ups: remove `Eager`, re-enable strict templates, drop `$safeNavigationMigration`, adopt zoneless
 
-### Problem: Build Errors After Upgrade
+## Key takeaways
 
-```bash
-# Clear all caches
-rm -rf node_modules/.cache
-rm -rf .angular/cache
+- Upgrade one major at a time: `ng update @angular/core@22 @angular/cli@22`.
+- Angular 22 needs Node 22.22.3+/24.15+/26 and TypeScript 6.0.
+- From v22, majors ship yearly and each is supported for 24 months.
+- The v22 migrations keep old behaviour (Eager change detection, XHR, non-strict templates, `null` safe navigation) — then you modernize at your own pace.
+- Review every migration diff and run the full test suite before merging.
 
-# Reinstall dependencies from scratch
-rm -rf node_modules package-lock.json
-npm install
+## Next steps
 
-# Rebuild
-ng build
-```
-
-### Problem: TypeScript Version Mismatch
-
-Each Angular version requires a specific TypeScript range. If you see TS version errors:
-
-```bash
-# Check required TS version in Angular's package.json
-npm info @angular/compiler-cli peerDependencies
-
-# Install the correct TypeScript version
-npm install typescript@<required-version>
-```
-
-### Problem: RxJS Compatibility Issues
-
-```bash
-# Check which RxJS version is needed
-npm info @angular/core peerDependencies
-
-# Install compatible RxJS
-npm install rxjs@<compatible-version>
-```
-
-## ✅ Post-Upgrade Verification Checklist
-
-After every upgrade, walk through this checklist:
-
-- [ ] `ng build` completes without errors
-- [ ] `ng build --configuration production` succeeds (AOT compilation)
-- [ ] All unit tests pass (`ng test --watch=false`)
-- [ ] All e2e tests pass
-- [ ] Application starts and renders correctly
-- [ ] Core user flows work end-to-end
-- [ ] No new console warnings or deprecation notices
-- [ ] Bundle sizes are comparable to pre-upgrade (check with `source-map-explorer`)
-- [ ] Performance is on par (run Lighthouse before and after)
-
-:::note
-Keep a record of upgrade dates and version numbers. This makes future upgrades easier to plan and helps trace any subtle regressions that appear later.
-:::
-
-## 🗓️ Planning Your Upgrade Cadence
-
-Angular releases a new major version roughly every 6 months. Each major version is actively supported for 18 months (6 months active + 12 months LTS). A healthy upgrade cadence is:
-
-- **Stay within 1 major version of latest** for best community support
-- **Upgrade within 1 month of a new release** if your test coverage is solid
-- **Budget 1–3 days per major version** for the upgrade itself
-- **Schedule upgrades after the first patch release** (e.g., v21.0.1) for stability
+1. **[Codebase Modernization](/migration/modernization/)** — adopt OnPush, zoneless, Vitest and the other new defaults
+2. **[Standalone Migration](/migration/standalone/)** — remove NgModules
+3. **[Signals Migration](/migration/signals/)** — convert inputs, outputs and queries to signals
