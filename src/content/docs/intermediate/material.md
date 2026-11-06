@@ -1,599 +1,250 @@
 ---
 title: Angular Material 🎨
-description: Build beautiful UIs with Angular Material components
+description: Add Angular Material to an Angular application, use standalone Material components and build accessible, themeable interfaces.
 sidebar:
   order: 9
 ---
 
-Angular Material is like having a professional design team at your fingertips - it provides pre-built, accessible, and beautiful UI components that follow Google's Material Design principles. Think of it as a comprehensive toolkit that makes your app look polished and professional without the design headaches.
+Angular Material is the official component library for Angular. It provides prebuilt UI components designed around Material Design, with keyboard interaction and accessibility support. Your application is still responsible for meaningful labels, content, responsive layout and end-to-end accessibility.
 
-## 🎯 Why Angular Material?
+## Install and configure
 
-**Imagine building a house with pre-fabricated, high-quality components** instead of crafting every piece from scratch. Angular Material gives you:
-
-**Key Benefits:**
-- **Consistent Design** - All components follow Material Design guidelines
-- **Accessibility** - Built-in ARIA support and keyboard navigation
-- **Theming** - Easy customization with CSS custom properties
-- **Responsive** - Works perfectly on all screen sizes
-- **Well-tested** - Battle-tested components used by millions
-
-## 🚀 Getting Started
-
-### Installation and Setup
+Use the CLI schematic so the installed package version matches the workspace:
 
 ```bash
-# Install Angular Material, CDK, and Animations
 ng add @angular/material
-
-# This command will:
-# 1. Install the packages
-# 2. Add Material Icons font
-# 3. Set up global typography styles
-# 4. Add animations module
 ```
 
-### Basic Setup in Your App
+Follow the prompts to choose a theme and configure global typography and browser animations as supported by that Material release. Review the generated changes in `angular.json`, global styles and package manifests.
 
-```typescript
-// app.config.ts - Modern standalone approach
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+## Import components into a standalone component
 
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideRouter(routes),
-    provideAnimationsAsync(), // Required for Material animations
-    // ... other providers
-  ]
-};
+Import only the Material entry points used by the component:
 
-// Import Material modules as needed in components
+```ts
+import { Component, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatInputModule } from '@angular/material/input';
-```
 
-## 🎨 Essential Components
-
-### Buttons - The Building Blocks
-
-**Buttons are like the handshakes of your app** - they're often the first interaction users have, so they need to feel right.
-
-```typescript
 @Component({
-  selector: 'app-button-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatIconModule],
+  selector: 'app-account-card',
+  imports: [MatButtonModule, MatCardModule],
   template: `
-    <div>
-      <h3>Button Varieties</h3>
-      
-      <!-- Basic buttons -->
-      <button mat-button>Basic</button>
-      <button mat-raised-button>Raised</button>
-      <button mat-flat-button>Flat</button>
-      <button mat-stroked-button>Stroked</button>
-      
-      <!-- Colored buttons -->
-      <button mat-raised-button color="primary">Primary</button>
-      <button mat-raised-button color="accent">Accent</button>
-      <button mat-raised-button color="warn">Warn</button>
-      
-      <!-- Icon buttons -->
-      <button mat-icon-button>
-        <mat-icon>favorite</mat-icon>
-      </button>
-      
-      <button mat-fab>
-        <mat-icon>add</mat-icon>
-      </button>
-      
-      <button mat-mini-fab>
-        <mat-icon>edit</mat-icon>
-      </button>
-      
-      <!-- Buttons with icons and text -->
-      <button mat-raised-button>
-        <mat-icon>save</mat-icon>
-        Save Document
-      </button>
-      
-      <!-- Disabled state -->
-      <button mat-raised-button [disabled]="isLoading()">
-        {{isLoading() ? 'Saving...' : 'Save'}}
-      </button>
-    </div>
-  `
-})
-export class ButtonDemoComponent {
-  isLoading = signal(false);
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Account</mat-card-title>
+        <mat-card-subtitle>Manage your profile</mat-card-subtitle>
+      </mat-card-header>
 
-  save() {
-    this.isLoading.set(true);
-    setTimeout(() => this.isLoading.set(false), 2000);
+      <mat-card-content>
+        <p>{{ status() }}</p>
+      </mat-card-content>
+
+      <mat-card-actions>
+        <button mat-button type="button" (click)="refresh()">Refresh</button>
+      </mat-card-actions>
+    </mat-card>
+  `,
+})
+export class AccountCard {
+  readonly status = signal('Your account is up to date.');
+
+  refresh() {
+    this.status.set('Your account is up to date.');
   }
 }
 ```
 
-### Cards - Content Containers
+Standalone Material components and NgModules are both supported. Import a module or standalone symbol that matches the exact API exposed by your installed Material version; avoid importing unrelated components into a shared global module.
 
-**Cards are like digital business cards** - they present information in an organized, scannable way.
+## Form fields
 
-```typescript
-@Component({
-  selector: 'app-card-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatCardModule, MatButtonModule, MatIconModule],
-  template: `
-    <div>
-      <h3>Card Examples</h3>
-      
-      <!-- Simple card -->
-      <mat-card>
-        <mat-card-header>
-          <mat-card-title>Simple Card</mat-card-title>
-          <mat-card-subtitle>Basic card example</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <p>This is a simple card with just text content.</p>
-        </mat-card-content>
-      </mat-card>
-      
-      <!-- Card with image -->
-      <mat-card>
-        <img mat-card-image src="https://via.placeholder.com/400x200" alt="Placeholder">
-        <mat-card-header>
-          <mat-card-title>Photo Card</mat-card-title>
-          <mat-card-subtitle>Card with image</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <p>Cards can include images to make content more engaging.</p>
-        </mat-card-content>
-        <mat-card-actions>
-          <button mat-button>LIKE</button>
-          <button mat-button>SHARE</button>
-        </mat-card-actions>
-      </mat-card>
-      
-      <!-- User profile card -->
-      @for (user of users(); track user.id) {
-        <mat-card>
-          <mat-card-header>
-            <div mat-card-avatar [style.background-image]="'url(' + user.avatar + ')'"></div>
-            <mat-card-title>{{user.name}}</mat-card-title>
-            <mat-card-subtitle>{{user.role}}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <p>{{user.bio}}</p>
-          </mat-card-content>
-          <mat-card-actions>
-            <button mat-button (click)="viewProfile(user)">VIEW PROFILE</button>
-            <button mat-button (click)="sendMessage(user)">MESSAGE</button>
-          </mat-card-actions>
-        </mat-card>
-      }
-    </div>
-  `
-})
-export class CardDemoComponent {
-  users = signal([
-    {
-      id: 1,
-      name: 'John Doe',
-      role: 'Software Engineer',
-      bio: 'Passionate about creating amazing user experiences with Angular.',
-      avatar: 'https://via.placeholder.com/40'
-    },
-    {
-      id: 2,
-      name: 'Jane Smith',
-      role: 'UX Designer',
-      bio: 'Designing intuitive interfaces that users love.',
-      avatar: 'https://via.placeholder.com/40'
-    }
-  ]);
+Form-field components need a label and the appropriate input directive:
 
-  viewProfile(user: any) {
-    console.log('Viewing profile:', user.name);
-  }
-
-  sendMessage(user: any) {
-    console.log('Sending message to:', user.name);
-  }
-}
-```
-
-### Forms - User Input Made Beautiful
-
-**Material forms are like having a professional interviewer** - they guide users through input smoothly and clearly.
-
-```typescript
-@Component({
-  selector: 'app-form-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    ReactiveFormsModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatCheckboxModule,
-    MatRadioModule,
-    MatButtonModule,
-    MatIconModule
-  ],
-  template: `
-    <div>
-      <h3>Material Form Example</h3>
-      
-      <form [formGroup]="userForm" (ngSubmit)="onSubmit()">
-        <!-- Text inputs -->
-        <mat-form-field appearance="outline">
-          <mat-label>Full Name</mat-label>
-          <input matInput formControlName="name" placeholder="Enter your name">
-          <mat-icon matSuffix>person</mat-icon>
-          @if (userForm.get('name')?.hasError('required')) {
-            <mat-error>Name is required</mat-error>
-          }
-        </mat-form-field>
-        
-        <mat-form-field appearance="outline">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" placeholder="your@email.com">
-          <mat-icon matSuffix>email</mat-icon>
-          @if (userForm.get('email')?.hasError('required')) {
-            <mat-error>Email is required</mat-error>
-          }
-          @if (userForm.get('email')?.hasError('email')) {
-            <mat-error>Please enter a valid email</mat-error>
-          }
-        </mat-form-field>
-        
-        <!-- Select dropdown -->
-        <mat-form-field appearance="outline">
-          <mat-label>Country</mat-label>
-          <mat-select formControlName="country">
-            @for (country of countries(); track country.code) {
-              <mat-option [value]="country.code">{{country.name}}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-        
-        <!-- Textarea -->
-        <mat-form-field appearance="outline">
-          <mat-label>Bio</mat-label>
-          <textarea matInput formControlName="bio" rows="4" placeholder="Tell us about yourself"></textarea>
-          <mat-hint>{{userForm.get('bio')?.value?.length || 0}}/500 characters</mat-hint>
-        </mat-form-field>
-        
-        <!-- Checkboxes -->
-        <div>
-          <h4>Interests</h4>
-          @for (interest of interests(); track interest.id) {
-            <mat-checkbox [formControlName]="'interest_' + interest.id">
-              {{interest.name}}
-            </mat-checkbox>
-          }
-        </div>
-        
-        <!-- Radio buttons -->
-        <div>
-          <h4>Experience Level</h4>
-          <mat-radio-group formControlName="experience">
-            <mat-radio-button value="beginner">Beginner</mat-radio-button>
-            <mat-radio-button value="intermediate">Intermediate</mat-radio-button>
-            <mat-radio-button value="advanced">Advanced</mat-radio-button>
-          </mat-radio-group>
-        </div>
-        
-        <!-- Submit button -->
-        <div>
-          <button mat-raised-button color="primary" type="submit" [disabled]="userForm.invalid">
-            <mat-icon>save</mat-icon>
-            Save Profile
-          </button>
-        </div>
-      </form>
-    </div>
-  `
-})
-export class FormDemoComponent {
-  private fb = inject(FormBuilder);
-
-  countries = signal([
-    { code: 'US', name: 'United States' },
-    { code: 'UK', name: 'United Kingdom' },
-    { code: 'CA', name: 'Canada' },
-    { code: 'AU', name: 'Australia' }
-  ]);
-
-  interests = signal([
-    { id: 1, name: 'Web Development' },
-    { id: 2, name: 'Mobile Apps' },
-    { id: 3, name: 'Data Science' },
-    { id: 4, name: 'Design' }
-  ]);
-
-  userForm = this.fb.group({
-    name: ['', Validators.required],
-    email: ['', [Validators.required, Validators.email]],
-    country: [''],
-    bio: [''],
-    experience: ['intermediate'],
-    interest_1: [false],
-    interest_2: [false],
-    interest_3: [false],
-    interest_4: [false]
-  });
-
-  onSubmit() {
-    if (this.userForm.valid) {
-      console.log('Form submitted:', this.userForm.value);
-    }
-  }
-}
-```
-
-## 📊 Data Display Components
-
-### Tables - Organizing Information
-
-**Material tables are like having a professional data analyst** - they make complex information easy to scan and understand.
-
-```typescript
-@Component({
-  selector: 'app-table-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatTableModule, MatSortModule, MatPaginatorModule, MatButtonModule, MatIconModule],
-  template: `
-    <div>
-      <h3>User Management Table</h3>
-      
-      <mat-table [dataSource]="dataSource()" matSort>
-        <!-- ID Column -->
-        <ng-container matColumnDef="id">
-          <mat-header-cell *matHeaderCellDef mat-sort-header>ID</mat-header-cell>
-          <mat-cell *matCellDef="let user">{{user.id}}</mat-cell>
-        </ng-container>
-        
-        <!-- Name Column -->
-        <ng-container matColumnDef="name">
-          <mat-header-cell *matHeaderCellDef mat-sort-header>Name</mat-header-cell>
-          <mat-cell *matCellDef="let user">{{user.name}}</mat-cell>
-        </ng-container>
-        
-        <!-- Email Column -->
-        <ng-container matColumnDef="email">
-          <mat-header-cell *matHeaderCellDef>Email</mat-header-cell>
-          <mat-cell *matCellDef="let user">{{user.email}}</mat-cell>
-        </ng-container>
-        
-        <!-- Role Column -->
-        <ng-container matColumnDef="role">
-          <mat-header-cell *matHeaderCellDef>Role</mat-header-cell>
-          <mat-cell *matCellDef="let user">
-            <span [class]="'role-' + user.role.toLowerCase()">{{user.role}}</span>
-          </mat-cell>
-        </ng-container>
-        
-        <!-- Actions Column -->
-        <ng-container matColumnDef="actions">
-          <mat-header-cell *matHeaderCellDef>Actions</mat-header-cell>
-          <mat-cell *matCellDef="let user">
-            <button mat-icon-button (click)="editUser(user)">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" (click)="deleteUser(user)">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </mat-cell>
-        </ng-container>
-        
-        <mat-header-row *matHeaderRowDef="displayedColumns()"></mat-header-row>
-        <mat-row *matRowDef="let row; columns: displayedColumns()"></mat-row>
-      </mat-table>
-      
-      <mat-paginator [pageSizeOptions]="[5, 10, 20]" showFirstLastButtons></mat-paginator>
-    </div>
-  `
-})
-export class TableDemoComponent implements AfterViewInit {
-  paginator = viewChild(MatPaginator);
-  sort = viewChild(MatSort);
-
-  displayedColumns = signal(['id', 'name', 'email', 'role', 'actions']);
-  
-  users = signal([
-    { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Admin' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'User' },
-    { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'Editor' },
-    { id: 4, name: 'Alice Brown', email: 'alice@example.com', role: 'User' }
-  ]);
-
-  dataSource = computed(() => new MatTableDataSource(this.users()));
-
-  ngAfterViewInit() {
-    this.dataSource().paginator = this.paginator()!;
-    this.dataSource().sort = this.sort()!;
-  }
-
-  editUser(user: any) {
-    console.log('Editing user:', user);
-  }
-
-  deleteUser(user: any) {
-    console.log('Deleting user:', user);
-  }
-}
-```
-
-:::caution[Legacy Syntax]
-In older Angular versions, `@ViewChild` decorator was used for querying child components:
 ```ts
-@ViewChild(MatPaginator) paginator!: MatPaginator;
-@ViewChild(MatSort) sort!: MatSort;
+import { Component } from '@angular/core';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+
+@Component({
+  imports: [MatFormFieldModule, MatInputModule],
+  template: `
+    <mat-form-field>
+      <mat-label>Email address</mat-label>
+      <input matInput type="email" autocomplete="email" />
+      <mat-hint>Use the address associated with your account.</mat-hint>
+    </mat-form-field>
+  `,
+})
+export class EmailField {}
 ```
-Modern Angular uses signal-based queries like `viewChild()`. Access the queried element by calling the signal: `this.paginator()`.
-:::
 
-## 🎨 Theming and Customization
+Connect inputs to Angular Forms when collecting values, provide visible validation messages, and associate help and errors with the control. See [Forms](/beginner/forms/).
 
-**Theming is like choosing the personality of your app** - it sets the mood and makes your brand shine through.
+## Data tables (`MatTable`)
 
-```scss
-// styles.scss - Global theme setup
+`MatTableModule` renders structured rows with column definitions (`matColumnDef`), header cells (`mat-header-cell`) and data cells (`mat-cell`). Pair it with signals for reactive filtering or sorting:
+
+```ts title="invoice-table.ts"
+import { CurrencyPipe } from '@angular/common';
+import { Component, computed, signal } from '@angular/core';
+import { MatTableModule } from '@angular/material/table';
+
+interface Invoice {
+  id: string;
+  customer: string;
+  amount: number;
+  status: 'paid' | 'pending';
+}
+
+@Component({
+  selector: 'app-invoice-table',
+  imports: [MatTableModule, CurrencyPipe],
+  template: `
+    <table mat-table [dataSource]="filteredInvoices()">
+      <ng-container matColumnDef="id">
+        <th mat-header-cell *matHeaderCellDef>Invoice</th>
+        <td mat-cell *matCellDef="let row">{{ row.id }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="customer">
+        <th mat-header-cell *matHeaderCellDef>Customer</th>
+        <td mat-cell *matCellDef="let row">{{ row.customer }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="amount">
+        <th mat-header-cell *matHeaderCellDef>Amount</th>
+        <td mat-cell *matCellDef="let row">{{ row.amount | currency:'USD' }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+    </table>
+  `,
+})
+export class InvoiceTable {
+  protected readonly displayedColumns = ['id', 'customer', 'amount'] as const;
+  protected readonly statusFilter = signal<'all' | 'paid' | 'pending'>('all');
+  protected readonly invoices = signal<Invoice[]>([
+    { id: 'INV-101', customer: 'Acme Corp', amount: 420, status: 'paid' },
+    { id: 'INV-102', customer: 'Globex', amount: 180, status: 'pending' },
+  ]);
+
+  protected readonly filteredInvoices = computed(() => {
+    const filter = this.statusFilter();
+    return filter === 'all'
+      ? this.invoices()
+      : this.invoices().filter((item) => item.status === filter);
+  });
+}
+```
+
+## Dialogs and notifications (`MatDialog` and `MatSnackBar`)
+
+Inject `MatDialog` to open modal dialogs and `MatSnackBar` to announce brief status updates:
+
+```ts title="delete-project-button.ts"
+import { Component, inject } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import {
+  MAT_DIALOG_DATA,
+  MatDialog,
+  MatDialogModule,
+  MatDialogRef,
+} from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+
+@Component({
+  selector: 'app-confirm-dialog',
+  imports: [MatDialogModule, MatButtonModule],
+  template: `
+    <h2 mat-dialog-title>Delete {{ data.name }}?</h2>
+    <mat-dialog-content>This action cannot be undone.</mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" (click)="dialogRef.close(false)">Cancel</button>
+      <button mat-flat-button type="button" (click)="dialogRef.close(true)">Delete</button>
+    </mat-dialog-actions>
+  `,
+})
+export class ConfirmDialog {
+  protected readonly dialogRef = inject(MatDialogRef<ConfirmDialog, boolean>);
+  protected readonly data = inject<{ name: string }>(MAT_DIALOG_DATA);
+}
+
+@Component({
+  selector: 'app-delete-project-button',
+  imports: [MatButtonModule],
+  template: `<button mat-button type="button" (click)="confirmDelete()">Delete project</button>`,
+})
+export class DeleteProjectButton {
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
+
+  protected confirmDelete() {
+    const ref = this.dialog.open(ConfirmDialog, { data: { name: 'Q4 Roadmap' } });
+    ref.afterClosed().subscribe((confirmed) => {
+      if (confirmed) {
+        this.snackBar.open('Project deleted', 'Dismiss', { duration: 3000 });
+      }
+    });
+  }
+}
+```
+
+## Headless accessible widgets with `@angular/aria`
+
+When you want **complete control over HTML and CSS** (for example with Tailwind CSS or a custom design system) while still getting keyboard navigation, focus management and ARIA attributes out of the box, use **`@angular/aria`** — stable in Angular 22. It ships headless directives for patterns such as Accordion, Tabs, Menu, Listbox, Combobox, Toolbar, Tree and Grid.
+
+## Theming (Material 3)
+
+Angular Material uses a Sass-based Material 3 theme (`mat.theme(...)`) and exposes CSS custom properties (`--mat-sys-*`) so your own components can match the active palette and light/dark mode:
+
+```scss title="styles.scss"
 @use '@angular/material' as mat;
 
-// Define your custom colors
-$my-primary: mat.define-palette(mat.$indigo-palette);
-$my-accent: mat.define-palette(mat.$pink-palette, A200, A100, A400);
-$my-warn: mat.define-palette(mat.$red-palette);
-
-// Create the theme
-$my-theme: mat.define-light-theme((
-  color: (
-    primary: $my-primary,
-    accent: $my-accent,
-    warn: $my-warn,
-  ),
-  typography: mat.define-typography-config(),
-  density: 0,
-));
-
-// Include theme styles for core and each component used in your app
-@include mat.all-component-themes($my-theme);
-
-// Custom component styles
-.role-admin {
-  color: #4caf50;
-  font-weight: bold;
-}
-
-.role-user {
-  color: #2196f3;
-}
-
-.role-editor {
-  color: #ff9800;
+html {
+  color-scheme: light dark;
+  @include mat.theme((
+    color: mat.$azure-palette,
+    typography: Roboto,
+    density: 0,
+  ));
 }
 ```
 
-### Dynamic Theming with Signals
+Keep application-specific layout and component styles in your own stylesheets. Do not rely on Material's internal DOM structure or private CSS classes (`mdc-*`); use `mat.*-overrides(...)` mixins or `--mat-sys-*` tokens instead.
 
-```typescript
-@Component({
-  selector: 'app-theme-switcher',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatIconModule, MatSlideToggleModule],
-  template: `
-    <div>
-      <h3>Theme Controls</h3>
-      
-      <mat-slide-toggle 
-        [checked]="isDarkMode()" 
-        (change)="toggleTheme()">
-        Dark Mode
-      </mat-slide-toggle>
-      
-      <div>
-        <h4>Primary Colors</h4>
-        @for (color of primaryColors(); track color.name) {
-          <button 
-            mat-raised-button 
-            [style.background-color]="color.value"
-            (click)="setPrimaryColor(color)">
-            {{color.name}}
-          </button>
-        }
-      </div>
-    </div>
-  `
-})
-export class ThemeSwitcherComponent {
-  isDarkMode = signal(false);
-  
-  primaryColors = signal([
-    { name: 'Indigo', value: '#3f51b5' },
-    { name: 'Purple', value: '#9c27b0' },
-    { name: 'Teal', value: '#009688' },
-    { name: 'Orange', value: '#ff5722' }
-  ]);
+## Accessibility and responsive design
 
-  toggleTheme() {
-    this.isDarkMode.update(current => !current);
-    
-    // Apply theme class to body
-    const body = document.body;
-    if (this.isDarkMode()) {
-      body.classList.add('dark-theme');
-    } else {
-      body.classList.remove('dark-theme');
-    }
-  }
+- Use native elements (`<button mat-button>`, `<a mat-button>`) and provide visible labels or `aria-label` on icon-only controls.
+- Preserve keyboard navigation and visible focus indicators.
+- Check color contrast in every theme and state, including disabled and error states.
+- Test dialogs, menus, tabs and other overlays with keyboard and assistive technology.
+- Use responsive layout around components; Material widgets do not automatically make a page responsive.
 
-  setPrimaryColor(color: any) {
-    // Update CSS custom properties
-    document.documentElement.style.setProperty('--primary-color', color.value);
-  }
-}
+## Testing with Component Harnesses
+
+For interaction tests, prefer Angular Material **component harnesses** (`@angular/cdk/testing` + `@angular/material/*/testing`). Harnesses interact with widgets through their supported public API (`MatButtonHarness`, `MatInputHarness`, `MatDialogHarness`) rather than brittle CSS selectors:
+
+```ts
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { TestBed } from '@angular/core/testing';
+import { MatButtonHarness } from '@angular/material/button/testing';
+import { AccountCard } from './account-card';
+
+it('clicks the refresh button via its harness', async () => {
+  const fixture = TestBed.createComponent(AccountCard);
+  const loader = TestbedHarnessEnvironment.loader(fixture);
+  const button = await loader.getHarness(MatButtonHarness.with({ text: 'Refresh' }));
+  await button.click();
+  expect(fixture.componentInstance.status()).toBe('Your account is up to date.');
+});
 ```
 
-## ✅ Best Practices
+See [Component Testing](/testing/component-testing/) for more testing patterns.
 
-### 1. **Import Only What You Need**
-```typescript
-// ✅ Good - Import specific modules
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
+## Further reading
 
-// ❌ Avoid - Importing everything
-import * as Material from '@angular/material';
-```
-
-### 2. **Use Proper Form Field Appearance**
-```typescript
-// ✅ Good - Consistent appearance
-@Component({
-  template: `
-    <mat-form-field appearance="outline">
-      <mat-label>Name</mat-label>
-      <input matInput>
-    </mat-form-field>
-  `
-})
-```
-
-### 3. **Leverage Material Icons**
-```typescript
-// ✅ Good - Semantic icon usage
-@Component({
-  template: `
-    <button mat-raised-button>
-      <mat-icon>save</mat-icon>
-      Save Document
-    </button>
-  `
-})
-```
-
-## 🎯 Quick Checklist
-
-- [ ] Install Angular Material with `ng add @angular/material`
-- [ ] Set up animations for smooth interactions
-- [ ] Use consistent form field appearances
-- [ ] Implement proper error handling in forms
-- [ ] Leverage Material icons for better UX
-- [ ] Create custom themes for brand consistency
-- [ ] Use appropriate component variants (raised, flat, etc.)
-- [ ] Implement responsive design with Material breakpoints
-- [ ] Test accessibility with screen readers
-- [ ] Optimize bundle size by importing only needed modules
-
-## 🚀 Next Steps
-
-1. **[Testing](/intermediate/testing/)** - Testing Material components
-2. **[Advanced Theming](/advanced/theming/)** - Complex theme customization
-3. **[CDK](/advanced/cdk/)** - Angular Component Dev Kit
-
----
-
-**Remember**: Angular Material is like having a design system in a box - it gives you professional, accessible components that work beautifully together. Focus on user experience and let Material handle the design details! 🎨
+- [Angular Material documentation](https://material.angular.dev/)
+- [Angular CDK](https://material.angular.dev/cdk/categories)
+- [Forms Introduction](/beginner/forms/)

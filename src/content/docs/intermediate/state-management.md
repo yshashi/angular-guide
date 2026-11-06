@@ -1,574 +1,435 @@
 ---
 title: State Management 🗃️
-description: Learn state management patterns in Angular applications
+description: Manage state in Angular 22 with signals, signal-based services, resources and NgRx SignalStore — plus when you actually need a library.
 sidebar:
   order: 7
 ---
 
-State management is like organizing your home - you need to know where everything is and keep things tidy so everyone can find what they need. In Angular applications, managing state effectively ensures your app remains predictable, maintainable, and scalable.
+**State** is the data your app remembers: the logged-in user, items in a cart, which tab is open, the list loaded from the server. *State management* is deciding **where each piece lives and who may change it**. With signals, Angular 22 gives you everything you need for most apps out of the box — this page shows the built-in patterns first, then NgRx SignalStore for when you want more structure.
 
-## 🎯 What is State Management?
+## What you'll learn
 
-**Think of state as your app's memory** - it remembers user preferences, loaded data, current page, form inputs, and more. Good state management is like having a well-organized filing system where everything has its place.
+- The different kinds of state and where each one belongs
+- Build a signal-based store service (private writable, public read-only, `computed`, methods)
+- Scope stores to a component or route, and persist state
+- Treat server data with resources
+- Use NgRx SignalStore (`signalStore`, `withState`, `withComputed`, `withMethods`, `rxMethod`, entities)
+- Decide when a library is worth it
 
-**Types of State:**
-- **Local State** - Component-specific data (like form inputs)
-- **Shared State** - Data used by multiple components (like user profile)
-- **Global State** - App-wide data (like authentication status)
-- **Server State** - Data from APIs (like user lists, products)
+## Kinds of state
 
-## 🏠 Local State with Signals
+| Kind | Example | Where it lives |
+|---|---|---|
+| **Local UI state** | Is the dropdown open? Current input text | `signal()` in the component |
+| **Shared state** | Cart, current user, theme | A service with signals (`@Service()`), or a SignalStore |
+| **Feature/scoped state** | Multi-step wizard, an editor page | Service provided on the component or route |
+| **Server state** | Products from an API | `httpResource()` / `resource()` (often inside a store) |
+| **URL state** | Current page, filters, selected id | The router (params, query params) |
+| **Form state** | Field values, validity, touched | Signal Forms / Reactive Forms |
 
-**Local state is like your personal desk** - only you use it, and you organize it however works best for you.
+**Start local and lift state up only when two or more distant components need it.** Keep state that should survive a refresh or be shareable as a link in the URL.
 
-```typescript
+## Local state: signals in the component
+
+```ts title="counter.ts"
+import { Component, computed, signal } from '@angular/core';
+
 @Component({
   selector: 'app-counter',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div>
-      <h3>Counter: {{count()}}</h3>
-      <button (click)="increment()">+</button>
-      <button (click)="decrement()">-</button>
-      <button (click)="reset()">Reset</button>
-      
-      <div>
-        <p>Double: {{doubleCount()}}</p>
-        <p>Is Even: {{isEven() ? 'Yes' : 'No'}}</p>
-      </div>
-    </div>
-  `
+    <button type="button" (click)="count.update((c) => c - 1)">−</button>
+    {{ count() }} (double: {{ double() }})
+    <button type="button" (click)="count.update((c) => c + 1)">+</button>
+  `,
 })
-export class CounterComponent {
-  // Local state using signals
-  count = signal(0);
-  
-  // Computed values automatically update when count changes
-  doubleCount = computed(() => this.count() * 2);
-  isEven = computed(() => this.count() % 2 === 0);
-
-  increment() {
-    this.count.update(current => current + 1);
-  }
-
-  decrement() {
-    this.count.update(current => current - 1);
-  }
-
-  reset() {
-    this.count.set(0);
-  }
+export class Counter {
+  protected readonly count = signal(0);
+  protected readonly double = computed(() => this.count() * 2);
 }
 ```
 
-## 🤝 Shared State with Services
+If only this component (and its children via inputs) uses the state, stop here.
 
-**Shared state is like a family refrigerator** - multiple people need access to it, so you need clear rules about what goes where.
+## Shared state: a signal store service
 
-```typescript
-// Simple shared state service
-@Injectable({
-  providedIn: 'root'
-})
-export class CartService {
-  // Private signals for internal state
-  private items = signal<CartItem[]>([]);
-  private isLoading = signal(false);
-  
-  // Public readonly signals
-  cartItems = this.items.asReadonly();
-  loading = this.isLoading.asReadonly();
-  
-  // Computed values
-  totalItems = computed(() => 
-    this.items().reduce((sum, item) => sum + item.quantity, 0)
-  );
-  
-  totalPrice = computed(() => 
-    this.items().reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  );
+The most useful pattern in modern Angular is a small **store service**:
 
-  addItem(product: Product) {
-    this.items.update(current => {
-      const existingItem = current.find(item => item.id === product.id);
-      
-      if (existingItem) {
-        // Update quantity if item exists
-        return current.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      } else {
-        // Add new item
-        return [...current, { 
-          id: product.id, 
-          name: product.name, 
-          price: product.price, 
-          quantity: 1 
-        }];
-      }
-    });
-  }
+1. **Private writable** signals hold the state.
+2. **Public read-only** signals (`asReadonly()`) and `computed()` values expose it.
+3. **Methods** are the *only* way to change it.
 
-  removeItem(itemId: string) {
-    this.items.update(current => current.filter(item => item.id !== itemId));
-  }
+```ts title="todo-store.ts"
+import { Service, computed, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 
-  updateQuantity(itemId: string, quantity: number) {
-    if (quantity <= 0) {
-      this.removeItem(itemId);
-      return;
-    }
-    
-    this.items.update(current =>
-      current.map(item =>
-        item.id === itemId ? { ...item, quantity } : item
-      )
-    );
-  }
-
-  clearCart() {
-    this.items.set([]);
-  }
+export interface Todo {
+  id: number;
+  title: string;
+  done: boolean;
 }
 
-// Component using shared state
-@Component({
-  selector: 'app-cart',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h2>Shopping Cart ({{cartService.totalItems()}} items)</h2>
-      
-      @if (cartService.cartItems().length === 0) {
-        <p>Your cart is empty</p>
-      } @else {
-        @for (item of cartService.cartItems(); track item.id) {
-          <div>
-            <span>{{item.name}} - ${{item.price}}</span>
-            <input 
-              type="number" 
-              [value]="item.quantity"
-              (change)="updateQuantity(item.id, $event)"
-              min="0">
-            <button (click)="cartService.removeItem(item.id)">Remove</button>
-          </div>
-        }
-        
-        <div>
-          <strong>Total: ${{cartService.totalPrice()}}</strong>
-        </div>
-      }
-    </div>
-  `
-})
-export class CartComponent {
-  cartService = inject(CartService);
+export type Filter = 'all' | 'active' | 'done';
 
-  updateQuantity(itemId: string, event: Event) {
-    const quantity = parseInt((event.target as HTMLInputElement).value);
-    this.cartService.updateQuantity(itemId, quantity);
-  }
-}
-```
+@Service()
+export class TodoStore {
+  private readonly http = inject(HttpClient);
 
-## 🌐 Global State Patterns
+  // 1. private, writable state
+  private readonly _todos = signal<Todo[]>([]);
+  private readonly _filter = signal<Filter>('all');
 
-**Global state is like a city's traffic control system** - it coordinates information that affects the entire application.
+  // 2. public, read-only state
+  readonly todos = this._todos.asReadonly();
+  readonly filter = this._filter.asReadonly();
 
-```typescript
-// User authentication state
-@Injectable({
-  providedIn: 'root'
-})
-export class AuthService {
-  private currentUser = signal<User | null>(null);
-  private isAuthenticated = signal(false);
-  private isLoading = signal(false);
-  
-  // Public readonly access
-  user = this.currentUser.asReadonly();
-  authenticated = this.isAuthenticated.asReadonly();
-  loading = this.isLoading.asReadonly();
-  
-  // Computed permissions
-  isAdmin = computed(() => this.currentUser()?.role === 'admin');
-  canEdit = computed(() => {
-    const user = this.currentUser();
-    return user?.role === 'admin' || user?.role === 'editor';
-  });
-
-  private http = inject(HttpClient);
-
-  async login(email: string, password: string): Promise<boolean> {
-    this.isLoading.set(true);
-    
-    try {
-      const response = await this.http.post<LoginResponse>('/api/login', {
-        email,
-        password
-      }).toPromise();
-      
-      if (response?.user && response?.token) {
-        this.currentUser.set(response.user);
-        this.isAuthenticated.set(true);
-        localStorage.setItem('auth_token', response.token);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Login failed:', error);
-      return false;
-    } finally {
-      this.isLoading.set(false);
-    }
-  }
-
-  logout() {
-    this.currentUser.set(null);
-    this.isAuthenticated.set(false);
-    localStorage.removeItem('auth_token');
-  }
-
-  // Check if user is already logged in (on app startup)
-  checkAuthStatus() {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      this.isLoading.set(true);
-      
-      this.http.get<User>('/api/me').subscribe({
-        next: user => {
-          this.currentUser.set(user);
-          this.isAuthenticated.set(true);
-          this.isLoading.set(false);
-        },
-        error: () => {
-          this.logout(); // Token is invalid
-          this.isLoading.set(false);
-        }
-      });
-    }
-  }
-}
-
-// App component using global auth state
-@Component({
-  selector: 'app-root',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <nav>
-        @if (authService.authenticated()) {
-          <span>Welcome, {{authService.user()?.name}}!</span>
-          @if (authService.isAdmin()) {
-            <a routerLink="/admin">Admin Panel</a>
-          }
-          <button (click)="authService.logout()">Logout</button>
-        } @else {
-          <a routerLink="/login">Login</a>
-        }
-      </nav>
-      
-      <main>
-        <router-outlet></router-outlet>
-      </main>
-    </div>
-  `
-})
-export class AppComponent implements OnInit {
-  authService = inject(AuthService);
-
-  ngOnInit() {
-    // Check if user is already logged in
-    this.authService.checkAuthStatus();
-  }
-}
-```
-
-## 📊 Complex State with Custom Store
-
-**A custom store is like a smart warehouse manager** - it knows where everything is, tracks changes, and can tell you the history of what happened.
-
-```typescript
-// Generic store pattern
-export abstract class Store<T> {
-  private state = signal<T>(this.initialState());
-  
-  // Public readonly access to state
-  readonly state$ = this.state.asReadonly();
-  
-  protected abstract initialState(): T;
-  
-  protected setState(newState: T) {
-    this.state.set(newState);
-  }
-  
-  protected updateState(updater: (current: T) => T) {
-    this.state.update(updater);
-  }
-  
-  protected patchState(partial: Partial<T>) {
-    this.state.update(current => ({ ...current, ...partial }));
-  }
-}
-
-// Todo store implementation
-interface TodoState {
-  todos: Todo[];
-  filter: 'all' | 'active' | 'completed';
-  isLoading: boolean;
-  error: string | null;
-}
-
-@Injectable({
-  providedIn: 'root'
-})
-export class TodoStore extends Store<TodoState> {
-  // Computed selectors
-  todos = computed(() => this.state$().todos);
-  filter = computed(() => this.state$().filter);
-  isLoading = computed(() => this.state$().isLoading);
-  error = computed(() => this.state$().error);
-  
-  // Filtered todos based on current filter
-  filteredTodos = computed(() => {
-    const todos = this.todos();
-    const filter = this.filter();
-    
-    switch (filter) {
+  // 3. derived state
+  readonly visible = computed(() => {
+    const todos = this._todos();
+    switch (this._filter()) {
       case 'active':
-        return todos.filter(todo => !todo.completed);
-      case 'completed':
-        return todos.filter(todo => todo.completed);
+        return todos.filter((t) => !t.done);
+      case 'done':
+        return todos.filter((t) => t.done);
       default:
         return todos;
     }
   });
-  
-  // Statistics
-  totalTodos = computed(() => this.todos().length);
-  activeTodos = computed(() => this.todos().filter(todo => !todo.completed).length);
-  completedTodos = computed(() => this.todos().filter(todo => todo.completed).length);
+  readonly remaining = computed(() => this._todos().filter((t) => !t.done).length);
 
-  private http = inject(HttpClient);
-
-  protected initialState(): TodoState {
-    return {
-      todos: [],
-      filter: 'all',
-      isLoading: false,
-      error: null
-    };
+  // 4. methods — the only way to change state
+  setFilter(filter: Filter) {
+    this._filter.set(filter);
   }
 
-  // Actions
-  async loadTodos() {
-    this.patchState({ isLoading: true, error: null });
-    
+  add(title: string) {
+    const todo: Todo = { id: Date.now(), title, done: false };
+    this._todos.update((list) => [...list, todo]);
+  }
+
+  toggle(id: number) {
+    this._todos.update((list) => list.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  }
+
+  async remove(id: number) {
+    const previous = this._todos();
+    this._todos.update((list) => list.filter((t) => t.id !== id)); // optimistic update
     try {
-      const todos = await this.http.get<Todo[]>('/api/todos').toPromise();
-      this.patchState({ 
-        todos: todos || [], 
-        isLoading: false 
-      });
-    } catch (error) {
-      this.patchState({ 
-        isLoading: false, 
-        error: 'Failed to load todos' 
-      });
+      await firstValueFrom(this.http.delete(`/api/todos/${id}`));
+    } catch {
+      this._todos.set(previous); // roll back on failure
     }
   }
-
-  addTodo(text: string) {
-    const newTodo: Todo = {
-      id: Date.now().toString(),
-      text,
-      completed: false,
-      createdAt: new Date()
-    };
-    
-    this.updateState(state => ({
-      ...state,
-      todos: [...state.todos, newTodo]
-    }));
-  }
-
-  toggleTodo(id: string) {
-    this.updateState(state => ({
-      ...state,
-      todos: state.todos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
-    }));
-  }
-
-  deleteTodo(id: string) {
-    this.updateState(state => ({
-      ...state,
-      todos: state.todos.filter(todo => todo.id !== id)
-    }));
-  }
-
-  setFilter(filter: 'all' | 'active' | 'completed') {
-    this.patchState({ filter });
-  }
-
-  clearCompleted() {
-    this.updateState(state => ({
-      ...state,
-      todos: state.todos.filter(todo => !todo.completed)
-    }));
-  }
 }
+```
 
-// Component using the store
+```ts title="todo-list.ts"
+import { Component, inject } from '@angular/core';
+import { TodoStore } from './todo-store';
+
 @Component({
   selector: 'app-todo-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div>
-      <h2>Todo List</h2>
-      
-      <div>
-        <input 
-          [(ngModel)]="newTodoText" 
-          (keyup.enter)="addTodo()"
-          placeholder="What needs to be done?">
-        <button (click)="addTodo()">Add</button>
-      </div>
-      
-      <div>
-        <button 
-          (click)="todoStore.setFilter('all')"
-          [class.active]="todoStore.filter() === 'all'">
-          All ({{todoStore.totalTodos()}})
-        </button>
-        <button 
-          (click)="todoStore.setFilter('active')"
-          [class.active]="todoStore.filter() === 'active'">
-          Active ({{todoStore.activeTodos()}})
-        </button>
-        <button 
-          (click)="todoStore.setFilter('completed')"
-          [class.active]="todoStore.filter() === 'completed'">
-          Completed ({{todoStore.completedTodos()}})
-        </button>
-      </div>
-      
-      @if (todoStore.isLoading()) {
-        <div>Loading todos...</div>
-      }
-      
-      @if (todoStore.error()) {
-        <div>Error: {{todoStore.error()}}</div>
-      }
-      
-      @for (todo of todoStore.filteredTodos(); track todo.id) {
-        <div>
-          <input 
-            type="checkbox" 
-            [checked]="todo.completed"
-            (change)="todoStore.toggleTodo(todo.id)">
-          <span [class.completed]="todo.completed">{{todo.text}}</span>
-          <button (click)="todoStore.deleteTodo(todo.id)">Delete</button>
-        </div>
-      }
-      
-      @if (todoStore.completedTodos() > 0) {
-        <button (click)="todoStore.clearCompleted()">
-          Clear Completed ({{todoStore.completedTodos()}})
-        </button>
-      }
-    </div>
-  `
-})
-export class TodoListComponent implements OnInit {
-  todoStore = inject(TodoStore);
-  newTodoText = '';
-
-  ngOnInit() {
-    this.todoStore.loadTodos();
-  }
-
-  addTodo() {
-    if (this.newTodoText.trim()) {
-      this.todoStore.addTodo(this.newTodoText.trim());
-      this.newTodoText = '';
+    <input #title placeholder="What needs doing?"
+           (keydown.enter)="store.add(title.value); title.value = ''" />
+    @for (todo of store.visible(); track todo.id) {
+      <label>
+        <input type="checkbox" [checked]="todo.done" (change)="store.toggle(todo.id)" />
+        {{ todo.title }}
+      </label>
     }
+    <p>{{ store.remaining() }} left</p>
+    <button type="button" (click)="store.setFilter('active')">Active</button>
+  `,
+})
+export class TodoList {
+  protected readonly store = inject(TodoStore);
+}
+```
+
+Why this works so well:
+
+- **Encapsulation** — components can't put the store into an invalid state.
+- **Fine-grained updates** — only templates that read a changed signal re-render, which is exactly what OnPush (the default since v22) wants.
+- **Immutable updates** — always create new arrays/objects (`[...list, todo]`, `{ ...t, done }`). Mutating in place won't notify signals.
+
+:::note[Angular 21 and earlier]
+For Angular 21 and earlier, use `@Injectable({ providedIn: 'root' })`; `@Service()` is available starting in v22. In v22, choose `@Service()` for a straightforward root-provided service and `@Injectable()` when you need constructor injection or advanced provider configuration.
+:::
+
+## Server state: resources inside stores
+
+Data that comes from a server has extra concerns: loading, errors, refetching when inputs change. Let a [resource](/modern/resource-api/) handle them:
+
+```ts title="catalog-store.ts"
+import { Service, computed, signal } from '@angular/core';
+import { httpResource } from '@angular/common/http';
+
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+}
+
+@Service()
+export class CatalogStore {
+  readonly category = signal('books');
+
+  // Refetches automatically when `category` changes
+  readonly products = httpResource<Product[]>(() => `/api/products?category=${this.category()}`, {
+    defaultValue: [],
+  });
+
+  readonly cheapest = computed(() =>
+    this.products.hasValue()
+      ? [...this.products.value()].sort((a, b) => a.price - b.price)[0]
+      : undefined,
+  );
+}
+```
+
+Components read `store.products.value()`, `store.products.isLoading()` and `store.products.error()`, and call `store.category.set('games')` to switch. See [httpResource](/modern/http-resource-api/).
+
+## Scoping a store to a component or route
+
+A root service lives for the whole app. For state that should be **fresh each time** a page or widget opens (a wizard, an editor), provide the store on the component. Opt out of root provisioning with `autoProvided: false`:
+
+```ts title="wizard.ts"
+import { Component, Service, inject, signal } from '@angular/core';
+
+@Service({ autoProvided: false })
+export class WizardStore {
+  readonly step = signal(1);
+  readonly data = signal<{ name?: string; email?: string }>({});
+
+  next() {
+    this.step.update((s) => s + 1);
+  }
+}
+
+@Component({
+  selector: 'app-wizard',
+  providers: [WizardStore], // new instance per <app-wizard>, destroyed with it
+  template: `Step {{ store.step() }} <button type="button" (click)="store.next()">Next</button>`,
+})
+export class Wizard {
+  protected readonly store = inject(WizardStore);
+}
+```
+
+Child components of `<app-wizard>` that `inject(WizardStore)` get the same instance. You can also put stores in a route's `providers: [...]` to share them across a lazy-loaded feature.
+
+## Persisting state
+
+An `effect()` is a simple way to save state whenever it changes:
+
+```ts title="settings-store.ts"
+import { Service, effect, signal } from '@angular/core';
+
+type Theme = 'light' | 'dark';
+
+@Service()
+export class SettingsStore {
+  readonly theme = signal<Theme>(
+    (globalThis.localStorage?.getItem('theme') as Theme | null) ?? 'light',
+  );
+
+  constructor() {
+    effect(() => globalThis.localStorage?.setItem('theme', this.theme()));
   }
 }
 ```
 
-## ✅ Best Practices
+`globalThis.localStorage?.` keeps the code safe during server-side rendering, where `localStorage` doesn't exist.
 
-### 1. **Choose the Right State Level**
-```typescript
-// ✅ Good - Local state for component-specific data
-@Component({})
-export class FormComponent {
-  formData = signal({ name: '', email: '' }); // Local to this form
-}
+## NgRx SignalStore
 
-// ✅ Good - Shared state for cross-component data
-@Injectable({ providedIn: 'root' })
-export class UserService {
-  currentUser = signal<User | null>(null); // Shared across app
+[NgRx SignalStore](https://ngrx.io/guide/signals) (`@ngrx/signals`) is a small, signal-based library that gives the store-service pattern a standard, composable shape. It's a great choice for teams that want consistent conventions, entity helpers and reusable store "features".
+
+```bash
+npm install @ngrx/signals
+```
+
+### A basic store
+
+```ts title="books-store.ts"
+import { computed, inject } from '@angular/core';
+import {
+  patchState, signalStore, withComputed, withHooks, withMethods, withState,
+} from '@ngrx/signals';
+import { rxMethod } from '@ngrx/signals/rxjs-interop';
+import { EMPTY, catchError, debounceTime, distinctUntilChanged, pipe, switchMap, tap } from 'rxjs';
+import { Book, BooksApi } from './books-api';
+
+type BooksState = {
+  books: Book[];
+  query: string;
+  isLoading: boolean;
+};
+
+const initialState: BooksState = { books: [], query: '', isLoading: false };
+
+export const BooksStore = signalStore(
+  { providedIn: 'root' },
+  withState(initialState),
+  withComputed(({ books, query }) => ({
+    count: computed(() => books().length),
+    hasQuery: computed(() => query().length > 0),
+  })),
+  withMethods((store, api = inject(BooksApi)) => ({
+    updateQuery(query: string) {
+      patchState(store, { query });
+    },
+    // rxMethod: a method that accepts a value, a signal or an Observable
+    searchByQuery: rxMethod<string>(
+      pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        tap(() => patchState(store, { isLoading: true })),
+        switchMap((query) =>
+          api.search(query).pipe(
+            tap((books) => patchState(store, { books, isLoading: false })),
+            catchError(() => {
+              patchState(store, { isLoading: false });
+              return EMPTY;
+            }),
+          ),
+        ),
+      ),
+    ),
+  })),
+  withHooks({
+    onInit(store) {
+      store.searchByQuery(store.query); // re-runs whenever the query signal changes
+    },
+  }),
+);
+```
+
+```ts title="books.ts"
+import { Component, inject } from '@angular/core';
+import { BooksStore } from './books-store';
+
+@Component({
+  selector: 'app-books',
+  template: `
+    <input #q [value]="store.query()" (input)="store.updateQuery(q.value)" />
+    @if (store.isLoading()) {
+      <p>Loading…</p>
+    }
+    <p>{{ store.count() }} books</p>
+    @for (book of store.books(); track book.id) {
+      <p>{{ book.title }}</p>
+    }
+  `,
+})
+export class Books {
+  protected readonly store = inject(BooksStore);
 }
 ```
 
-### 2. **Use Immutable Updates**
-```typescript
-// ✅ Good - Immutable update
-updateUser(userId: string, changes: Partial<User>) {
-  this.users.update(current =>
-    current.map(user =>
-      user.id === userId ? { ...user, ...changes } : user
-    )
-  );
-}
+How it fits together:
 
-// ❌ Avoid - Mutating existing objects
-updateUser(userId: string, changes: Partial<User>) {
-  const user = this.users().find(u => u.id === userId);
-  Object.assign(user, changes); // Mutates original object
+| Building block | Purpose |
+|---|---|
+| `signalStore(...features)` | Creates an injectable store class. `{ providedIn: 'root' }` makes it global; omit it and add the store to `providers` to scope it. |
+| `withState(initial)` | State slices — each property becomes a read-only signal (`store.query()`) |
+| `withComputed(...)` | Derived signals |
+| `withMethods(...)` | Methods; use `patchState(store, partial)` to update state immutably |
+| `withHooks({ onInit, onDestroy })` | Run code when the store is created/destroyed |
+| `withProps(...)` | Extra (non-state) properties, e.g. injected services or resources |
+| `rxMethod<T>(pipe(...))` | RxJS-powered method (debounce, switchMap, …) from `@ngrx/signals/rxjs-interop` |
+| `signalStoreFeature(...)` | Bundle features into reusable building blocks |
+| `getState(store)` / `watchState(store, fn)` | Snapshot / observe the whole state |
+
+State is **protected** by default: only the store's own methods can call `patchState()` on it.
+
+### Entities
+
+`@ngrx/signals/entities` manages collections normalised by `id`:
+
+```ts title="todos-store.ts"
+import { computed } from '@angular/core';
+import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
+import { addEntity, removeEntity, setAllEntities, updateEntity, withEntities } from '@ngrx/signals/entities';
+import { Filter, Todo } from './todo';
+
+export const TodosStore = signalStore(
+  withEntities<Todo>(), // adds ids(), entityMap(), entities()
+  withState({ filter: 'all' as Filter }),
+  withComputed(({ entities, filter }) => ({
+    visible: computed(() => {
+      const f = filter();
+      return f === 'all' ? entities() : entities().filter((t) => (f === 'done' ? t.done : !t.done));
+    }),
+  })),
+  withMethods((store) => ({
+    add(title: string) {
+      const todo: Todo = { id: Date.now(), title, done: false };
+      patchState(store, addEntity(todo));
+    },
+    toggle(id: number) {
+      patchState(store, updateEntity({ id, changes: (t) => ({ done: !t.done }) }));
+    },
+    remove(id: number) {
+      patchState(store, removeEntity(id));
+    },
+    setAll(todos: Todo[]) {
+      patchState(store, setAllEntities(todos));
+    },
+  })),
+);
+```
+
+```ts
+@Component({
+  selector: 'app-todos-page',
+  providers: [TodosStore], // scoped to this page
+  template: `…`,
+})
+export class TodosPage {
+  protected readonly store = inject(TodosStore);
 }
 ```
 
-### 3. **Use Computed for Derived State**
-```typescript
-// ✅ Good - Computed values automatically update
-export class ProductStore {
-  products = signal<Product[]>([]);
-  searchTerm = signal('');
-  
-  filteredProducts = computed(() =>
-    this.products().filter(p =>
-      p.name.toLowerCase().includes(this.searchTerm().toLowerCase())
-    )
-  );
-}
-```
+For small, component-local objects, `signalState({ sort: 'name', page: 1 })` gives you the same `patchState()` ergonomics without a full store.
 
-## 🎯 Quick Checklist
+## NgRx Store (Redux)
 
-- [ ] Use local state for component-specific data
-- [ ] Use services for shared state between components
-- [ ] Implement global state for app-wide concerns
-- [ ] Use signals for reactive state management
-- [ ] Create computed values for derived state
-- [ ] Always use immutable update patterns
-- [ ] Keep state updates predictable and traceable
-- [ ] Use readonly signals for public state access
-- [ ] Implement proper error handling in state operations
+The classic [NgRx Store](https://ngrx.io/guide/store) (`@ngrx/store` + `@ngrx/effects`) uses the Redux pattern: components **dispatch actions**, pure **reducers** compute new state, **effects** handle side effects, and **selectors** read state (`store.selectSignal(selector)` returns a signal). Set it up with `provideStore()`, `provideState()` and `provideEffects()`.
 
-## 🚀 Next Steps
+It adds more code but gives you a strict, event-driven architecture and excellent time-travel debugging with Redux DevTools. Choose it for very large apps with many teams, or if you already use it. For new projects, start with signal services or SignalStore.
 
-1. **[Testing](/intermediate/testing/)** - Testing state management logic
-2. **[Advanced Patterns](/advanced/ngrx/)** - NgRx for complex applications
-3. **[Performance](/advanced/performance/)** - Optimizing state updates
+## Choosing an approach
 
----
+| Situation | Recommendation |
+|---|---|
+| State used by one component | `signal()` / `computed()` in the component |
+| A few shared values (user, theme, cart) | Signal store service with `@Service()` |
+| Data from an API | `httpResource()` / `resource()`, optionally inside a store |
+| Many stores, want conventions, entities, plugins | NgRx SignalStore |
+| Huge app, strict event-driven architecture, existing NgRx | NgRx Store + Effects |
 
-**Remember**: Good state management is like good organization - it makes everything easier to find, understand, and maintain. Start simple with signals and grow your patterns as your app becomes more complex! 🗃️
+## Common mistakes
+
+- **Making everything global** — most state is local or feature-scoped.
+- **Exposing writable signals** from services — expose `asReadonly()` and methods instead.
+- **Mutating arrays/objects** (`list.push(x)`) — signals won't notice; create new references.
+- **Duplicating server data** into hand-written loading/error flags — use resources.
+- **Copying derived values into state** — use `computed()` so they can never get out of sync.
+- **Using `effect()` to copy one signal into another** — use `computed()` or `linkedSignal()`; keep effects for side effects (storage, logging, DOM).
+- **Storing URL-worthy state only in memory** — put filters and ids in the URL so users can share and refresh.
+
+## Key takeaways
+
+- Signals + `computed()` + a service with private writable state and public read-only signals cover most apps.
+- Use resources for server data, the router for URL state, and component/route providers for scoped state.
+- NgRx SignalStore standardises the same ideas with `withState`, `withComputed`, `withMethods`, `rxMethod` and entities.
+- Reach for NgRx Store only when you need its strict, action-based architecture.
+
+## Next steps
+
+- [Signals](/modern/signals/), [Computed Signals](/modern/computed-signals/) and [Linked Signals](/modern/linked-signals/)
+- [Resource API](/modern/resource-api/) — async state
+- [Component Communication](/intermediate/component-communication/) — when inputs/outputs are enough
+- [Dependency Injection](/advanced/dependency-injection/) — provider scopes in depth

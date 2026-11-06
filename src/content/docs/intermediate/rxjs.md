@@ -1,573 +1,340 @@
 ---
-title: RxJS & Observables 🌊
-description: Master reactive programming with RxJS in Angular
+title: RxJS in Angular 🌊
+description: How RxJS fits into Angular 22 — signals vs observables, toSignal, toObservable, rxResource, takeUntilDestroyed, outputFromObservable and practical patterns.
 sidebar:
   order: 6
 ---
 
-RxJS (Reactive Extensions for JavaScript) is a powerful library for reactive programming using observables. It's the foundation of Angular's reactive patterns and enables elegant handling of asynchronous data streams.
+**RxJS** is a library for working with *streams* of values over time — clicks, keystrokes, WebSocket messages, HTTP responses. Angular used to rely on it for almost everything. Since signals arrived, the roles are clearer: **signals hold state, RxJS handles events and async workflows**. This page shows how the two fit together in Angular 22 and gives you the patterns you'll use daily.
 
-## 🎯 Why RxJS?
+:::tip[New to RxJS?]
+This page focuses on RxJS *inside Angular*. For Observables, operators and Subjects from the ground up, see the [RxJS section](/rxjs/fundamentals/).
+:::
 
-**Think of observables like water flowing through pipes** - you can transform, filter, and combine the flow of data as it moves through your application. Unlike promises that handle single values, observables can emit multiple values over time.
+## What you'll learn
 
-**Key Benefits:**
-- **Composable** - Chain operations together
-- **Lazy** - Only execute when subscribed
-- **Cancellable** - Unsubscribe to stop execution
-- **Powerful operators** - Transform data streams easily
+- When to use a signal and when to use an Observable
+- Where Angular APIs still give you Observables
+- Convert between the two with `toSignal()` and `toObservable()`
+- Load data with `rxResource()`
+- Clean up subscriptions with `takeUntilDestroyed()`
+- Expose streams as outputs with `outputFromObservable()`
 
-## 🚀 Observable Basics
+## Signals or Observables?
 
-### Creating Observables
+| | Signal | Observable |
+|---|---|---|
+| Represents | A **value** that changes over time ("what is it now?") | A **stream of events** ("what happened?") |
+| Always has a current value | ✅ Yes | ❌ Not necessarily |
+| Read it | Call it: `count()` | `subscribe()` / `async` pipe / `toSignal()` |
+| Time-based operators (debounce, retry, buffer…) | ❌ | ✅ Huge operator library |
+| Cancellation of in-flight work (`switchMap`) | via `resource` (aborts the previous request) | ✅ |
+| Needs unsubscribing | No | Yes (or use helpers) |
+| Template change detection | Automatic and precise | Via `async` pipe or `toSignal()` |
 
-```typescript
-import { Observable, of, from, interval } from 'rxjs';
+**Rule of thumb for Angular 22:**
 
-// Simple observable that emits values
-const numbers$ = of(1, 2, 3, 4, 5);
+- Component and service **state** → `signal()`, derived state → `computed()`.
+- **Fetching data** → `httpResource()` / `resource()` (or `rxResource()` if your API returns Observables).
+- **Event streams and complex async coordination** (typeahead, polling, WebSockets, retry/backoff, combining many sources) → RxJS, then convert the result to a signal for the template.
 
-// From array - converts array to observable
-const fromArray$ = from([10, 20, 30]);
+## Where Angular still gives you Observables
 
-// Interval - emits numbers every second
-const timer$ = interval(1000);
+| API | Observable |
+|---|---|
+| `HttpClient` | `http.get()`, `post()`, … (cold, complete after one response) |
+| Router | `router.events`, `ActivatedRoute.paramMap`, `queryParamMap`, `data` |
+| Reactive forms | `control.valueChanges`, `statusChanges`, `events` |
+| Outputs | `OutputRef.subscribe()` (convert with `outputToObservable()`) |
+| Many libraries | Angular Material/CDK (`BreakpointObserver`, dialogs), NgRx Store, … |
 
-// Custom observable
-const custom$ = new Observable(subscriber => {
-  subscriber.next('Hello');
-  subscriber.next('World');
-  subscriber.complete();
-});
+All bridging helpers live in **`@angular/core/rxjs-interop`** (stable).
 
-// Using in component
+## Observable → signal: `toSignal()`
+
+`toSignal()` subscribes immediately and gives you a signal of the latest value. It **unsubscribes automatically** when the component or service is destroyed.
+
+```ts title="ticker.ts"
+import { Component } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { interval } from 'rxjs';
+
 @Component({
-  selector: 'app-basic-observable',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h3>Observable Values:</h3>
-      @for (value of values(); track $index) {
-        <p>{{value}}</p>
-      }
-    </div>
-  `
+  selector: 'app-ticker',
+  template: `{{ seconds() }}s`,
 })
-export class BasicObservableComponent implements OnInit, OnDestroy {
-  values = signal<number[]>([]);
-  private subscription?: Subscription;
-
-  ngOnInit() {
-    // Subscribe to observable and update signal
-    this.subscription = numbers$.subscribe(value => {
-      this.values.update(current => [...current, value]);
-    });
-  }
-
-  ngOnDestroy() {
-    this.subscription?.unsubscribe();
-  }
+export class Ticker {
+  protected readonly seconds = toSignal(interval(1000), { initialValue: 0 });
 }
 ```
 
-### Understanding Subscription
+Handling the "no value yet" moment:
 
-**Think of subscription like turning on a faucet** - the water (data) only flows when you turn it on (subscribe), and you need to turn it off (unsubscribe) to stop the flow.
+| Option | Signal type | Use when |
+|---|---|---|
+| *(none)* | `Signal<T \| undefined>` | You can handle `undefined` in the template |
+| `{ initialValue: x }` | `Signal<T \| typeof x>` | You have a sensible default (`[]`, `0`, `''`) |
+| `{ requireSync: true }` | `Signal<T>` | The source emits synchronously (`BehaviorSubject`, `startWith`) — throws otherwise |
 
-```typescript
+Other options: `equal` (custom equality), `injector` (when called outside an injection context), `manualCleanup`, `debugName`.
+
+Real-world uses — route params and router events:
+
+```ts title="product-page.ts"
+import { Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
+import { filter, map } from 'rxjs';
+
 @Component({
-  selector: 'app-subscription-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <button (click)="startTimer()">Start Timer</button>
-      <button (click)="stopTimer()">Stop Timer</button>
-      <p>Timer: {{currentTime()}}</p>
-    </div>
-  `
+  selector: 'app-product-page',
+  template: `<p>Product {{ id() }}</p><p>Current URL: {{ url() }}</p>`,
 })
-export class SubscriptionDemoComponent {
-  currentTime = signal(0);
-  private timerSubscription?: Subscription;
+export class ProductPage {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
-  startTimer() {
-    // Stop existing timer first
-    this.stopTimer();
-    
-    // Start new timer - emits every second
-    this.timerSubscription = interval(1000).subscribe(value => {
-      this.currentTime.set(value);
-    });
-  }
+  protected readonly id = toSignal(this.route.paramMap.pipe(map((p) => p.get('id'))), {
+    initialValue: null,
+  });
 
-  stopTimer() {
-    // Always unsubscribe to prevent memory leaks
-    this.timerSubscription?.unsubscribe();
-    this.timerSubscription = undefined;
-  }
+  protected readonly url = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
 }
 ```
 
-## 🔧 Essential Operators
+:::tip
+For route params, `withComponentInputBinding()` + `input()` is even simpler — see [Advanced Routing](/intermediate/advanced-routing/).
+:::
 
-### Map - Transform Data
+Good to know:
 
-**Map is like a factory conveyor belt** - it takes each item and transforms it into something else.
+- Call `toSignal()` **once** (e.g. as a field) and reuse the signal — every call creates a new subscription.
+- If the Observable **errors**, reading the signal throws that error. Catch errors in the pipe (`catchError`) if you want a fallback value.
+- It must run in an injection context (constructor/field initializer) unless you pass `{ injector }`.
 
-```typescript
-import { map } from 'rxjs/operators';
+## Signal → Observable: `toObservable()` — a typeahead search
+
+`toObservable()` turns a signal into an Observable so you can use time-based operators. The classic example is a search box that waits for the user to stop typing and cancels outdated requests:
+
+```ts title="user-search.ts"
+import { Component, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+
+interface User {
+  id: number;
+  name: string;
+}
 
 @Component({
-  selector: 'app-map-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-user-search',
   template: `
-    <div>
-      <h3>User Names:</h3>
-      @for (name of userNames(); track $index) {
-        <p>{{name}}</p>
+    <input #box placeholder="Search users" (input)="query.set(box.value)" />
+    <ul>
+      @for (user of results(); track user.id) {
+        <li>{{ user.name }}</li>
+      } @empty {
+        <li>No results</li>
       }
-    </div>
-  `
+    </ul>
+  `,
 })
-export class MapDemoComponent implements OnInit {
-  userNames = signal<string[]>([]);
-  private userService = inject(UserService);
+export class UserSearch {
+  private readonly http = inject(HttpClient);
+  protected readonly query = signal('');
 
-  ngOnInit() {
-    // Transform user objects to just names
-    this.userService.getUsers().pipe(
-      map(users => users.map(user => user.name)) // Extract names from user objects
-    ).subscribe(names => {
-      this.userNames.set(names);
-    });
-  }
+  protected readonly results = toSignal(
+    toObservable(this.query).pipe(
+      map((q) => q.trim()),
+      debounceTime(300),            // wait until typing pauses
+      distinctUntilChanged(),       // ignore unchanged queries
+      switchMap((q) =>              // cancel the previous request
+        q.length < 2
+          ? of([])
+          : this.http.get<User[]>('/api/users', { params: { q } }).pipe(
+              catchError(() => of([])), // keep the stream alive on errors
+            ),
+      ),
+    ),
+    { initialValue: [] as User[] },
+  );
 }
 ```
 
-### Filter - Select Specific Data
+`toObservable()` emits **after** the signal settles (it uses an effect), so if you set a signal three times synchronously, only the last value is emitted.
 
-**Filter is like a security checkpoint** - only items that meet certain criteria can pass through.
+:::note[A signals-only alternative]
+The experimental `debounced(signal, ms)` from `@angular/core` returns a resource you can feed into `httpResource()` — no RxJS required. Because it's experimental, the RxJS version above is the safe choice for production today. See [Resource API](/modern/resource-api/).
+:::
 
-```typescript
-import { filter } from 'rxjs/operators';
+## Loading data: `rxResource()`
 
-@Component({
-  selector: 'app-filter-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <input [(ngModel)]="minAge" type="number" placeholder="Minimum age">
-      <h3>Adults ({{minAge}}+ years):</h3>
-      @for (user of adults(); track user.id) {
-        <p>{{user.name}} ({{user.age}})</p>
-      }
-    </div>
-  `
-})
-export class FilterDemoComponent implements OnInit {
-  adults = signal<User[]>([]);
-  minAge = 18;
-  private userService = inject(UserService);
+`rxResource()` is the Observable flavour of [`resource()`](/modern/resource-api/) (stable since v22). It re-runs `stream` whenever `params` change, cancels the previous stream, and exposes `value()`, `isLoading()`, `error()`, `hasValue()` and `reload()` as signals.
 
-  ngOnInit() {
-    this.userService.getUsers().pipe(
-      map(users => users.filter(user => user.age >= this.minAge)) // Only adults
-    ).subscribe(adults => {
-      this.adults.set(adults);
-    });
-  }
-}
-```
-
-### CombineLatest - Merge Multiple Streams
-
-**CombineLatest is like a recipe** - it waits for ingredients from different sources and combines them when all are available.
-
-```typescript
-import { combineLatest } from 'rxjs';
+```ts title="user-profile.ts"
+import { Component, inject, input } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
+import { UserApi } from './user-api'; // returns Observable<User>
 
 @Component({
-  selector: 'app-combine-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-user-profile',
   template: `
-    <div>
-      <h3>Search Results:</h3>
-      <input [(ngModel)]="searchTerm" placeholder="Search term">
-      <select [(ngModel)]="category">
-        <option value="">All Categories</option>
-        <option value="tech">Technology</option>
-        <option value="health">Health</option>
-      </select>
-      
-      @for (product of filteredProducts(); track product.id) {
-        <div>{{product.name}} - {{product.category}}</div>
-      }
-    </div>
-  `
-})
-export class CombineDemoComponent implements OnInit {
-  filteredProducts = signal<Product[]>([]);
-  searchTerm = '';
-  category = '';
-  
-  private productService = inject(ProductService);
-  private searchTerm$ = new BehaviorSubject('');
-  private category$ = new BehaviorSubject('');
-
-  ngOnInit() {
-    // Combine search term and category changes
-    combineLatest([
-      this.productService.getProducts(),
-      this.searchTerm$,
-      this.category$
-    ]).pipe(
-      map(([products, search, cat]) => {
-        return products.filter(product => {
-          const matchesSearch = !search || product.name.toLowerCase().includes(search.toLowerCase());
-          const matchesCategory = !cat || product.category === cat;
-          return matchesSearch && matchesCategory;
-        });
-      })
-    ).subscribe(filtered => {
-      this.filteredProducts.set(filtered);
-    });
-  }
-
-  onSearchChange() {
-    this.searchTerm$.next(this.searchTerm);
-  }
-
-  onCategoryChange() {
-    this.category$.next(this.category);
-  }
-}
-```
-
-## 🎨 Practical Example: Real-time Search
-
-**This example shows how to build a search that responds as you type** - like Google's search suggestions.
-
-```typescript
-import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
-
-@Component({
-  selector: 'app-search',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
-  template: `
-    <div>
-      <input 
-        [(ngModel)]="searchQuery"
-        (input)="onSearchInput()"
-        placeholder="Search users...">
-      
-      @if (isLoading()) {
-        <div>Searching...</div>
-      }
-      
-      @if (searchResults().length > 0) {
-        <div>
-          <h3>Results:</h3>
-          @for (user of searchResults(); track user.id) {
-            <div>{{user.name}} - {{user.email}}</div>
-          }
-        </div>
-      } @else if (hasSearched() && !isLoading()) {
-        <div>No results found</div>
-      }
-    </div>
-  `
-})
-export class SearchComponent implements OnInit, OnDestroy {
-  searchQuery = '';
-  searchResults = signal<User[]>([]);
-  isLoading = signal(false);
-  hasSearched = signal(false);
-  
-  private searchSubject = new Subject<string>();
-  private subscription?: Subscription;
-  private userService = inject(UserService);
-
-  ngOnInit() {
-    // Create a smart search pipeline
-    this.subscription = this.searchSubject.pipe(
-      debounceTime(300),        // Wait 300ms after user stops typing
-      distinctUntilChanged(),   // Only search if query actually changed
-      switchMap(query => {      // Cancel previous search, start new one
-        if (!query.trim()) {
-          return of([]);
-        }
-        
-        this.isLoading.set(true);
-        return this.userService.searchUsers(query).pipe(
-          catchError(() => of([])) // Handle errors gracefully
-        );
-      })
-    ).subscribe(results => {
-      this.searchResults.set(results);
-      this.isLoading.set(false);
-      this.hasSearched.set(true);
-    });
-  }
-
-  onSearchInput() {
-    // Emit search query to the pipeline
-    this.searchSubject.next(this.searchQuery);
-  }
-
-  ngOnDestroy() {
-    this.subscription?.unsubscribe();
-  }
-}
-```
-
-## 🔄 Error Handling
-
-**Error handling in RxJS is like having a safety net** - when something goes wrong, you can catch it and decide what to do next.
-
-```typescript
-import { catchError, retry } from 'rxjs/operators';
-
-@Component({
-  selector: 'app-error-handling',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <button (click)="loadData()">Load Data</button>
-      
-      @if (isLoading()) {
-        <div>Loading...</div>
-      }
-      
-      @if (error()) {
-        <div>
-          Error: {{error()}}
-          <button (click)="loadData()">Retry</button>
-        </div>
-      }
-      
-      @if (data()) {
-        <div>Data loaded: {{data()?.length}} items</div>
-      }
-    </div>
-  `
-})
-export class ErrorHandlingComponent {
-  data = signal<any[] | null>(null);
-  isLoading = signal(false);
-  error = signal<string | null>(null);
-  
-  private dataService = inject(DataService);
-
-  loadData() {
-    this.isLoading.set(true);
-    this.error.set(null);
-    
-    this.dataService.getData().pipe(
-      retry(2), // Automatically retry up to 2 times
-      catchError(error => {
-        console.error('Failed to load data:', error);
-        this.error.set('Failed to load data. Please try again.');
-        return of(null); // Return fallback value
-      })
-    ).subscribe(result => {
-      this.data.set(result);
-      this.isLoading.set(false);
-    });
-  }
-}
-```
-
-## 🎭 Subjects - Two-way Communication
-
-**Subjects are like radio stations** - they can both broadcast (emit) and receive (subscribe) messages.
-
-```typescript
-import { BehaviorSubject, Subject } from 'rxjs';
-
-// Service for managing global state
-@Injectable({
-  providedIn: 'root'
-})
-export class NotificationService {
-  // BehaviorSubject remembers the last value
-  private messageSubject = new BehaviorSubject<string>('');
-  message$ = this.messageSubject.asObservable();
-  
-  // Subject for events (no initial value)
-  private eventSubject = new Subject<NotificationEvent>();
-  events$ = this.eventSubject.asObservable();
-
-  showMessage(message: string) {
-    this.messageSubject.next(message);
-  }
-
-  emitEvent(event: NotificationEvent) {
-    this.eventSubject.next(event);
-  }
-}
-
-// Component that sends notifications
-@Component({
-  selector: 'app-sender',
-  template: `
-    <div>
-      <input [(ngModel)]="message" placeholder="Enter message">
-      <button (click)="sendMessage()">Send Message</button>
-      <button (click)="sendEvent()">Send Event</button>
-    </div>
-  `
-})
-export class SenderComponent {
-  message = '';
-  private notificationService = inject(NotificationService);
-
-  sendMessage() {
-    this.notificationService.showMessage(this.message);
-    this.message = '';
-  }
-
-  sendEvent() {
-    this.notificationService.emitEvent({
-      type: 'info',
-      message: 'Button clicked!',
-      timestamp: new Date()
-    });
-  }
-}
-
-// Component that receives notifications
-@Component({
-  selector: 'app-receiver',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h3>Current Message: {{currentMessage()}}</h3>
-      <h3>Recent Events:</h3>
-      @for (event of recentEvents(); track event.timestamp) {
-        <div>{{event.type}}: {{event.message}} at {{event.timestamp | date:'short'}}</div>
-      }
-    </div>
-  `
-})
-export class ReceiverComponent implements OnInit, OnDestroy {
-  currentMessage = signal('');
-  recentEvents = signal<NotificationEvent[]>([]);
-  
-  private subscriptions = new Subscription();
-  private notificationService = inject(NotificationService);
-
-  ngOnInit() {
-    // Subscribe to messages
-    this.subscriptions.add(
-      this.notificationService.message$.subscribe(message => {
-        this.currentMessage.set(message);
-      })
-    );
-
-    // Subscribe to events
-    this.subscriptions.add(
-      this.notificationService.events$.subscribe(event => {
-        this.recentEvents.update(events => [event, ...events.slice(0, 4)]);
-      })
-    );
-  }
-
-  ngOnDestroy() {
-    this.subscriptions.unsubscribe();
-  }
-}
-```
-
-## ✅ Best Practices
-
-### 1. **Always Unsubscribe**
-```typescript
-// ✅ Good - Proper cleanup
-export class Component implements OnDestroy {
-  private subscription = new Subscription();
-
-  ngOnInit() {
-    this.subscription.add(
-      this.service.getData().subscribe(data => {
-        // Handle data
-      })
-    );
-  }
-
-  ngOnDestroy() {
-    this.subscription.unsubscribe(); // Prevents memory leaks
-  }
-}
-
-// ✅ Better - Use takeUntil pattern
-export class Component implements OnDestroy {
-  private destroy$ = new Subject<void>();
-
-  ngOnInit() {
-    this.service.getData().pipe(
-      takeUntil(this.destroy$) // Automatically unsubscribe
-    ).subscribe(data => {
-      // Handle data
-    });
-  }
-
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-}
-```
-
-### 2. **Use Async Pipe When Possible**
-```typescript
-// ✅ Good - Async pipe handles subscription automatically
-@Component({
-  template: `
-    @if (users$ | async; as users) {
-      @for (user of users; track user.id) {
-        <div>{{user.name}}</div>
-      }
+    @if (user.isLoading()) {
+      <p>Loading…</p>
+    } @else if (user.error()) {
+      <p>Could not load user. <button type="button" (click)="user.reload()">Retry</button></p>
+    } @else if (user.hasValue()) {
+      <h2>{{ user.value().name }}</h2>
     }
-  `
+  `,
 })
-export class Component {
-  users$ = this.userService.getUsers();
+export class UserProfile {
+  readonly userId = input.required<number>();
+  private readonly api = inject(UserApi);
+
+  protected readonly user = rxResource({
+    params: () => this.userId(),
+    stream: ({ params: id }) => this.api.getUser(id),
+  });
 }
 ```
 
-### 3. **Combine with Signals**
-```typescript
-// ✅ Modern approach - Convert observables to signals
-export class Component {
-  private userService = inject(UserService);
-  
-  // Convert observable to signal
-  users = toSignal(this.userService.getUsers(), { initialValue: [] });
-  
-  // Use computed for derived state
-  userCount = computed(() => this.users().length);
+- If `params` returns `undefined`, the resource stays `idle` and `stream` doesn't run.
+- For plain HTTP GETs, ``httpResource<User>(() => `/api/users/${this.userId()}`)`` is shorter — see [httpResource](/modern/http-resource-api/).
+- Use `rxResource` when you already have Observable-returning services or need RxJS operators (`retry`, `timeout`, WebSocket streams).
+
+## Cleaning up: `takeUntilDestroyed()`
+
+Every manual `subscribe()` needs to end. `takeUntilDestroyed()` completes the stream when the surrounding component, directive or service is destroyed:
+
+```ts title="scroll-tracker.ts"
+import { Component, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { fromEvent, throttleTime } from 'rxjs';
+
+@Component({
+  selector: 'app-scroll-tracker',
+  template: `Scrolled: {{ y() }}px`,
+})
+export class ScrollTracker {
+  protected readonly y = signal(0);
+
+  constructor() {
+    fromEvent(window, 'scroll')
+      .pipe(throttleTime(100), takeUntilDestroyed()) // put it last in the pipe
+      .subscribe(() => this.y.set(window.scrollY));
+  }
 }
 ```
 
-## 🎯 Quick Checklist
+Outside the constructor, pass a `DestroyRef`:
 
-- [ ] Understand observables vs promises
-- [ ] Always unsubscribe to prevent memory leaks
-- [ ] Use operators to transform data streams
-- [ ] Handle errors with catchError
-- [ ] Use subjects for component communication
-- [ ] Combine observables with combineLatest/merge
-- [ ] Use debounceTime for search inputs
-- [ ] Convert observables to signals when appropriate
-- [ ] Use async pipe in templates when possible
+```ts
+private readonly destroyRef = inject(DestroyRef);
 
-## 🚀 Next Steps
+protected start() {
+  interval(5000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.poll());
+}
+```
 
-1. **[State Management](/intermediate/state-management/)** - Managing complex application state
-2. **[Testing](/intermediate/testing/)** - Testing reactive code
-3. **[Advanced Patterns](/advanced/reactive-patterns/)** - Complex RxJS patterns
+**You don't need to unsubscribe** from: the `async` pipe, `toSignal()`, `rxResource()`, `outputFromObservable()`, and single-shot `HttpClient` calls (they complete) — although cancelling a slow HTTP request when the user leaves is still a good idea.
 
----
+:::note[Legacy pattern]
+Older code uses `private destroy$ = new Subject<void>()` + `takeUntil(this.destroy$)` + `ngOnDestroy() { this.destroy$.next(); }`. `takeUntilDestroyed()` replaces all of that.
+:::
 
-**Remember**: RxJS is powerful but can be complex. Start with basic operators and gradually build up to more advanced patterns. Think of data as streams flowing through your application! 🌊
+## Outputs and Observables
+
+Expose an Observable as a component/directive **output** with `outputFromObservable()`. Angular subscribes only when someone listens, and stops when the directive is destroyed.
+
+```ts title="click-outside.ts"
+import { Directive, ElementRef, inject } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { outputFromObservable } from '@angular/core/rxjs-interop';
+import { filter, fromEvent } from 'rxjs';
+
+@Directive({ selector: '[appClickOutside]' })
+export class ClickOutside {
+  private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly document = inject(DOCUMENT);
+
+  readonly appClickOutside = outputFromObservable(
+    fromEvent<MouseEvent>(this.document, 'click').pipe(
+      filter((e) => !this.el.nativeElement.contains(e.target as Node)),
+    ),
+  );
+}
+```
+
+```html
+<div (appClickOutside)="open.set(false)">…</div>
+```
+
+The reverse, `outputToObservable(componentRef.instance.someOutput)`, turns any output into an Observable (e.g. for dynamically created components).
+
+## The `async` pipe
+
+The `async` pipe subscribes in the template and unsubscribes automatically. It still works and is fine for simple cases:
+
+```html
+@if (user$ | async; as user) {
+  <p>{{ user.name }}</p>
+}
+```
+
+In new code prefer `toSignal()` or a resource: you get a typed value you can also use in `computed()`, and you avoid multiple subscriptions when the same stream is used several times in a template.
+
+## Essential operators cheat sheet
+
+| Need | Operator |
+|---|---|
+| Transform each value | `map` |
+| Skip values | `filter`, `distinctUntilChanged` |
+| Wait for a pause / limit rate | `debounceTime`, `throttleTime` |
+| Switch to the latest inner request (search) | `switchMap` |
+| Run requests one after another (saves) | `concatMap` |
+| Ignore new triggers while busy (submit button) | `exhaustMap` |
+| Run in parallel | `mergeMap` |
+| Combine latest values of several streams | `combineLatest` |
+| Wait for several requests to finish | `forkJoin` |
+| Recover / retry | `catchError`, `retry({ count, delay })` |
+| Share one subscription between many subscribers | `shareReplay({ bufferSize: 1, refCount: true })` |
+
+Details and diagrams: [Transformation](/rxjs/transformation-operators/), [Filtering](/rxjs/filtering-operators/), [Combination](/rxjs/combination-operators/), [Error handling](/rxjs/error-handling/).
+
+## State in services: prefer signals over `BehaviorSubject`
+
+Many older services keep state in a `BehaviorSubject` and expose it with `asObservable()`. In Angular 22 a `signal()` does the same job with less code and no subscriptions (see [State Management](/intermediate/state-management/)). If you must consume such a service, convert it once with `toSignal(service.state$, { requireSync: true })`.
+
+Keep `Subject`s for true **events** (notifications, messages from a WebSocket), not for state.
+
+## Common mistakes
+
+- **Subscribing without cleanup** → memory leaks and duplicated work. Use `takeUntilDestroyed()`, `toSignal()` or a resource.
+- **Nested `subscribe()` calls** → use `switchMap`/`concatMap`/`mergeMap` instead.
+- **Calling `toSignal()` inside a method or `computed()`** → new subscription each time and an injection-context error. Create it once as a field.
+- **`catchError` at the outer level of a long-lived stream** → the stream completes after the first error. Catch errors on the *inner* Observable (inside `switchMap`).
+- **Using RxJS for simple state** → a `signal()` is simpler and works perfectly with OnPush.
+- **Forgetting `initialValue`** and fighting `undefined` in templates.
+
+## Key takeaways
+
+- Signals for state, RxJS for event streams and async orchestration.
+- `toSignal()` / `toObservable()` bridge the two worlds; both clean up automatically.
+- `rxResource()` and `httpResource()` replace most manual "fetch in `ngOnInit` + subscribe" code.
+- `takeUntilDestroyed()` is the modern way to end manual subscriptions.
+- `outputFromObservable()` turns a stream into a component output.
+
+## Next steps
+
+- [RxJS fundamentals](/rxjs/fundamentals/) — Observables from scratch
+- [Angular RxJS patterns](/rxjs/angular-patterns/) — more real-world recipes
+- [Resource API](/modern/resource-api/) and [httpResource](/modern/http-resource-api/) — signal-based data loading
+- [State Management](/intermediate/state-management/) — signal-based stores

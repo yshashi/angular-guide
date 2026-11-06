@@ -1,407 +1,387 @@
 ---
 title: Lifecycle Hooks 🔄
-description: Master Angular component lifecycle hooks
+description: Angular component lifecycle in v22 — ngOnInit, typed ngOnChanges, DestroyRef, afterNextRender, afterEveryRender, afterRenderEffect and signal alternatives.
 sidebar:
   order: 3
 ---
 
-Angular lifecycle hooks provide precise control over component initialization, updates, and cleanup. Master these hooks to build efficient, responsive applications.
+Every component goes through a **lifecycle**: Angular creates it, sets its inputs, renders its template, checks it for changes, and finally destroys it. **Lifecycle hooks** let you run code at each of those moments. In modern Angular, signals handle most of what hooks used to do, so this page also shows you *when you don't need a hook at all*.
 
-## 🎯 Essential Lifecycle Hooks
+## What you'll learn
 
-- **OnInit** - Component initialization
-- **OnDestroy** - Cleanup and unsubscription
-- **OnChanges** - Input property changes
-- **AfterViewInit** - View initialization complete
-- **DoCheck** - Custom change detection
+- The order Angular runs lifecycle hooks in
+- When to use the constructor vs `ngOnInit`
+- How to react to input changes with typed `SimpleChanges` — and the signal alternative
+- How to clean up with `ngOnDestroy`, `DestroyRef` and `takeUntilDestroyed()`
+- How to touch the DOM safely with `afterNextRender`, `afterEveryRender` and `afterRenderEffect`
 
-## 🚀 OnInit - Component Initialization
+## The lifecycle at a glance
 
-```typescript
-@Component({
-  selector: 'app-user-profile',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      @if (user()) {
-        <h2>{{user()!.name}}</h2>
-        <p>{{user()!.email}}</p>
-      }
-      @if (loading()) {
-        <div>Loading...</div>
-      }
-    </div>
-  `
-})
-export class UserProfileComponent implements OnInit {
-  userId = input.required<number>();
-  
-  user = signal<User | null>(null);
-  loading = signal(false);
-  
-  private userService = inject(UserService);
+| Phase | Hook | Runs | Typical use today |
+|---|---|---|---|
+| Creation | `constructor` | Once, when the class is instantiated | `inject()`, create signals, register `effect()`, `afterNextRender()`, `DestroyRef` callbacks |
+| Change detection | `ngOnChanges` | Before `ngOnInit` and whenever a template-bound input changes | Rarely needed — prefer `computed()`/`effect()` on signal inputs |
+| | `ngOnInit` | Once, after inputs are first set | One-time setup that needs input values |
+| | `ngDoCheck` | On every check of this component | Almost never — custom change detection |
+| | `ngAfterContentInit` | Once, after projected content is ready | Rarely needed with signal `contentChild()` queries |
+| | `ngAfterContentChecked` | After every content check | Almost never |
+| | `ngAfterViewInit` | Once, after the component's view (and child views) is ready | Rarely needed with signal `viewChild()` queries |
+| | `ngAfterViewChecked` | After every view check | Almost never |
+| Rendering | `afterNextRender()` | Once, after the next time the **whole app** has rendered to the DOM | DOM measurement, focus, 3rd-party library init |
+| | `afterEveryRender()` | After every app render | Keeping manual DOM work in sync |
+| | `afterRenderEffect()` | After render, when signals it reads change | Updating 3rd-party widgets when data changes |
+| Destruction | `ngOnDestroy` / `DestroyRef` | Once, before the component is removed | Cleanup: timers, listeners, subscriptions |
 
-  ngOnInit() {
-    this.loadUser();
-  }
+**Order during initialization:** `constructor` → `ngOnChanges` (if inputs are bound) → `ngOnInit` → `ngDoCheck` → `ngAfterContentInit` → `ngAfterContentChecked` → `ngAfterViewInit` → `ngAfterViewChecked` → *(DOM rendered)* → `afterNextRender` → `afterEveryRender`.
 
-  private loadUser() {
-    this.loading.set(true);
-    this.userService.getUser(this.userId()).subscribe({
-      next: user => {
-        this.user.set(user);
-        this.loading.set(false);
-      },
-      error: () => this.loading.set(false)
-    });
-  }
-}
-```
+**On later updates:** `ngOnChanges` (if inputs changed) → `ngDoCheck` → `ngAfterContentChecked` → `ngAfterViewChecked` → *(DOM rendered)* → `afterEveryRender`.
 
-## 🧹 OnDestroy - Cleanup
-
-```typescript
-@Component({
-  selector: 'app-timer',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h3>Timer: {{seconds()}}</h3>
-      <button (click)="toggle()">{{isRunning() ? 'Pause' : 'Start'}}</button>
-      <button (click)="reset()">Reset</button>
-    </div>
-  `
-})
-export class TimerComponent implements OnInit, OnDestroy {
-  seconds = signal(0);
-  isRunning = signal(false);
-  
-  private intervalId?: number;
-
-  ngOnInit() {
-    this.startTimer();
-  }
-
-  ngOnDestroy() {
-    this.clearTimer();
-  }
-
-  toggle() {
-    if (this.isRunning()) {
-      this.pauseTimer();
-    } else {
-      this.startTimer();
-    }
-  }
-
-  private startTimer() {
-    if (!this.intervalId) {
-      this.intervalId = window.setInterval(() => {
-        this.seconds.update(s => s + 1);
-      }, 1000);
-      this.isRunning.set(true);
-    }
-  }
-
-  private pauseTimer() {
-    this.clearTimer();
-    this.isRunning.set(false);
-  }
-
-  private clearTimer() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = undefined;
-    }
-  }
-
-  reset() {
-    this.clearTimer();
-    this.seconds.set(0);
-    this.isRunning.set(false);
-  }
-}
-```
-
-## 🔄 OnChanges - Input Changes
-
-```typescript
-@Component({
-  selector: 'app-chart',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h3>{{title()}}</h3>
-      @if (processedData()) {
-        <div>Chart with {{processedData()!.length}} data points</div>
-      }
-    </div>
-  `
-})
-export class ChartComponent implements OnChanges {
-  title = input('Chart');
-  data = input<number[]>([]);
-  
-  processedData = signal<ProcessedData[] | null>(null);
-
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['data'] && this.data()) {
-      this.processData();
-    }
-  }
-
-  private processData() {
-    const processed = this.data().map((value, index) => ({
-      x: index,
-      y: value,
-      label: `Point ${index + 1}`
-    }));
-    this.processedData.set(processed);
-  }
-}
-
-interface ProcessedData {
-  x: number;
-  y: number;
-  label: string;
-}
-```
-
-## 👁️ AfterViewInit - View Ready
-
-```typescript
-@Component({
-  selector: 'app-canvas-chart',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <canvas #chartCanvas width="400" height="200"></canvas>
-    </div>
-  `
-})
-export class CanvasChartComponent implements AfterViewInit {
-  canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
-  
-  data = input<number[]>([]);
-
-  ngAfterViewInit() {
-    this.drawChart();
-  }
-
-  private drawChart() {
-    const ctx = this.canvas().nativeElement.getContext('2d');
-    if (!ctx) return;
-
-    const data = this.data();
-    const width = 400;
-    const height = 200;
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.strokeStyle = '#007bff';
-    ctx.lineWidth = 2;
-
-    if (data.length > 1) {
-      ctx.beginPath();
-      data.forEach((value, index) => {
-        const x = (index / (data.length - 1)) * width;
-        const y = height - (value / Math.max(...data)) * height;
-        
-        if (index === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-    }
-  }
-}
-```
-
-:::caution[Legacy Syntax]
-In older Angular versions, `@ViewChild` decorator was used to access DOM elements:
-```ts
-@ViewChild('chartCanvas') canvas!: ElementRef<HTMLCanvasElement>;
-```
-Modern Angular uses signal-based queries like `viewChild()` and `viewChild.required()`. Access the element by calling the signal: `this.canvas().nativeElement`.
+:::note
+Class-method hooks (`ngOnInit`, …) belong to one component instance. The render functions (`afterNextRender`, `afterEveryRender`, `afterRenderEffect`) are **application-wide**: they run after Angular has rendered *all* components. They must be called in an injection context (usually the constructor) and **never run on the server** (SSR/prerendering), which makes them the safe place for browser-only code.
 :::
 
-## 🔍 DoCheck - Custom Change Detection
+Implementing the matching interface (`OnInit`, `OnChanges`, `OnDestroy`, `AfterViewInit`, …) is optional but catches typos like `ngOnInt`.
 
-```typescript
+## Constructor vs `ngOnInit`
+
+Inputs are **not set yet** in the constructor. Reading a required input there throws error `NG0950` ("Required input is accessed before a value is set").
+
+```ts title="greeting.ts"
+import { Component, OnInit, input, signal } from '@angular/core';
+
 @Component({
-  selector: 'app-optimized-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <p>Checks: {{checkCount()}}</p>
-      @for (item of items(); track item.id) {
-        <div>{{item.name}} - {{item.value}}</div>
-      }
-    </div>
-  `
+  selector: 'app-greeting',
+  template: `<p>{{ message() }}</p>`,
 })
-export class OptimizedListComponent implements DoCheck {
-  items = input<Item[]>([]);
-  
-  checkCount = signal(0);
-  private lastItemsLength = 0;
+export class Greeting implements OnInit {
+  readonly name = input.required<string>();
+  protected readonly message = signal('');
 
-  ngDoCheck() {
-    this.checkCount.update(count => count + 1);
-    
-    // Custom change detection logic
-    const currentLength = this.items().length;
-    if (currentLength !== this.lastItemsLength) {
-      console.log('Items length changed:', currentLength);
-      this.lastItemsLength = currentLength;
+  constructor() {
+    // ❌ this.name() would throw NG0950 here
+  }
+
+  ngOnInit() {
+    this.message.set(`Hello, ${this.name()}!`); // ✅ inputs are ready
+  }
+}
+```
+
+But usually you don't need either — derive the value with `computed()`. It stays correct even when `name` changes later (which the `ngOnInit` version doesn't!):
+
+```ts
+@Component({
+  selector: 'app-greeting',
+  template: `<p>{{ message() }}</p>`,
+})
+export class Greeting {
+  readonly name = input.required<string>();
+  protected readonly message = computed(() => `Hello, ${this.name()}!`);
+}
+```
+
+**Rule of thumb:** constructor (or field initializers) for wiring things up; `ngOnInit` only for one-time work that needs the *initial* input values; signals for everything that should stay in sync.
+
+## Reacting to input changes
+
+### `ngOnChanges` with typed `SimpleChanges`
+
+`ngOnChanges` receives a `SimpleChanges` object with `previousValue`, `currentValue` and `firstChange` for each input that changed. Pass your class as the generic (`SimpleChanges<Price>`) and the values are **fully typed** — even for signal inputs.
+
+```ts title="price.ts"
+import { Component, OnChanges, SimpleChanges, input } from '@angular/core';
+
+@Component({
+  selector: 'app-price',
+  template: `{{ amount() }} {{ currency() }}`,
+})
+export class Price implements OnChanges {
+  readonly amount = input(0);
+  readonly currency = input('EUR');
+
+  ngOnChanges(changes: SimpleChanges<Price>) {
+    const amount = changes.amount; // SimpleChange<number> | undefined
+    if (amount && !amount.firstChange) {
+      console.log(`Price changed by ${amount.currentValue - amount.previousValue}`);
     }
   }
 }
+```
 
-interface Item {
-  id: number;
-  name: string;
-  value: number;
+- `ngOnChanges` only fires for changes coming from **template bindings** (not when you set a property in code).
+- Keys are the **class property names**, even if the input has an alias.
+
+### The signal way: `computed()` and `effect()`
+
+With signal inputs you rarely need `ngOnChanges`. Use `computed()` for derived values and `effect()` for side effects:
+
+```ts title="price.ts"
+import { Component, effect, input } from '@angular/core';
+
+@Component({
+  selector: 'app-price',
+  template: `{{ amount() }}`,
+})
+export class Price {
+  readonly amount = input(0);
+
+  constructor() {
+    let previous: number | undefined;
+    effect(() => {
+      const current = this.amount();
+      if (previous !== undefined) console.log(`Price changed by ${current - previous}`);
+      previous = current;
+    });
+  }
 }
 ```
 
-## 🎨 Practical Example: Data Fetcher
+Need to reset local state when an input changes? Use [`linkedSignal()`](/modern/linked-signals/). Need to load data when an input changes? Use [`resource()` / `httpResource()`](/modern/resource-api/).
 
-```typescript
+## Cleaning up: `ngOnDestroy` and `DestroyRef`
+
+Angular destroys a component when it leaves the page (an `@if` turns false, you navigate away, …). Anything that would keep running — timers, global event listeners, manual subscriptions — must be stopped.
+
+### `DestroyRef` (recommended)
+
+Inject `DestroyRef` and register a callback **right next to the setup code**:
+
+```ts title="clock.ts"
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+
 @Component({
-  selector: 'app-data-fetcher',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h2>Data Fetcher</h2>
-      
-      @if (loading()) {
-        <div>Loading data...</div>
-      }
-      
-      @if (error()) {
-        <div>Error: {{error()}}</div>
-        <button (click)="retry()">Retry</button>
-      }
-      
-      @if (data()) {
-        <div>
-          <h3>Results ({{data()!.length}})</h3>
-          @for (item of data(); track item.id) {
-            <div>{{item.title}}</div>
-          }
-        </div>
-      }
-    </div>
-  `
+  selector: 'app-clock',
+  imports: [DatePipe],
+  template: `{{ now() | date: 'mediumTime' }}`,
 })
-export class DataFetcherComponent implements OnInit, OnDestroy {
-  endpoint = input.required<string>();
-  
-  data = signal<DataItem[] | null>(null);
-  loading = signal(false);
-  error = signal<string | null>(null);
-  
-  private http = inject(HttpClient);
-  private subscription?: Subscription;
+export class Clock {
+  protected readonly now = signal(new Date());
+
+  constructor() {
+    const id = setInterval(() => this.now.set(new Date()), 1000);
+    inject(DestroyRef).onDestroy(() => clearInterval(id));
+  }
+}
+```
+
+Because `DestroyRef` is injectable, you can build **reusable helpers** that clean up after themselves:
+
+```ts title="use-interval.ts"
+import { DestroyRef, inject } from '@angular/core';
+
+export function useInterval(ms: number, fn: () => void) {
+  const id = setInterval(fn, ms);
+  inject(DestroyRef).onDestroy(() => clearInterval(id)); // needs an injection context
+}
+```
+
+More `DestroyRef` features:
+
+- `onDestroy()` returns a function that **unregisters** the callback.
+- `destroyRef.destroyed` is `true` once the component is gone — check it after an `await` to avoid touching a destroyed component:
+
+```ts
+private readonly destroyRef = inject(DestroyRef);
+
+async save() {
+  await this.api.save();
+  if (this.destroyRef.destroyed) return; // user navigated away meanwhile
+  this.saved.set(true);
+}
+```
+
+- For RxJS subscriptions use `takeUntilDestroyed()` (it uses `DestroyRef` under the hood):
+
+```ts
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { interval } from 'rxjs';
+
+constructor() {
+  interval(1000).pipe(takeUntilDestroyed()).subscribe(() => console.log('tick'));
+}
+```
+
+### `ngOnDestroy`
+
+The classic hook still works and is fine for simple cases:
+
+```ts
+export class LegacyClock implements OnInit, OnDestroy {
+  protected readonly now = signal(new Date());
+  private id?: ReturnType<typeof setInterval>;
 
   ngOnInit() {
-    this.fetchData();
+    this.id = setInterval(() => this.now.set(new Date()), 1000);
   }
 
   ngOnDestroy() {
-    this.subscription?.unsubscribe();
+    clearInterval(this.id);
   }
+}
+```
 
-  private fetchData() {
-    this.loading.set(true);
-    this.error.set(null);
-    
-    this.subscription = this.http.get<DataItem[]>(this.endpoint()).subscribe({
-      next: data => {
-        this.data.set(data);
-        this.loading.set(false);
+:::tip[What you don't need to clean up]
+Angular cleans up automatically: template event listeners, `host` listeners, `output()` subscriptions, `effect()`, `computed()`, `toSignal()`, `resource()`/`httpResource()`, the `async` pipe, and the render hooks (`afterNextRender`, …) registered in a component.
+:::
+
+## Working with the DOM after render
+
+Angular updates the DOM for you, but sometimes you must touch it yourself: focus an input, measure an element, start a chart or map library. Do it **after rendering**, using the render functions.
+
+### `afterNextRender` — run once
+
+```ts title="auto-focus.ts"
+import { Component, ElementRef, afterNextRender, viewChild } from '@angular/core';
+
+@Component({
+  selector: 'app-auto-focus',
+  template: `<input #field />`,
+})
+export class AutoFocus {
+  private readonly field = viewChild.required<ElementRef<HTMLInputElement>>('field');
+
+  constructor() {
+    afterNextRender(() => this.field().nativeElement.focus());
+  }
+}
+```
+
+This replaces the old `ngAfterViewInit` + `@ViewChild` pattern, and it is SSR-safe (it simply doesn't run on the server).
+
+### Read/write phases and `afterEveryRender`
+
+Mixing DOM reads and writes causes *layout thrashing*. Split your work into **phases**; Angular runs them in the order `earlyRead` → `write` → `mixedReadWrite` → `read` across all components. A value returned from one phase is passed to the next.
+
+```ts title="measure.ts"
+import { Component, ElementRef, afterEveryRender, afterNextRender, signal, viewChild } from '@angular/core';
+
+@Component({
+  selector: 'app-measure',
+  template: `
+    <div #box class="box"><ng-content /></div>
+    <p>Height: {{ height() }}px</p>
+  `,
+})
+export class Measure {
+  private readonly box = viewChild.required<ElementRef<HTMLElement>>('box');
+  protected readonly height = signal(0);
+
+  constructor() {
+    afterNextRender({
+      write: () => {
+        this.box().nativeElement.style.minHeight = '120px';
       },
-      error: err => {
-        this.error.set('Failed to load data');
-        this.loading.set(false);
-      }
+      read: () => {
+        this.height.set(this.box().nativeElement.getBoundingClientRect().height);
+      },
+    });
+
+    // Runs after *every* render of the app — keep it cheap!
+    afterEveryRender({
+      read: () => {
+        const h = this.box().nativeElement.offsetHeight;
+        if (h !== this.height()) this.height.set(h);
+      },
     });
   }
+}
+```
 
-  retry() {
-    this.fetchData();
+If you omit the phase (`afterNextRender(() => …)`), the callback runs in `mixedReadWrite`. For size changes, a `ResizeObserver` is often a better fit than `afterEveryRender`.
+
+### `afterRenderEffect` — run after render when signals change
+
+`effect()` runs **before** the DOM is updated. `afterRenderEffect()` is an effect that runs **after** rendering, and only when the signals it reads change. It's ideal for keeping a third-party widget in sync with inputs:
+
+```ts title="sales-chart.ts"
+import {
+  Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect,
+  inject, input, viewChild,
+} from '@angular/core';
+import { ChartInstance, createChart } from './chart'; // your wrapper around a DOM charting library
+
+@Component({
+  selector: 'app-sales-chart',
+  template: `<canvas #canvas width="400" height="200"></canvas>`,
+})
+export class SalesChart {
+  readonly data = input.required<number[]>();
+  private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
+  private chart?: ChartInstance;
+
+  constructor() {
+    // 1. Create the chart once, after the first render
+    afterNextRender({
+      write: () => {
+        this.chart = createChart(this.canvas().nativeElement, this.data());
+      },
+    });
+
+    // 2. Update it after render whenever `data` changes
+    afterRenderEffect({
+      write: () => {
+        this.chart?.update(this.data());
+      },
+    });
+
+    // 3. Destroy it with the component
+    inject(DestroyRef).onDestroy(() => this.chart?.destroy());
   }
 }
+```
 
-interface DataItem {
-  id: number;
-  title: string;
+Phase callbacks of `afterRenderEffect` receive the previous phase's result **as a signal** plus an `onCleanup` function, and re-run only when their tracked signals change.
+
+### Calling render hooks outside the constructor
+
+Outside an injection context, pass an injector:
+
+```ts
+private readonly injector = inject(Injector);
+
+start() {
+  afterNextRender(() => console.log('rendered'), { injector: this.injector });
 }
 ```
 
-## ✅ Best Practices
+## The "checked" hooks and `ngDoCheck`
 
-### 1. **Always Cleanup in OnDestroy**
-```typescript
-// ✅ Good
-ngOnDestroy() {
-  this.subscription?.unsubscribe();
-  clearInterval(this.intervalId);
-}
+`ngDoCheck`, `ngAfterContentChecked` and `ngAfterViewChecked` run on **every** change detection pass of the component. They are easy to make slow and are almost never needed with signals and OnPush (the default since v22). Avoid them unless you are integrating code that can't notify Angular any other way.
 
-// ❌ Avoid memory leaks
-ngOnDestroy() {
-  // Missing cleanup
-}
-```
+Also avoid changing state that a template has *already rendered* inside `ngAfterViewInit`/`ngAfterContentInit` — that causes `ExpressionChangedAfterItHasBeenCheckedError` (`NG0100`). Signals and the render functions avoid this problem.
 
-### 2. **Use Signals for State**
-```typescript
-// ✅ Good - Signal-based state
-export class Component {
-  data = signal<Data[]>([]);
-  loading = signal(false);
-}
+## Old pattern → modern pattern
 
-// ❌ Avoid - Traditional properties with OnPush
-export class Component {
-  data: Data[] = [];
-  loading = false;
-}
-```
+| Old | Modern (v22) |
+|---|---|
+| `ngOnChanges` to compute a value | `computed(() => …)` from signal inputs |
+| `ngOnChanges` to reset local state | `linkedSignal()` |
+| `ngOnInit` to fetch data | `httpResource()` / `resource()` (or `toSignal()`) |
+| `@ViewChild` + `ngAfterViewInit` | `viewChild()` + `afterNextRender()` |
+| `@ContentChildren` + `ngAfterContentInit` | `contentChildren()` signal |
+| `ngOnDestroy` + `Subject` + `takeUntil` | `DestroyRef.onDestroy()` / `takeUntilDestroyed()` |
+| `ngAfterViewChecked` to sync a widget | `afterRenderEffect()` |
+| `if (isPlatformBrowser(...))` around DOM code | `afterNextRender()` (never runs on the server) |
 
-### 3. **Minimize DoCheck Usage**
-```typescript
-// ✅ Use DoCheck sparingly for custom logic
-ngDoCheck() {
-  // Only essential custom change detection
-}
+## Common mistakes
 
-// ❌ Avoid heavy operations in DoCheck
-ngDoCheck() {
-  this.expensiveCalculation(); // Bad performance
-}
-```
+- **Reading required inputs in the constructor** → `NG0950`. Use `computed()`, the template, or `ngOnInit`.
+- **Doing DOM work in `effect()`** — it runs before the DOM is updated. Use `afterRenderEffect()` or `afterNextRender()`.
+- **Forgetting cleanup** for `setInterval`, `addEventListener` on `window`/`document`, or manual `subscribe()`.
+- **Heavy work in `afterEveryRender` or `ngDoCheck`** — they run very often.
+- **Relying on hook order between a component and directives on the same element** — Angular doesn't guarantee it.
 
-## 🎯 Quick Checklist
+## Key takeaways
 
-- [ ] Use OnInit for component initialization
-- [ ] Always cleanup in OnDestroy
-- [ ] Handle input changes with OnChanges
-- [ ] Use AfterViewInit for DOM access
-- [ ] Minimize DoCheck usage
-- [ ] Unsubscribe from observables
-- [ ] Clear timers and intervals
-- [ ] Use signals for reactive state
+- Constructor for wiring (`inject()`, signals, effects, render hooks); `ngOnInit` only when you need initial input values.
+- Signals (`computed`, `effect`, `linkedSignal`, resources) replace most uses of `ngOnChanges` and `ngOnInit`.
+- `DestroyRef` keeps cleanup next to setup and enables reusable helpers; `takeUntilDestroyed()` for RxJS.
+- `afterNextRender` / `afterEveryRender` / `afterRenderEffect` are the safe, SSR-friendly place for DOM work — use the `read`/`write` phases.
 
-## 🚀 Next Steps
+## Next steps
 
-1. **[Reactive Forms](/intermediate/reactive-forms/)** - Build complex forms
-2. **[RxJS & Observables](/intermediate/rxjs/)** - Master reactive programming
-3. **[State Management](/intermediate/state-management/)** - Advanced state patterns
-
----
-
-**Remember**: Lifecycle hooks provide precise control over component behavior. Use them wisely to create efficient, leak-free applications! 🔄
+- [Effects](/modern/effects/) — `effect()` in depth
+- [Reactive Forms](/intermediate/reactive-forms/) — build forms with typed controls
+- [RxJS in Angular](/intermediate/rxjs/) — `takeUntilDestroyed`, `toSignal` and friends
+- [Memory Management](/advanced/memory-management/) — avoiding leaks in larger apps

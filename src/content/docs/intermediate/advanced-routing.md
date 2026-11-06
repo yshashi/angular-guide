@@ -1,464 +1,466 @@
 ---
 title: Advanced Routing 🗺️
-description: Master advanced Angular routing patterns and techniques
+description: Angular 22 router in depth — lazy loading, functional guards, resolvers, RedirectCommand, route resources, router events, named outlets, scrolling and view transitions.
 sidebar:
   order: 5
 ---
 
-Advanced routing patterns enable sophisticated navigation, data loading, and user experience optimization. Master guards, resolvers, and lazy loading for production-ready applications.
+You already know how to define routes and link between pages (see [Routing basics](/beginner/routing/)). Real apps need more: protecting pages, loading data before a page shows, splitting code per route, showing progress during navigation, side panels with their own URL, and smooth transitions. This page covers all of that with the Angular 22 router.
 
-## 🎯 Advanced Concepts
+## What you'll learn
 
-- **Route Guards** - Protect and control navigation
-- **Resolvers** - Pre-load data before navigation
-- **Lazy Loading** - Load modules on demand
-- **Route Data** - Pass static data to routes
-- **Auxiliary Routes** - Multiple router outlets
+- Configure the router with features like `withComponentInputBinding()` and preloading
+- Lazy-load components and child routes
+- Protect routes with functional guards and redirect with `RedirectCommand`
+- Load data with resolvers — and with the new route resources (developer preview)
+- React to router events, use named outlets, control scrolling and add view transitions
 
-## 🛡️ Route Guards
+## Router setup with features
 
-```typescript
-// auth.guard.ts
-export const authGuard: CanActivateFn = (route, state) => {
-  const authService = inject(AuthService);
-  const router = inject(Router);
-  
-  if (authService.isAuthenticated()) {
-    return true;
-  }
-  
-  router.navigate(['/login'], { 
-    queryParams: { returnUrl: state.url } 
-  });
-  return false;
+Everything is configured in `app.config.ts` with `provideRouter()` plus optional **features**:
+
+```ts title="app.config.ts"
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import {
+  PreloadAllModules, provideRouter, withComponentInputBinding,
+  withInMemoryScrolling, withPreloading,
+} from '@angular/router';
+import { routes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(
+      routes,
+      withComponentInputBinding(),                 // route params/data → component inputs
+      withPreloading(PreloadAllModules),           // download lazy routes in the background
+      withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
+    ),
+  ],
 };
-
-// admin.guard.ts
-export const adminGuard: CanActivateFn = () => {
-  const authService = inject(AuthService);
-  const router = inject(Router);
-  
-  if (authService.hasRole('admin')) {
-    return true;
-  }
-  
-  router.navigate(['/unauthorized']);
-  return false;
-};
-
-// unsaved-changes.guard.ts
-export const unsavedChangesGuard: CanDeactivateFn<CanDeactivateComponent> = (component) => {
-  if (component.hasUnsavedChanges()) {
-    return confirm('You have unsaved changes. Are you sure you want to leave?');
-  }
-  return true;
-};
-
-interface CanDeactivateComponent {
-  hasUnsavedChanges(): boolean;
-}
 ```
 
-## 📊 Route Resolvers
+| Feature | What it does |
+|---|---|
+| `withComponentInputBinding(options?)` | Binds path params, query params, `data` and resolved data to component `input()`s |
+| `withPreloading(PreloadAllModules)` | Preloads lazy routes after the app is stable |
+| `withInMemoryScrolling({...})` | Scroll to top / restore position / scroll to `#anchor` |
+| `withNavigationErrorHandler(fn)` | One place to handle navigation errors |
+| `withRouterConfig({...})` | Options like `paramsInheritanceStrategy`, `onSameUrlNavigation` |
+| `withViewTransitions()` | Animate between routes with the View Transitions API (developer preview) |
+| `withRouterResources()` | Enable route `resources` (developer preview, v22.2) |
+| `withHashLocation()` | `/#/path` URLs for static hosts without rewrite rules |
+| `withDebugTracing()` | Log every router event to the console (development only) |
 
-```typescript
-// user.resolver.ts
-export const userResolver: ResolveFn<User> = (route) => {
-  const userService = inject(UserService);
-  const userId = route.params['id'];
-  
-  return userService.getUser(userId).pipe(
-    catchError(() => of(null))
-  );
-};
+## Lazy loading
 
-// posts.resolver.ts
-export const postsResolver: ResolveFn<Post[]> = () => {
-  const postService = inject(PostService);
-  
-  return postService.getPosts().pipe(
-    catchError(() => of([]))
-  );
-};
+Lazy loading splits each feature into its own JavaScript chunk that is downloaded only when the user visits it.
 
-// Route configuration
+```ts title="app.routes.ts"
+import { Routes } from '@angular/router';
+import { Home } from './home';
+
 export const routes: Routes = [
-  {
-    path: 'user/:id',
-    component: UserDetailComponent,
-    resolve: { user: userResolver },
-    canActivate: [authGuard]
-  },
-  {
-    path: 'posts',
-    component: PostListComponent,
-    resolve: { posts: postsResolver }
-  }
+  { path: '', component: Home, title: 'Home' },                 // eager: landing page
+  { path: 'settings', loadComponent: () => import('./settings/settings') },
+  { path: 'admin', loadChildren: () => import('./admin/admin.routes') },
+  { path: '**', loadComponent: () => import('./not-found') },
 ];
+```
 
-// Component using resolved data
+```ts title="settings/settings.ts"
+@Component({ selector: 'app-settings', template: `…` })
+export default class Settings {} // default export → no `.then(m => m.Settings)` needed
+```
+
+```ts title="admin/admin.routes.ts"
+import { Routes } from '@angular/router';
+
+export default [
+  { path: '', loadComponent: () => import('./admin-home') },
+  { path: 'users', loadComponent: () => import('./admin-users') },
+] satisfies Routes;
+```
+
+- Use **eager** routes for the landing page and **lazy** routes for everything else.
+- Loader functions run in the route's injection context, so you can `inject()` services inside them (e.g. pick a component based on a feature flag).
+- Route-level `providers: [...]` create services scoped to that part of the app.
+- To lazy-load *part* of a page instead of a whole route, use [`@defer`](/modern/control-flow/).
+
+## Route data as component inputs
+
+With `withComponentInputBinding()`, a routed component can receive path params, query params, static `data` and resolved data as inputs — no `ActivatedRoute` needed:
+
+```ts title="user-detail.ts"
+import { Component, input } from '@angular/core';
+import { User } from './user';
+
 @Component({
   selector: 'app-user-detail',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (user()) {
-      <div>
-        <h2>{{user()!.name}}</h2>
-        <p>{{user()!.email}}</p>
-      </div>
-    } @else {
-      <div>User not found</div>
-    }
-  `
+  template: `<h1>{{ user().name }}</h1> <p>Tab: {{ tab() ?? 'overview' }}</p>`,
 })
-export class UserDetailComponent implements OnInit {
-  private route = inject(ActivatedRoute);
-  
-  user = signal<User | null>(null);
-
-  ngOnInit() {
-    this.route.data.subscribe(data => {
-      this.user.set(data['user']);
-    });
-  }
+export class UserDetail {
+  readonly id = input.required<string>(); // from path  users/:id
+  readonly tab = input<string>();         // from query ?tab=…
+  readonly user = input.required<User>(); // from resolve: { user: … }
 }
 ```
 
-## 🚀 Lazy Loading
+Options (since v22): `withComponentInputBinding({ queryParams: false })` stops binding query params, and `unmatchedInputBehavior: 'undefinedIfStale'` only resets inputs the router previously set.
 
-```typescript
-// app.routes.ts
+:::note[Changed in v22: params inheritance]
+`paramsInheritanceStrategy` now defaults to `'always'`: child routes see **all** parent params, data and resolved data (e.g. `orgId` in `/org/:orgId/projects/:projectId`). To restore the old behaviour use `withRouterConfig({ paramsInheritanceStrategy: 'emptyOnly' })`.
+:::
+
+## Guards
+
+**Guards** are functions that decide whether navigation may continue. Generate one with `ng generate guard auth`.
+
+| Guard | Runs when | Typical use |
+|---|---|---|
+| `canActivate` | Entering a route | Login / permission checks |
+| `canActivateChild` | Entering any child of a route | Protect a whole section |
+| `canDeactivate` | Leaving a route | "You have unsaved changes" |
+| `canMatch` | While matching the URL | Feature flags, role-based variants, keep lazy code from loading |
+
+A guard can return:
+
+- `true` → continue, `false` → cancel (for `canMatch`, `false` means "try the next route"),
+- a `UrlTree` or `RedirectCommand` → **redirect**,
+- a `Promise` or `Observable` of any of these (the first emitted value is used).
+
+```ts title="auth.guard.ts"
+import { inject } from '@angular/core';
+import { CanActivateFn, RedirectCommand, Router } from '@angular/router';
+import { AuthService } from './auth.service';
+
+export const authGuard: CanActivateFn = (route, state) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  return auth.isLoggedIn()
+    ? true
+    : new RedirectCommand(router.parseUrl(`/login?returnUrl=${encodeURIComponent(state.url)}`));
+};
+
+// A guard factory: parameterise guards with a plain function
+export function roleGuard(role: string): CanActivateFn {
+  return () => inject(AuthService).hasRole(role) || inject(Router).parseUrl('/forbidden');
+}
+```
+
+```ts title="unsaved-changes.guard.ts"
+import { CanDeactivateFn } from '@angular/router';
+
+export interface HasUnsavedChanges {
+  hasUnsavedChanges(): boolean;
+}
+
+export const unsavedChangesGuard: CanDeactivateFn<HasUnsavedChanges> = (component) =>
+  component.hasUnsavedChanges() ? confirm('Discard unsaved changes?') : true;
+```
+
+```ts title="feature.guard.ts"
+import { inject } from '@angular/core';
+import { CanMatchFn } from '@angular/router';
+import { FeatureFlags } from './feature-flags';
+
+// v22: the third argument (currentSnapshot) is always passed
+export const newDashboardMatch: CanMatchFn = (route, segments, currentSnapshot) =>
+  inject(FeatureFlags).newDashboard();
+```
+
+```ts title="app.routes.ts"
 export const routes: Routes = [
-  { path: '', redirectTo: '/dashboard', pathMatch: 'full' },
-  {
-    path: 'dashboard',
-    loadComponent: () => import('./dashboard/dashboard.component').then(m => m.DashboardComponent)
-  },
   {
     path: 'admin',
-    loadChildren: () => import('./admin/admin.routes').then(m => m.adminRoutes),
-    canActivate: [authGuard, adminGuard]
+    canActivate: [authGuard, roleGuard('admin')],
+    canActivateChild: [adminChildGuard],
+    loadChildren: () => import('./admin/admin.routes'),
   },
-  {
-    path: 'products',
-    loadChildren: () => import('./products/products.routes').then(m => m.productRoutes)
-  }
-];
+  { path: 'profile/edit', component: ProfileEdit, canDeactivate: [unsavedChangesGuard] },
 
-// admin.routes.ts
-export const adminRoutes: Routes = [
-  { path: '', component: AdminDashboardComponent },
-  { path: 'users', component: UserManagementComponent },
-  { path: 'settings', component: AdminSettingsComponent }
-];
-
-// products.routes.ts
-export const productRoutes: Routes = [
-  { path: '', component: ProductListComponent },
-  { path: ':id', component: ProductDetailComponent, resolve: { product: productResolver } },
-  { path: 'category/:category', component: CategoryProductsComponent }
+  // Same path, different component depending on a flag
+  { path: 'dashboard', component: NewDashboard, canMatch: [newDashboardMatch] },
+  { path: 'dashboard', component: OldDashboard },
 ];
 ```
 
-## 🎨 Advanced Navigation Patterns
+Things to know:
 
-```typescript
-@Component({
-  selector: 'app-navigation',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <nav>
-      <button (click)="navigateToUser(123)">User 123</button>
-      <button (click)="navigateWithQuery()">Search Products</button>
-      <button (click)="navigateRelative()">Relative Navigation</button>
-      <button (click)="openInNewTab()">Open in New Tab</button>
-    </nav>
-  `
-})
-export class NavigationComponent {
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
+- Guards in an array **start together** (async guards run concurrently). The first guard in array order that doesn't return `true` decides the result, so don't make one guard depend on work done by another — share a service instead.
+- To redirect, **return** a `UrlTree`/`RedirectCommand`. Don't return `false` and call `router.navigate()` yourself.
+- `RedirectCommand` also accepts navigation options: `new RedirectCommand(url, { skipLocationChange: true })`.
 
-  navigateToUser(userId: number) {
-    this.router.navigate(['/user', userId]);
-  }
+:::danger[Guards are not security]
+Guard code runs in the user's browser and can be bypassed. Always enforce authorization on the server too.
+:::
 
-  navigateWithQuery() {
-    this.router.navigate(['/products'], {
-      queryParams: { 
-        category: 'electronics',
-        sort: 'price',
-        page: 1 
-      },
-      fragment: 'results'
-    });
-  }
+:::note[Angular 21 and earlier / legacy]
+Passing guard or resolver *classes* (e.g. `canActivate: [AuthGuard]`) is deprecated in favour of plain functions, and `canLoad` is deprecated in favour of `canMatch`. Wrap old classes with `mapToCanActivate([AuthGuard])` / `mapToResolve(MyResolver)` while migrating. `router.getCurrentNavigation()` is deprecated too — use the `currentNavigation()` signal. In v22 class implementations of `CanMatch` must declare the third `currentSnapshot` parameter (an `ng update` migration adds it).
+:::
 
-  navigateRelative() {
-    // Navigate relative to current route
-    this.router.navigate(['../sibling'], { relativeTo: this.route });
-  }
+## Redirects
 
-  openInNewTab() {
-    const url = this.router.serializeUrl(
-      this.router.createUrlTree(['/products'])
-    );
-    window.open(url, '_blank');
-  }
-}
-```
-
-## 📱 Route Data and Configuration
-
-```typescript
-// Route with static data
+```ts
 export const routes: Routes = [
+  { path: '', redirectTo: 'home', pathMatch: 'full' },        // empty path: always use 'full'
+  { path: 'old-users/:id', redirectTo: 'users/:id' },          // params are carried over
   {
-    path: 'about',
-    component: AboutComponent,
-    data: { 
-      title: 'About Us',
-      breadcrumb: 'About',
-      showSidebar: false 
-    }
+    path: 'docs',
+    pathMatch: 'full',
+    // A redirect function gets a partial snapshot: params, queryParams, data, …
+    redirectTo: ({ queryParams }) => (queryParams['v'] === '1' ? '/docs/legacy' : '/docs/latest'),
   },
-  {
-    path: 'contact',
-    component: ContactComponent,
-    data: { 
-      title: 'Contact',
-      breadcrumb: 'Contact',
-      requiresAuth: false 
-    }
-  }
 ];
-
-// Component accessing route data
-@Component({
-  selector: 'app-page-wrapper',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h1>{{pageTitle()}}</h1>
-      
-      @if (showSidebar()) {
-        <aside>Sidebar content</aside>
-      }
-      
-      <main>
-        <router-outlet></router-outlet>
-      </main>
-    </div>
-  `
-})
-export class PageWrapperComponent implements OnInit {
-  private route = inject(ActivatedRoute);
-  
-  pageTitle = signal('');
-  showSidebar = signal(true);
-
-  ngOnInit() {
-    this.route.data.subscribe(data => {
-      this.pageTitle.set(data['title'] || 'Default Title');
-      this.showSidebar.set(data['showSidebar'] !== false);
-    });
-  }
-}
 ```
 
-## 🔄 Auxiliary Routes
+Redirect functions may return a string, a `UrlTree`, or a Promise/Observable of those, and they run in an injection context (`inject()` works).
 
-```typescript
-// Multiple router outlets
-@Component({
-  selector: 'app-layout',
-  template: `
-    <div>
-      <header>
-        <router-outlet name="header"></router-outlet>
-      </header>
-      
-      <main>
-        <router-outlet></router-outlet>
-      </main>
-      
-      <aside>
-        <router-outlet name="sidebar"></router-outlet>
-      </aside>
-    </div>
-  `
-})
-export class LayoutComponent { }
+**Throwing `RedirectCommand` (v22.2).** Besides *returning* a `RedirectCommand` from guards and resolvers, you can now *throw* one during a navigation — handy deep inside async code such as a resolver or route-resource loader. The router cancels the current navigation and redirects.
 
-// Route configuration with auxiliary routes
-export const routes: Routes = [
-  {
-    path: 'dashboard',
-    component: DashboardComponent,
-    children: [
-      { path: 'header', component: DashboardHeaderComponent, outlet: 'header' },
-      { path: 'sidebar', component: DashboardSidebarComponent, outlet: 'sidebar' }
-    ]
-  }
-];
+## Resolvers
 
-// Navigation to auxiliary routes
-@Component({
-  template: `
-    <button (click)="showDashboard()">Show Dashboard</button>
-    <button (click)="showProfile()">Show Profile</button>
-  `
-})
-export class NavigationComponent {
-  private router = inject(Router);
+A **resolver** loads data *before* the route activates, so the component renders with data already available.
 
-  showDashboard() {
-    this.router.navigate([{
-      outlets: {
-        primary: 'dashboard',
-        header: 'dashboard/header',
-        sidebar: 'dashboard/sidebar'
-      }
-    }]);
-  }
+```ts title="user.resolver.ts"
+import { inject } from '@angular/core';
+import { RedirectCommand, ResolveFn, Router } from '@angular/router';
+import { User, UserApi } from './user-api';
 
-  showProfile() {
-    this.router.navigate([{
-      outlets: {
-        primary: 'profile',
-        header: null,
-        sidebar: 'profile/sidebar'
-      }
-    }]);
-  }
-}
+export const userResolver: ResolveFn<User | RedirectCommand> = async (route) => {
+  const api = inject(UserApi);
+  const router = inject(Router);
+  const user = await api.getUser(route.paramMap.get('id')!);
+  return user ?? new RedirectCommand(router.parseUrl('/not-found'));
+};
+
+export const userTitle: ResolveFn<string> = (route) => `User ${route.paramMap.get('id')}`;
 ```
 
-## 🎯 Route Animations
-
-```typescript
-// route-animations.ts
-export const routeAnimations = trigger('routeAnimations', [
-  transition('* <=> *', [
-    style({ position: 'relative' }),
-    query(':enter, :leave', [
-      style({
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%'
-      })
-    ], { optional: true }),
-    query(':enter', [
-      style({ left: '-100%' })
-    ], { optional: true }),
-    query(':leave', animateChild(), { optional: true }),
-    group([
-      query(':leave', [
-        animate('300ms ease-out', style({ left: '100%' }))
-      ], { optional: true }),
-      query(':enter', [
-        animate('300ms ease-out', style({ left: '0%' }))
-      ], { optional: true })
-    ]),
-    query(':enter', animateChild(), { optional: true })
-  ])
-]);
-
-// Component with animations
-@Component({
-  selector: 'app-animated-outlet',
-  template: `
-    <div [@routeAnimations]="getRouteAnimationData()">
-      <router-outlet></router-outlet>
-    </div>
-  `,
-  animations: [routeAnimations]
-})
-export class AnimatedOutletComponent {
-  private router = inject(Router);
-
-  getRouteAnimationData() {
-    return this.router.routerState.root.firstChild?.snapshot.data?.['animation'];
-  }
-}
-
-// Route with animation data
+```ts title="app.routes.ts"
 {
-  path: 'page1',
-  component: Page1Component,
-  data: { animation: 'page1' }
+  path: 'users/:id',
+  component: UserDetail,
+  resolve: { user: userResolver }, // → input `user` (with withComponentInputBinding)
+  title: userTitle,                 // page title can be static or resolved
 }
 ```
 
-## ✅ Best Practices
+Handle failures in one place with `withNavigationErrorHandler()`. Returning a `RedirectCommand` from the handler turns the error into a redirect:
 
-### 1. **Use Functional Guards**
-```typescript
-// ✅ Good - Functional guard
-export const authGuard: CanActivateFn = () => {
-  const authService = inject(AuthService);
-  return authService.isAuthenticated();
-};
+```ts
+provideRouter(
+  routes,
+  withNavigationErrorHandler((error) => {
+    console.error('Navigation failed', error.error);
+    return new RedirectCommand(inject(Router).parseUrl('/error'));
+  }),
+);
+```
 
-// ❌ Avoid - Class-based guard (deprecated)
-@Injectable()
-export class AuthGuard implements CanActivate {
-  canActivate() { /* ... */ }
+**Trade-offs:** resolvers **block** navigation (show a progress bar — see [Router events](#router-events-and-navigation-state)), and nested resolvers run **one after another**, parent first. If that's a problem, use route resources (next) or load data inside the component with [`httpResource()`](/modern/http-resource-api/).
+
+## Route resources (developer preview)
+
+:::caution[Developer preview — v22.2]
+`withRouterResources()`, the `resources` route property and `nonBlocking()` are in developer preview. The API may still change.
+:::
+
+Route resources declare signal-based [resources](/modern/resource-api/) on a route. Compared to resolvers they load **in parallel** across all matched routes, can be **non-blocking**, and can be **reloaded** without navigating again.
+
+```ts title="app.config.ts"
+provideRouter(routes, withComponentInputBinding(), withRouterResources());
+```
+
+```ts title="app.routes.ts"
+import { inject, resource } from '@angular/core';
+import { RedirectCommand, Router, Routes, nonBlocking } from '@angular/router';
+
+export const routes: Routes = [
+  {
+    path: 'u/:id',
+    component: UserPage,
+    resources: (ctx) => {
+      const api = inject(UserApi);
+      const router = inject(Router);
+      return {
+        user: resource({
+          params: () => ctx.params()['id'] as string, // read only what you need
+          loader: async ({ params: id }) => {
+            const user = await api.getUser(id);
+            if (!user) throw new RedirectCommand(router.parseUrl('/not-found'));
+            return user;
+          },
+        }),
+      };
+    },
+  },
+  {
+    path: 'reports',
+    component: Reports,
+    resources: () => ({
+      report: nonBlocking(resource({ loader: () => fetchReport() })),
+    }),
+  },
+];
+```
+
+- `ctx` exposes `params`, `queryParams`, `fragment` and `data` as **signals**.
+- **Blocking** (default): navigation waits; the component input receives the **value** (`input.required<User>()`).
+- **`nonBlocking()`**: the page shows immediately; the input receives the **`Resource`** so you can render loading/error states:
+
+```ts title="reports.ts"
+@Component({
+  selector: 'app-reports',
+  template: `
+    @if (report().isLoading()) {
+      <p>Loading…</p>
+    } @else if (report().error()) {
+      <p>Could not load the report.</p>
+    } @else if (report().hasValue()) {
+      <p>Total: {{ report().value().total }}</p>
+    }
+  `,
+})
+export class Reports {
+  readonly report = input.required<Resource<Report>>();
 }
 ```
 
-### 2. **Preload Strategies**
-```typescript
-// ✅ Good - Custom preload strategy
-@Injectable()
-export class CustomPreloadStrategy implements PreloadingStrategy {
-  preload(route: Route, load: () => Observable<any>): Observable<any> {
-    return route.data?.['preload'] ? load() : of(null);
+To refresh without navigating, read the resource from `ActivatedRoute`: `inject(ActivatedRoute).resources?.['user']?.reload()`.
+
+## Router events and navigation state
+
+The router exposes navigation state as **signals** and a stream of **events**.
+
+```ts title="app.ts"
+import { Component, computed, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
+
+@Component({
+  selector: 'app-root',
+  imports: [RouterOutlet, RouterLink],
+  template: `
+    @if (isNavigating()) {
+      <div class="progress-bar" role="progressbar" aria-label="Loading page"></div>
+    }
+    <router-outlet />
+  `,
+})
+export class App {
+  private readonly router = inject(Router);
+
+  // currentNavigation() is a signal: non-null while a navigation is in progress
+  protected readonly isNavigating = computed(() => !!this.router.currentNavigation());
+
+  constructor() {
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe((e) => console.log('page view', e.urlAfterRedirects)); // analytics
   }
 }
-
-// Bootstrap with preloading
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideRouter(routes, withPreloading(CustomPreloadStrategy))
-  ]
-});
 ```
 
-### 3. **Error Handling**
-```typescript
-// ✅ Good - Handle resolver errors
-export const dataResolver: ResolveFn<Data> = () => {
-  const service = inject(DataService);
-  
-  return service.getData().pipe(
-    catchError(error => {
-      console.error('Failed to load data:', error);
-      return of(null);
-    })
-  );
-};
+Main events in order: `NavigationStart` → `RoutesRecognized` → `GuardsCheckStart/End` → `ResolveStart/End` → `ActivationEnd` → `NavigationEnd`. A navigation can also end with `NavigationCancel`, `NavigationError` or `NavigationSkipped`. `RouteConfigLoadStart/End` fire around lazy loading, and `Scroll` after navigation. `router.lastSuccessfulNavigation()` is a signal too (since v21).
+
+## Named outlets (secondary routes)
+
+A page can have several `<router-outlet>`s. Extra outlets have a **name** and their own segment in the URL, e.g. `/inbox(side:chat/42)` — great for chat panels or side drawers that should survive a refresh.
+
+```html
+<main><router-outlet /></main>
+<aside><router-outlet name="side" /></aside>
+
+<a [routerLink]="[{ outlets: { side: ['chat', 42] } }]">Open chat</a>
+<a [routerLink]="[{ outlets: { side: null } }]">Close chat</a>
 ```
 
-## 🎯 Quick Checklist
+```ts
+{ path: 'chat/:id', component: Chat, outlet: 'side' }
 
-- [ ] Use functional guards instead of class-based
-- [ ] Implement resolvers for data preloading
-- [ ] Configure lazy loading for feature modules
-- [ ] Handle navigation errors gracefully
-- [ ] Use route data for configuration
-- [ ] Implement proper preloading strategies
-- [ ] Add route animations for better UX
-- [ ] Test guard and resolver logic
-- [ ] Use auxiliary routes when needed
+// in code
+this.router.navigate([{ outlets: { side: ['chat', id] } }]);
+```
 
-## 🚀 Next Steps
+Outlets also emit `(activate)` / `(deactivate)` events with the component instance.
 
-1. **[RxJS & Observables](/intermediate/rxjs/)** - Reactive patterns in routing
-2. **[State Management](/intermediate/state-management/)** - Route-based state
-3. **[Testing](/intermediate/testing/)** - Testing routing logic
+## Scroll behaviour
 
----
+By default the router does **not** touch the scroll position. Enable it with `withInMemoryScrolling()`:
 
-**Remember**: Advanced routing patterns enable sophisticated navigation and data management. Use them to create seamless, performant user experiences! 🗺️
+- `scrollPositionRestoration: 'enabled'` — scroll to top on new pages, **restore** the previous position on Back/Forward. (`'top'` always scrolls to top.)
+- `anchorScrolling: 'enabled'` — scroll to `#fragment` targets.
+
+Since v21.1 you can opt out per navigation, e.g. when only a tab query param changes:
+
+```ts
+this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', scroll: 'manual' });
+```
+
+If your page loads content asynchronously, listen for the `Scroll` router event and call `ViewportScroller.scrollToPosition()` once data has arrived.
+
+## View transitions (developer preview)
+
+:::caution[Developer preview]
+`withViewTransitions()` is in developer preview. It uses the browser's View Transitions API and simply navigates without animation in browsers that don't support it.
+:::
+
+```ts
+provideRouter(
+  routes,
+  withViewTransitions({
+    onViewTransitionCreated: ({ transition }) => {
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        transition.skipTransition(); // respect the user's motion settings
+      }
+    },
+  }),
+);
+```
+
+The default is a cross-fade. Customise it in your **global** stylesheet (component styles are encapsulated and can't reach the pseudo-elements):
+
+```css title="styles.css"
+.hero { view-transition-name: hero; }
+
+::view-transition-old(root) { animation: 150ms ease-out both fade-out; }
+::view-transition-new(root) { animation: 250ms ease-in both fade-in; }
+
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; } }
+```
+
+:::note
+The old `@angular/animations`-based route animations still work but the package is deprecated. Prefer view transitions or CSS with `animate.enter` / `animate.leave`.
+:::
+
+## Common mistakes
+
+- **Missing `pathMatch: 'full'`** on empty-path redirects → every URL matches.
+- **Wildcard `**` route not last** → routes after it are never reached.
+- **Navigating inside a guard** instead of returning a `UrlTree`/`RedirectCommand`.
+- **Relying on guards for security** — the server must check permissions too.
+- **Heavy, nested resolvers** that make navigation feel frozen — show progress, or use non-blocking resources / `httpResource()`.
+- **Reading whole param objects** in route-resource `params` (`ctx.params()`) — read the specific key to avoid refetching.
+- **Defining view-transition CSS in component styles** — put it in global styles.
+
+## Key takeaways
+
+- Configure the router with features: `withComponentInputBinding()`, `withPreloading()`, `withInMemoryScrolling()`, `withNavigationErrorHandler()`.
+- Lazy-load with `loadComponent` / `loadChildren` and default exports.
+- Guards are small functions; redirect by returning (or, since 22.2, throwing) a `RedirectCommand`.
+- Resolvers block navigation; route resources (developer preview) load in parallel and can be non-blocking.
+- `router.currentNavigation()` is a signal — perfect for progress bars.
+
+## Next steps
+
+- [Routing basics](/beginner/routing/) — refresher on routes, links and params
+- [Resource API](/modern/resource-api/) — the signal-based async primitive behind route resources
+- [RxJS in Angular](/intermediate/rxjs/) — working with `router.events`
+- [Rendering modes](/ssr/render-modes/) — per-route SSR, prerendering and CSR

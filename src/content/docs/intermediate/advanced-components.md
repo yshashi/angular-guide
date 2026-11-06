@@ -1,561 +1,555 @@
 ---
 title: Advanced Components 🧩
-description: Master advanced Angular component patterns and techniques
+description: Content projection, template fragments, dynamic components, host bindings, host directives, inheritance, styling and OnPush in Angular 22.
 sidebar:
   order: 1
 ---
 
-Advanced components unlock powerful patterns for building scalable, reusable, and maintainable Angular applications. Master content projection, dynamic components, and advanced patterns.
+Once you can build a basic component, the next step is making components that are **flexible and reusable**: cards that accept any content, lists that let the parent decide how rows look, dialogs created from code, and buttons that style their own host element. This page covers the patterns you will use every day in real Angular apps.
 
-## 🎯 What You'll Learn
+## What you'll learn
 
-- **Content Projection** - Single and multi-slot projection
-- **Dynamic Components** - Runtime component creation
-- **Component Inheritance** - Extending component functionality
-- **View Encapsulation** - Styling strategies
-- **Change Detection** - Performance optimization
-- **Advanced Patterns** - HOCs, mixins, and composition
+- Project content into components with `<ng-content>` (single slot, multi-slot, fallback content)
+- Let parents customise rendering with `<ng-template>` and `NgTemplateOutlet`
+- Render components dynamically with `@defer`, `NgComponentOutlet` and `ViewContainerRef.createComponent()`
+- Style and listen on the host element with the `host` property, and compose behaviour with `hostDirectives`
+- Share logic with inheritance and choose a view-encapsulation mode
+- Understand how `OnPush` (the default since v22) decides when a component re-renders
 
-## 🔄 Content Projection
+## Content projection with `<ng-content>`
 
-### Single-Slot Projection
-```typescript
-// card.component.ts
+**Content projection** lets the parent pass HTML *into* a child component. The child marks where that content goes with `<ng-content />`. It works like the native `<slot>` element.
+
+```ts title="card.ts"
+import { Component, input } from '@angular/core';
+
 @Component({
   selector: 'app-card',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div>
-      <div>
-        <h3>{{title()}}</h3>
-      </div>
-      <div>
-        <ng-content></ng-content>
-      </div>
-    </div>
-  `
+    <article class="card">
+      <h3>{{ title() }}</h3>
+      <ng-content />
+    </article>
+  `,
 })
-export class CardComponent {
-  title = input('');
-}
-
-// Usage
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <app-card title="User Profile">
-      <p>This content is projected into the card body.</p>
-      <button>Edit Profile</button>
-    </app-card>
-  `
-})
-export class ParentComponent { }
-```
-
-### Multi-Slot Projection
-```typescript
-// modal.component.ts
-@Component({
-  selector: 'app-modal',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div (click)="close()">
-      <div (click)="$event.stopPropagation()">
-        <div>
-          <ng-content select="[slot=header]"></ng-content>
-          <button (click)="close()">×</button>
-        </div>
-        
-        <div>
-          <ng-content select="[slot=body]"></ng-content>
-        </div>
-        
-        <div>
-          <ng-content select="[slot=footer]"></ng-content>
-        </div>
-      </div>
-    </div>
-  `
-})
-export class ModalComponent {
-  closeModal = output<void>();
-
-  close() {
-    this.closeModal.emit();
-  }
-}
-
-// Usage
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (showModal()) {
-      <app-modal (closeModal)="showModal.set(false)">
-        <h2 slot="header">Confirm Action</h2>
-        
-        <div slot="body">
-          <p>Are you sure you want to delete this item?</p>
-          <p>This action cannot be undone.</p>
-        </div>
-        
-        <div slot="footer">
-          <button (click)="showModal.set(false)">Cancel</button>
-          <button (click)="confirmDelete()">Delete</button>
-        </div>
-      </app-modal>
-    }
-  `
-})
-export class ParentComponent {
-  showModal = signal(false);
-
-  confirmDelete() {
-    // Delete logic
-    this.showModal.set(false);
-  }
+export class Card {
+  readonly title = input.required<string>();
 }
 ```
 
-## 🚀 Dynamic Components
-
-### Modern Dynamic Components
-```typescript
-// dynamic-host.directive.ts
-@Directive({
-  selector: '[appDynamicHost]'
-})
-export class DynamicHostDirective {
-  viewContainerRef = inject(ViewContainerRef);
-}
-
-// dynamic-component-loader.service.ts
-@Injectable({
-  providedIn: 'root'
-})
-export class DynamicComponentLoaderService {
-  private componentRegistry = signal(new Map<string, Type<any>>());
-
-  registerComponent(name: string, component: Type<any>) {
-    this.componentRegistry.update(registry => {
-      const newRegistry = new Map(registry);
-      newRegistry.set(name, component);
-      return newRegistry;
-    });
-  }
-
-  createComponent(name: string, viewContainerRef: ViewContainerRef, data?: any) {
-    const componentType = this.componentRegistry().get(name);
-    if (!componentType) {
-      throw new Error(`Component ${name} not found`);
-    }
-
-    const componentRef = viewContainerRef.createComponent(componentType);
-    
-    if (data && componentRef.instance) {
-      Object.assign(componentRef.instance, data);
-    }
-
-    return componentRef;
-  }
-}
-
-// Dynamic components
-@Component({
-  selector: 'app-alert',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div [class]="'alert-' + type()">
-      <strong>{{title()}}</strong>
-      <p>{{message()}}</p>
-    </div>
-  `
-})
-export class AlertComponent {
-  type = input<'success' | 'error' | 'warning'>('success');
-  title = input('');
-  message = input('');
-}
-
-@Component({
-  selector: 'app-chart',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h3>{{title()}}</h3>
-      <div>
-        Chart data: {{data() | json}}
-      </div>
-    </div>
-  `
-})
-export class ChartComponent {
-  title = input('');
-  data = input<any[]>([]);
-}
-
-// Main component
-@Component({
-  selector: 'app-dashboard',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DynamicHostDirective],
-  template: `
-    <div>
-      <h2>Dynamic Dashboard</h2>
-      
-      <div>
-        <button (click)="addAlert()">Add Alert</button>
-        <button (click)="addChart()">Add Chart</button>
-        <button (click)="clearAll()">Clear All</button>
-      </div>
-      
-      <div>
-        <ng-template appDynamicHost></ng-template>
-      </div>
-    </div>
-  `
-})
-export class DashboardComponent implements OnInit, AfterViewInit {
-  dynamicHost = viewChild.required(DynamicHostDirective);
-
-  private loader = inject(DynamicComponentLoaderService);
-
-  ngOnInit() {
-    // Register components
-    this.loader.registerComponent('alert', AlertComponent);
-    this.loader.registerComponent('chart', ChartComponent);
-  }
-
-  ngAfterViewInit() {
-    // Initial content
-    this.addAlert();
-  }
-
-  addAlert() {
-    const data = {
-      type: Math.random() > 0.5 ? 'success' : 'warning',
-      title: 'Dynamic Alert',
-      message: `Alert created at ${new Date().toLocaleTimeString()}`
-    };
-
-    this.loader.createComponent('alert', this.dynamicHost().viewContainerRef, data);
-  }
-
-  addChart() {
-    const data = {
-      title: 'Sales Chart',
-      data: [
-        { month: 'Jan', sales: 100 },
-        { month: 'Feb', sales: 150 },
-        { month: 'Mar', sales: 120 }
-      ]
-    };
-
-    this.loader.createComponent('chart', this.dynamicHost().viewContainerRef, data);
-  }
-
-  clearAll() {
-    this.dynamicHost().viewContainerRef.clear();
-  }
-}
+```html
+<!-- parent template -->
+<app-card title="User profile">
+  <p>Ada Lovelace</p>
+  <button type="button">Edit</button>
+</app-card>
 ```
 
-:::caution[Legacy Syntax]
-In older Angular versions, `@ViewChild` decorator was used for querying view elements:
-```ts
-@ViewChild(DynamicHostDirective, {static: true})
-dynamicHost!: DynamicHostDirective;
-```
-Modern Angular uses signal-based queries like `viewChild()` and `viewChild.required()` instead.
-:::
+Everything between `<app-card>` and `</app-card>` is rendered where `<ng-content />` is. Angular calls this the component's **content**; the elements in the component's own template are its **view**.
 
-## 🧬 Component Inheritance
+### Multiple slots with `select`
 
-### Modern Base Component Pattern
-```typescript
-// base-form.component.ts
-export abstract class BaseFormComponent {
-  disabled = input(false);
-  loading = input(false);
-  formSubmit = output<any>();
-  formCancel = output<void>();
+Add a `select` attribute (any CSS selector) to create named slots. A `<ng-content />` **without** `select` catches everything that didn't match another slot.
 
-  protected formGroup!: FormGroup;
-  protected fb = inject(FormBuilder);
+```ts title="panel.ts"
+import { Component } from '@angular/core';
 
-  abstract buildForm(): void;
-  abstract onSubmit(): void;
-
-  ngOnInit() {
-    this.buildForm();
-  }
-
-  handleSubmit() {
-    if (this.formGroup.valid && !this.loading) {
-      this.onSubmit();
-    }
-  }
-
-  handleCancel() {
-    this.formCancel.emit();
-  }
-
-  markAllAsTouched() {
-    this.formGroup.markAllAsTouched();
-  }
-
-  resetForm() {
-    this.formGroup.reset();
-  }
-}
-
-// user-form.component.ts
 @Component({
-  selector: 'app-user-form',
-  imports: [ReactiveFormsModule, CommonModule],
+  selector: 'app-panel',
   template: `
-    <form [formGroup]="formGroup" (ngSubmit)="handleSubmit()">
-      <div class="form-group">
-        <label for="name">Name:</label>
-        <input 
-          id="name" 
-          type="text" 
-          formControlName="name"
-          [disabled]="disabled()">
-        @if (formGroup.get('name')?.invalid && formGroup.get('name')?.touched) {
-          <div class="error">Name is required</div>
-        }
+    <section class="panel">
+      <header>
+        <ng-content select="[panel-title]">Untitled</ng-content>
+      </header>
+      <div class="body">
+        <ng-content />
       </div>
-
-      <div class="form-group">
-        <label for="email">Email:</label>
-        <input 
-          id="email" 
-          type="email" 
-          formControlName="email"
-          [disabled]="disabled()">
-        @if (formGroup.get('email')?.invalid && formGroup.get('email')?.touched) {
-          <div class="error">Valid email is required</div>
-        }
-      </div>
-
-      <div class="form-actions">
-        <button type="button" (click)="handleCancel()">Cancel</button>
-        <button 
-          type="submit" 
-          [disabled]="formGroup.invalid || loading()">
-          {{loading() ? 'Saving...' : 'Save'}}
-        </button>
-      </div>
-    </form>
-  `
+      <footer>
+        <ng-content select="[panel-actions]" />
+      </footer>
+    </section>
+  `,
 })
-export class UserFormComponent extends BaseFormComponent {
-  initialData = input<any>();
-
-  buildForm() {
-    this.formGroup = this.fb.group({
-      name: [this.initialData()?.name || '', Validators.required],
-      email: [this.initialData()?.email || '', [Validators.required, Validators.email]]
-    });
-  }
-
-  onSubmit() {
-    const formData = this.formGroup.value;
-    this.formSubmit.emit(formData);
-  }
-}
+export class Panel {}
 ```
 
-:::caution[Legacy Syntax]
-In older Angular versions, `@Input()` and `@Output()` decorators were used:
-```ts
-@Input() initialData?: any;
-```
-Modern Angular uses signal-based `input()` and `output()` functions instead.
-:::
-
-## 🎨 View Encapsulation
-
-### Encapsulation Strategies
-```typescript
-// Default: ViewEncapsulation.Emulated
-@Component({
-  selector: 'app-emulated',
-  template: `<div class="container">Emulated Encapsulation</div>`,
-  styles: [`
-    .container {
-      background: lightblue;
-      padding: 20px;
-    }
-  `],
-  encapsulation: ViewEncapsulation.Emulated // Default
-})
-export class EmulatedComponent { }
-
-// ViewEncapsulation.None - Global styles
-@Component({
-  selector: 'app-none',
-  template: `<div class="global-container">No Encapsulation</div>`,
-  styles: [`
-    .global-container {
-      background: lightcoral;
-      padding: 20px;
-    }
-  `],
-  encapsulation: ViewEncapsulation.None
-})
-export class NoneComponent { }
-
-// ViewEncapsulation.ShadowDom - True Shadow DOM
-@Component({
-  selector: 'app-shadow',
-  template: `<div class="shadow-container">Shadow DOM</div>`,
-  styles: [`
-    .shadow-container {
-      background: lightgreen;
-      padding: 20px;
-    }
-  `],
-  encapsulation: ViewEncapsulation.ShadowDom
-})
-export class ShadowComponent { }
+```html
+<app-panel>
+  <h2 panel-title>Delete project?</h2>
+  <p>This cannot be undone.</p>
+  <div panel-actions>
+    <button type="button">Cancel</button>
+    <button type="button">Delete</button>
+  </div>
+</app-panel>
 ```
 
-## ⚡ Change Detection Optimization
+- **Fallback content**: anything you put *inside* `<ng-content>` (like `Untitled` above) is shown when the parent provides nothing for that slot.
+- **`ngProjectAs`**: project an element into a slot it wouldn't normally match, e.g. `<ng-container ngProjectAs="[panel-title]">…</ng-container>`. The value must be static.
+- If there is no catch-all `<ng-content />`, content that matches no slot is **not rendered**.
 
-### OnPush Strategy
-```typescript
-// Optimized component with OnPush
+### Reacting to projected content
+
+Use a signal query to check what the parent projected:
+
+```ts title="tile.ts"
+import { Component, Directive, contentChild } from '@angular/core';
+
+@Directive({ selector: '[appCardIcon]' })
+export class CardIcon {}
+
 @Component({
-  selector: 'app-optimized-list',
-  imports: [CommonModule],
+  selector: 'app-tile',
   template: `
-    <div class="list-container">
-      <h3>{{title()}} ({{items().length}} items)</h3>
-      <div class="last-updated">Last updated: {{lastUpdated | date:'medium'}}</div>
-      
-      @for (item of items(); track item.id) {
-        <div class="list-item" [class.selected]="item.id === selectedId()">
-          <span>{{item.name}}</span>
-          <button (click)="selectItem(item.id)">Select</button>
-        </div>
-      }
+    <div class="tile" [class.has-icon]="icon()">
+      <ng-content select="[appCardIcon]" />
+      <ng-content />
     </div>
   `,
-  styles: [`
-    .list-container {
-      border: 1px solid #ddd;
-      padding: 16px;
-      border-radius: 4px;
-    }
-    
-    .list-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px;
-      border-bottom: 1px solid #eee;
-    }
-    
-    .list-item.selected {
-      background: #e3f2fd;
-    }
-    
-    .last-updated {
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 16px;
-    }
-  `],
-  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class OptimizedListComponent {
-  title = input('');
-  items = input<any[]>([]);
-  selectedId = input<number>();
-  itemSelected = output<number>();
+export class Tile {
+  protected readonly icon = contentChild(CardIcon);
+}
+```
 
-  lastUpdated = new Date();
+:::caution[Don't wrap `<ng-content>` in `@if`]
+Angular **always** creates projected content, even when its `<ng-content>` is inside a hidden `@if` or `@for`. Its components are instantiated and their lifecycle hooks run. If the child should decide *whether* content renders, accept an `<ng-template>` instead (next section).
+:::
 
-  selectItem(id: number) {
-    this.itemSelected.emit(id);
+Two more things to know: projected content belongs to the **parent's view** (it is change-detected with the parent and gets its dependencies from the parent's injector), and some library components (menus, tabs) expect to own their children directly, so wrapping their items in extra projection layers can break keyboard navigation. For a deep dive see [Content Projection](/advanced/content-projection/).
+
+## Template fragments: `<ng-template>` + `NgTemplateOutlet`
+
+An `<ng-template>` is a chunk of template that is **not rendered until you ask for it**. Passing one to a child lets the parent control *how* something looks while the child controls *when* and *where* it renders — perfect for lists, tables and dropdowns.
+
+```ts title="list.ts"
+import { Component, TemplateRef, contentChild, input } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+
+export interface RowContext<T> {
+  $implicit: T;
+  index: number;
+}
+
+@Component({
+  selector: 'app-list',
+  imports: [NgTemplateOutlet],
+  template: `
+    <ul>
+      @for (item of items(); track $index) {
+        <li>
+          @if (rowTemplate(); as tpl) {
+            <ng-container
+              [ngTemplateOutlet]="tpl"
+              [ngTemplateOutletContext]="{ $implicit: item, index: $index }"
+            />
+          } @else {
+            {{ item }}
+          }
+        </li>
+      } @empty {
+        <li>Nothing here yet.</li>
+      }
+    </ul>
+  `,
+})
+export class List<T> {
+  readonly items = input.required<T[]>();
+  protected readonly rowTemplate = contentChild<TemplateRef<RowContext<T>>>(TemplateRef);
+}
+```
+
+```html
+<!-- parent: decides how each row looks -->
+<app-list [items]="products()">
+  <ng-template let-product let-i="index">
+    {{ i + 1 }}. <strong>{{ product.name }}</strong> – {{ product.price }}
+  </ng-template>
+</app-list>
+```
+
+- `$implicit` in the context becomes the value of `let-product` (a `let-` with no value).
+- Other keys are read with `let-name="key"` (here `let-i="index"`).
+- By default a fragment uses the injector from **where it was declared**. Pass `[ngTemplateOutletInjector]="'outlet'"` (since v21.2) to inherit the injector from where it is rendered instead, or pass your own `Injector`.
+
+## Dynamic components
+
+Sometimes you don't know which component to show until runtime. Pick the simplest tool that works:
+
+| Need | Use |
+|---|---|
+| Load a known component lazily (smaller bundle) | `@defer` block in the template |
+| Pick one of several components based on state | `NgComponentOutlet` |
+| Create/destroy components from TypeScript (toasts, plugin systems) | `ViewContainerRef.createComponent()` |
+| Render outside the component tree (overlay attached to `document.body`) | `createComponent()` + `hostElement` |
+
+:::tip
+If you only want to delay loading a heavy component, use [`@defer`](/modern/control-flow/). It code-splits automatically and needs no manual imports.
+:::
+
+### `NgComponentOutlet`
+
+```ts title="user-bio.ts"
+import { Component, computed, input } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
+import { AdminBio } from './admin-bio';
+import { StandardBio } from './standard-bio';
+
+@Component({
+  selector: 'app-user-bio',
+  imports: [NgComponentOutlet],
+  template: `
+    <ng-container *ngComponentOutlet="bioComponent(); inputs: { name: name() }" />
+  `,
+})
+export class UserBio {
+  readonly name = input.required<string>();
+  readonly isAdmin = input(false);
+
+  protected readonly bioComponent = computed(() => (this.isAdmin() ? AdminBio : StandardBio));
+}
+```
+
+`NgComponentOutlet` also accepts `injector` (custom providers), `content` (projected nodes) and exposes the created instance via `#outlet="ngComponentOutlet"` → `outlet.componentInstance`.
+
+You can combine it with a dynamic `import()` to lazy-load a component on demand:
+
+```ts title="settings.ts"
+import { Component, Type, signal } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
+
+@Component({
+  selector: 'app-settings',
+  imports: [NgComponentOutlet],
+  template: `
+    @if (advanced(); as cmp) {
+      <ng-container *ngComponentOutlet="cmp" />
+    } @else {
+      <button type="button" (click)="loadAdvanced()">Show advanced settings</button>
+    }
+  `,
+})
+export class Settings {
+  protected readonly advanced = signal<Type<unknown> | null>(null);
+
+  protected async loadAdvanced() {
+    const { AdvancedSettings } = await import('./advanced-settings');
+    this.advanced.set(AdvancedSettings);
   }
 }
 ```
 
-:::caution[Legacy Syntax]
-In older Angular versions, `@Input()` and `@Output()` decorators with `EventEmitter` were used:
-```ts
-@Input() title = '';
-@Input() items: any[] = [];
-@Output() itemSelected = new EventEmitter<number>();
+### `ViewContainerRef.createComponent()` with bindings
+
+A **view container** is a spot in the DOM where Angular can insert views. Get one with a view query (`{ read: ViewContainerRef }`) or by injecting `ViewContainerRef` (inserts next to the current element).
+
+Since v20 you can wire up inputs, outputs and two-way bindings **at creation time** with `inputBinding()`, `outputBinding()` and `twoWayBinding()`. Signal bindings stay live — when `message` changes, the toast updates.
+
+```ts title="toast.ts"
+import { Component, input, model, output } from '@angular/core';
+
+@Component({
+  selector: 'app-toast',
+  template: `
+    @if (open()) {
+      <div class="toast" [class]="type()">
+        {{ message() }}
+        <button type="button" (click)="open.set(false); dismissed.emit()">×</button>
+      </div>
+    }
+  `,
+})
+export class Toast {
+  readonly message = input.required<string>();
+  readonly type = input<'info' | 'error'>('info');
+  readonly open = model(true);
+  readonly dismissed = output<void>();
+}
 ```
-Modern Angular uses signal-based `input()` and `output()` functions for better reactivity and type safety.
+
+```ts title="toast-host.ts"
+import {
+  Component, ComponentRef, ViewContainerRef, inputBinding, outputBinding,
+  signal, twoWayBinding, viewChild,
+} from '@angular/core';
+import { Toast } from './toast';
+
+@Component({
+  selector: 'app-toast-host',
+  template: `
+    <button type="button" (click)="show()">Show toast</button>
+    <button type="button" (click)="clear()">Clear</button>
+    <ng-container #toasts />
+  `,
+})
+export class ToastHost {
+  private readonly toasts = viewChild.required('toasts', { read: ViewContainerRef });
+  protected readonly message = signal('Saved!');
+  protected readonly open = signal(true);
+
+  protected show() {
+    const ref: ComponentRef<Toast> = this.toasts().createComponent(Toast, {
+      bindings: [
+        inputBinding('message', this.message),      // live signal binding
+        inputBinding('type', () => 'info'),         // any function works
+        twoWayBinding('open', this.open),            // like [(open)]
+        outputBinding('dismissed', () => ref.destroy()),
+      ],
+    });
+  }
+
+  protected clear() {
+    this.toasts().clear(); // destroys every component in the container
+  }
+}
+```
+
+The options object also accepts `directives` (attach directives to the new host element), `injector`, `projectableNodes` and `index`.
+
+### Rendering outside the tree with `createComponent()`
+
+For overlays you may want the component attached to `document.body`. The standalone `createComponent()` function creates the component without inserting it anywhere; you attach it to change detection with `ApplicationRef`:
+
+```ts title="popup.service.ts"
+import {
+  ApplicationRef, EnvironmentInjector, Service, createComponent, inject,
+  inputBinding, outputBinding,
+} from '@angular/core';
+import { Popup } from './popup';
+
+@Service()
+export class PopupService {
+  private readonly injector = inject(EnvironmentInjector);
+  private readonly appRef = inject(ApplicationRef);
+
+  show(message: string) {
+    const host = document.createElement('div');
+
+    const ref = createComponent(Popup, {
+      environmentInjector: this.injector,
+      hostElement: host,
+      bindings: [
+        inputBinding('message', () => message),
+        outputBinding('closed', () => {
+          this.appRef.detachView(ref.hostView);
+          ref.destroy();
+          host.remove();
+        }),
+      ],
+    });
+
+    this.appRef.attachView(ref.hostView); // join change detection
+    document.body.appendChild(host);     // make it visible
+  }
+}
+```
+
+:::tip
+For production overlays, prefer the CDK `Overlay` or Angular Material `MatDialog` — they handle positioning, focus trapping and scroll blocking for you. See [Angular Material](/intermediate/material/).
 :::
 
-## ✅ Best Practices
+:::note[Removed in v22]
+`ComponentFactoryResolver` and `ComponentFactory` no longer exist. Pass the component class directly to `ViewContainerRef.createComponent(MyComponent)` or `createComponent(MyComponent, {...})`. Setting inputs with `ref.setInput('name', value)` still works if you prefer it over `bindings`.
+:::
 
-### 1. **Use Content Projection Wisely**
-```typescript
-// ✅ Good - Flexible and reusable
+More patterns (registries, plugin systems, error handling with `onError`) are in [Dynamic Components](/advanced/dynamic-components/).
+
+## Binding to the host element
+
+The element that matches a component's selector (e.g. `<app-toggle>`) is its **host element**. Use the `host` property to add attributes, classes, styles and event listeners to it:
+
+```ts title="toggle.ts"
+import { Component, model } from '@angular/core';
+
 @Component({
-  template: `
-    <div class="card">
-      <ng-content select="[slot=header]"></ng-content>
-      <ng-content></ng-content>
-      <ng-content select="[slot=footer]"></ng-content>
-    </div>
-  `
+  selector: 'app-toggle',
+  template: `<span class="thumb"></span>`,
+  host: {
+    role: 'switch',
+    tabindex: '0',
+    '[attr.aria-checked]': 'checked()',
+    '[class.on]': 'checked()',
+    '(click)': 'toggle()',
+    '(keydown.space)': 'toggle(); $event.preventDefault()',
+  },
 })
+export class Toggle {
+  readonly checked = model(false);
 
-// ❌ Avoid - Too many specific inputs
-@Component({
-  template: `
-    <div class="card">
-      <div>{{headerText}}</div>
-      <div>{{bodyText}}</div>
-      <div>{{footerText}}</div>
-    </div>
-  `
-})
-```
-
-### 2. **Optimize Change Detection**
-```typescript
-// ✅ Use OnPush for performance
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush
-})
-
-// ✅ Use immutable updates
-addItem(item: Item) {
-  this.items = [...this.items, item];
-}
-
-// ❌ Avoid mutable updates with OnPush
-addItem(item: Item) {
-  this.items.push(item); // Won't trigger change detection
+  protected toggle() {
+    this.checked.update((v) => !v);
+  }
 }
 ```
 
-## 🎯 Quick Checklist
+- Static keys (`role`) set plain attributes; `[...]` keys are bindings; `(...)` keys are listeners.
+- Global listeners: `'(window:resize)'`, `'(document:keydown.escape)'`.
+- Host bindings are type-checked (default since v21).
+- Read a **static** attribute once with `inject(new HostAttributeToken('variant'))` — cheaper than an input when the value never changes.
 
-- [ ] Use content projection for flexible components
-- [ ] Implement multi-slot projection when needed
-- [ ] Create dynamic components for runtime flexibility
-- [ ] Use component inheritance for shared functionality
-- [ ] Choose appropriate view encapsulation strategy
-- [ ] Optimize with OnPush change detection
-- [ ] Implement immutable update patterns
-- [ ] Clean up dynamic components properly
-- [ ] Test component interactions thoroughly
+:::note[Legacy]
+`@HostBinding()` and `@HostListener()` still work but exist only for backwards compatibility. Always prefer the `host` property.
+:::
 
-## 🚀 Next Steps
+## Composing behaviour with `hostDirectives`
 
-1. **[Component Communication](/intermediate/component-communication/)** - Master component interaction patterns
-2. **[Lifecycle Hooks](/intermediate/lifecycle-hooks/)** - Understand component lifecycle
-3. **[Reactive Forms](/intermediate/reactive-forms/)** - Build complex forms
+The **directive composition API** applies directives to a component's host from *inside* the component. It is a great alternative to inheritance for reusable behaviour (hover state, tooltips, focus handling).
 
----
+```ts title="chip.ts"
+import { Component, Directive, inject, input, signal } from '@angular/core';
 
-**Remember**: Advanced component patterns provide powerful tools, but use them thoughtfully. Focus on reusability, performance, and maintainability! 🧩
+@Directive({
+  host: {
+    '[class.hovered]': 'hovered()',
+    '(mouseenter)': 'hovered.set(true)',
+    '(mouseleave)': 'hovered.set(false)',
+  },
+})
+export class Hoverable {
+  readonly hovered = signal(false);
+}
+
+@Directive({
+  host: { '[attr.title]': 'tooltip()' },
+})
+export class Tooltip {
+  readonly tooltip = input('');
+}
+
+@Component({
+  selector: 'app-chip',
+  template: `<ng-content />`,
+  hostDirectives: [
+    Hoverable,
+    { directive: Tooltip, inputs: ['tooltip: hint'] }, // expose + rename the input
+  ],
+})
+export class Chip {
+  private readonly hoverable = inject(Hoverable); // host directives are injectable
+  protected readonly isHovered = this.hoverable.hovered;
+}
+```
+
+```html
+<app-chip hint="Angular">ng</app-chip>
+```
+
+Rules: host directives are applied at compile time, their `selector` is ignored, and their inputs/outputs are **private** unless you list them. Since v22, if the same directive ends up applied more than once (e.g. two host directives both include it), Angular de-duplicates it into a single instance instead of throwing.
+
+## Inheritance
+
+Components are classes, so they can extend a base class. A child inherits inputs, outputs, host bindings, lifecycle hooks and `inject()` fields; it uses its **own** selector and template. Mark a base class that has Angular features but no template with `@Directive()`:
+
+```ts title="base-field.ts"
+import { Directive, input, output } from '@angular/core';
+
+@Directive()
+export abstract class BaseField {
+  readonly label = input.required<string>();
+  readonly disabled = input(false);
+  readonly changed = output<string>();
+
+  protected emit(value: string) {
+    if (!this.disabled()) this.changed.emit(value);
+  }
+}
+```
+
+```ts title="text-field.ts"
+import { Component } from '@angular/core';
+import { BaseField } from './base-field';
+
+@Component({
+  selector: 'app-text-field',
+  template: `
+    <label>
+      {{ label() }}
+      <input #box [disabled]="disabled()" (input)="emit(box.value)" />
+    </label>
+  `,
+})
+export class TextField extends BaseField {}
+```
+
+If the child also defines a lifecycle hook such as `ngOnInit`, it **overrides** the parent's — call `super.ngOnInit()` to keep both. Prefer composition (`hostDirectives`, services) over deep inheritance chains.
+
+## Styling and view encapsulation
+
+By default component styles are **scoped**: Angular adds unique attributes so `.badge` in one component can't affect another.
+
+```ts title="badge.ts"
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-badge',
+  template: `<span class="badge"><ng-content /></span>`,
+  styles: `
+    :host { display: inline-block; }
+    :host(.large) .badge { font-size: 1.25rem; }
+    .badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--badge-bg, #e0e7ff); /* themeable from outside */
+    }
+  `,
+})
+export class Badge {}
+```
+
+| `encapsulation` | Behaviour |
+|---|---|
+| `ViewEncapsulation.Emulated` (default) | Styles scoped with generated attributes. Global styles can still reach in. |
+| `ViewEncapsulation.ShadowDom` | Uses the browser's Shadow DOM. Also changes event propagation and `<slot>` behaviour. |
+| `ViewEncapsulation.ExperimentalIsolatedShadowDom` | Like `ShadowDom`, but guarantees that *only* the component's own styles apply. Experimental. |
+| `ViewEncapsulation.None` | Styles become global. Use sparingly (e.g. a theme stylesheet component). |
+
+- `:host` styles the host element; `:host(.large)` styles it only when it has the `large` class.
+- To let parents customise a component, expose **CSS custom properties** (`--badge-bg`) rather than reaching inside with `::ng-deep`, which the Angular team strongly discourages.
+
+## Change detection: OnPush by default
+
+**OnPush is the default since v22** — you don't need to write `changeDetection` any more. An OnPush component re-renders only when:
+
+1. A **signal** read in its template changes,
+2. One of its **inputs** receives a new value (compared with `Object.is`),
+3. An **event listener** in the component (or its children) runs, or
+4. It is explicitly marked dirty (`ChangeDetectorRef.markForCheck()`, or the `async` pipe).
+
+That means **mutating** objects or arrays in place won't update the screen. Create new references instead:
+
+```ts
+readonly items = signal<string[]>([]);
+
+add(item: string) {
+  // ❌ this.items().push(item);  — same array, no update
+  this.items.update((list) => [...list, item]); // ✅ new array
+}
+```
+
+:::note[Angular 21 and earlier]
+Components without `changeDetection` used the `Default` strategy (check on every cycle). `ng update` to v22 adds `changeDetection: ChangeDetectionStrategy.Eager` (the new name for `Default`) to existing components that relied on it. `ChangeDetectionStrategy.Default` is deprecated.
+:::
+
+## Common mistakes
+
+- **Conditionally rendering `<ng-content>`** — projected components are still created. Use an `<ng-template>` input/query instead.
+- **Using `ComponentFactoryResolver`** from old tutorials — it was removed in v22.
+- **Forgetting to clean up** components created with standalone `createComponent()` — call `appRef.detachView()` and `ref.destroy()`.
+- **Mutating arrays/objects** held in signals or inputs — OnPush won't see the change.
+- **Reaching into children with `::ng-deep`** — expose CSS custom properties or inputs instead.
+- **Deep inheritance trees** — prefer `hostDirectives` and services for sharing behaviour.
+
+## Key takeaways
+
+- `<ng-content>` projects content; `select` creates slots; fallback content fills empty slots.
+- `<ng-template>` + `NgTemplateOutlet` let the parent decide *how* something renders.
+- Prefer `@defer` → `NgComponentOutlet` → `ViewContainerRef.createComponent()` (in that order) for dynamic UI; use `inputBinding`/`outputBinding`/`twoWayBinding` for wiring.
+- Use the `host` property and `hostDirectives` instead of `@HostBinding`/`@HostListener` and inheritance.
+- OnPush is the default since v22 — use signals and immutable updates and your components will just work.
+
+## Next steps
+
+- [Component Communication](/intermediate/component-communication/) — inputs, outputs, `model()` and queries
+- [Lifecycle Hooks](/intermediate/lifecycle-hooks/) — when your code runs
+- [Content Projection](/advanced/content-projection/) and [Dynamic Components](/advanced/dynamic-components/) — deeper dives
+- [Custom Directives](/advanced/custom-directives/) — build your own attribute and structural directives
