@@ -4,26 +4,77 @@ interface Props {
 }
 const { endpoint } = Astro.props;
 const pageId = Astro.locals.starlightRoute.entry.id;
+const pageTitle = Astro.locals.starlightRoute.entry.data.title;
 ---
 
-<ask-ai data-endpoint={endpoint} data-page={pageId} class="not-content">
-	<button type="button" class="ask-fab" data-open aria-haspopup="dialog">
-		<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2 9.5 8.5 3 11l6.5 2.5L12 20l2.5-6.5L21 11l-6.5-2.5L12 2Z"></path></svg>
-		Ask AI
+<ask-ai data-endpoint={endpoint} data-page={pageId} data-pagefind-ignore class="not-content print:hidden">
+	<button type="button" class="ask-fab" data-open aria-haspopup="dialog" aria-controls="ask-ai-panel" aria-expanded="false">
+		<svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"></path></svg>
+		<span>Ask AI</span>
 	</button>
-	<dialog class="ask-dialog" aria-labelledby="ask-ai-title">
+	<dialog id="ask-ai-panel" class="ask-dialog" aria-labelledby="ask-ai-title" aria-describedby="ask-ai-description">
+		<p id="ask-ai-description" class="ask-sr-only">Ask questions about Angular and the current NG Guide page.</p>
 		<header class="ask-header">
-			<h2 id="ask-ai-title">Ask NG Guide AI</h2>
-			<button type="button" class="ask-close" data-close aria-label="Close">✕</button>
+			<div class="ask-brand">
+				<img src="/favicon.svg" width="38" height="38" alt="" />
+				<div>
+					<p class="ask-brand-label">NG Guide</p>
+					<h2 id="ask-ai-title">Ask AI</h2>
+				</div>
+			</div>
+			<div class="ask-header-actions">
+				<button type="button" class="ask-reset" data-reset disabled title="Start a new chat">
+					<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+					<span>New chat</span>
+				</button>
+				<button type="button" class="ask-close" data-close aria-label="Close chat">
+					<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+				</button>
+			</div>
 		</header>
-		<div class="ask-messages" data-messages aria-live="polite">
-			<p class="ask-hint">
-				Ask anything about Angular 22. Answers are generated from NG Guide content and may contain mistakes, so check the linked sources.
-			</p>
+		<div class="ask-context">
+			<div>
+				<p class="ask-context-label">Current page</p>
+				<p class="ask-context-title">{pageTitle}</p>
+			</div>
 		</div>
+		<div class="ask-messages" data-messages role="log" aria-label="Conversation" aria-live="off">
+			<div class="ask-empty" data-empty>
+				<p class="ask-empty-label">Learn with NG Guide</p>
+				<h3>Let's work through it.</h3>
+				<p class="ask-empty-copy">Ask about an Angular concept, work through an example, or get help with this page.</p>
+				<p class="ask-prompt-label">Start with a question</p>
+				<div class="ask-prompts">
+					<button type="button" data-suggestion={`Explain this page, "${pageTitle}", in simple terms.`}>
+						<span>Explain this page simply</span>
+						<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-5-5 5 5-5 5"></path></svg>
+					</button>
+					<button type="button" data-suggestion={`Show me a practical Angular example for this page, "${pageTitle}".`}>
+						<span>Show me a practical example</span>
+						<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-5-5 5 5-5 5"></path></svg>
+					</button>
+					<button type="button" data-suggestion={`What common mistakes should I avoid with this page's topic, "${pageTitle}"?`}>
+						<span>What mistakes should I avoid?</span>
+						<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-5-5 5 5-5 5"></path></svg>
+					</button>
+				</div>
+			</div>
+		</div>
+		<p class="ask-status" data-status role="status" aria-live="polite"></p>
 		<form class="ask-form" data-form>
-			<textarea name="question" rows="2" maxlength="1000" required placeholder="e.g. How do I validate a Signal Form field asynchronously?"></textarea>
-			<button type="submit" class="ask-send">Send</button>
+			<label for="ask-ai-question">Your question</label>
+			<div class="ask-compose">
+				<textarea id="ask-ai-question" name="question" rows="2" maxlength="1000" required placeholder="Ask a question about Angular..."></textarea>
+				<div class="ask-compose-actions">
+					<span class="ask-shortcut-hint">Enter to send · Shift + Enter for a new line</span>
+					<span class="ask-touch-hint">Tap Send when you're ready</span>
+					<button type="submit" class="ask-send" data-send>
+						Send
+						<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m-6 6 6-6 6 6"></path></svg>
+					</button>
+				</div>
+			</div>
+			<p class="ask-disclaimer">AI can make mistakes. Check the linked guide pages.</p>
 		</form>
 	</dialog>
 </ask-ai>
@@ -37,6 +88,12 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 	interface Source {
 		title: string;
 		url: string;
+	}
+	interface StreamEvent {
+		type: string;
+		text?: string;
+		message?: string;
+		sources?: Source[];
 	}
 
 	const GUIDE_ORIGIN = 'https://ng-guide.letsprogram.in';
@@ -104,21 +161,33 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 	class AskAi extends HTMLElement {
 		private history: Turn[] = [];
 		private busy = false;
+		private initialized = false;
 
 		connectedCallback() {
+			if (this.initialized) return;
+			this.initialized = true;
+			if (this.parentElement !== document.body) document.body.append(this);
 			const dialog = this.querySelector('dialog')!;
+			const launcher = this.querySelector<HTMLButtonElement>('[data-open]')!;
 			const form = this.querySelector<HTMLFormElement>('[data-form]')!;
 			const textarea = form.querySelector('textarea')!;
-			this.querySelector('[data-open]')!.addEventListener('click', () => {
+			launcher.addEventListener('click', () => {
+				if (dialog.open) return;
 				dialog.showModal();
+				launcher.setAttribute('aria-expanded', 'true');
 				textarea.focus();
 			});
 			this.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
+			dialog.addEventListener('close', () => launcher.setAttribute('aria-expanded', String(dialog.open)));
 			dialog.addEventListener('click', (event) => {
-				if (event.target === dialog) dialog.close();
+				if (event.target !== dialog) return;
+				const bounds = dialog.getBoundingClientRect();
+				if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) {
+					dialog.close();
+				}
 			});
 			textarea.addEventListener('keydown', (event) => {
-				if (event.key === 'Enter' && !event.shiftKey) {
+				if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !matchMedia('(hover: none) and (pointer: coarse)').matches) {
 					event.preventDefault();
 					form.requestSubmit();
 				}
@@ -126,67 +195,127 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 			form.addEventListener('submit', (event) => {
 				event.preventDefault();
 				const question = textarea.value.trim();
-				if (!question || this.busy) return;
+				if (!question) {
+					this.querySelector<HTMLElement>('[data-status]')!.textContent = 'Enter a question before sending.';
+					textarea.focus();
+					return;
+				}
+				if (this.busy) return;
 				textarea.value = '';
 				void this.ask(question);
 			});
+			this.querySelectorAll<HTMLButtonElement>('[data-suggestion]').forEach((button) => {
+				button.addEventListener('click', () => {
+					const question = button.dataset.suggestion;
+					if (!question || this.busy) return;
+					void this.ask(question);
+					textarea.focus();
+				});
+			});
+			this.querySelector<HTMLButtonElement>('[data-reset]')!.addEventListener('click', () => {
+				if (this.busy) return;
+				this.history = [];
+				this.querySelectorAll('.ask-msg').forEach((message) => message.remove());
+				this.querySelector<HTMLElement>('[data-empty]')!.hidden = false;
+				this.querySelector<HTMLElement>('[data-status]')!.textContent = 'Started a new chat.';
+				textarea.value = '';
+				this.updateControls();
+				textarea.focus();
+			});
+		}
+
+		private updateControls() {
+			this.querySelector<HTMLButtonElement>('[data-send]')!.disabled = this.busy;
+			this.querySelector<HTMLButtonElement>('[data-reset]')!.disabled = this.busy || !this.querySelector('.ask-msg');
 		}
 
 		private addMessage(role: Role, html: string): HTMLElement {
-			const messages = this.querySelector('[data-messages]')!;
-			const el = document.createElement('div');
-			el.className = `ask-msg ask-${role}`;
-			el.innerHTML = html;
-			messages.append(el);
+			const messages = this.querySelector<HTMLElement>('[data-messages]')!;
+			this.querySelector<HTMLElement>('[data-empty]')!.hidden = true;
+			const message = document.createElement('article');
+			message.className = `ask-msg ask-${role}`;
+			message.setAttribute('aria-label', role === 'user' ? 'Your message' : 'NG Guide answer');
+			const label = document.createElement('div');
+			label.className = 'ask-msg-label';
+			label.textContent = role === 'user' ? 'You' : 'NG Guide';
+			const content = document.createElement('div');
+			content.className = 'ask-msg-content';
+			content.innerHTML = html;
+			message.append(label, content);
+			messages.append(message);
 			messages.scrollTop = messages.scrollHeight;
-			return el;
+			return content;
+		}
+
+		private updateMessage(content: HTMLElement, html: string) {
+			const messages = this.querySelector<HTMLElement>('[data-messages]')!;
+			const follow = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 96;
+			content.innerHTML = html;
+			if (follow) messages.scrollTop = messages.scrollHeight;
 		}
 
 		private async ask(question: string) {
 			this.busy = true;
+			this.updateControls();
 			this.addMessage('user', `<p>${escapeHtml(question)}</p>`);
-			const answerEl = this.addMessage('assistant', '<p class="ask-thinking">Thinking…</p>');
-			const messages = this.querySelector('[data-messages]')!;
+			const answerEl = this.addMessage('assistant', '<p class="ask-thinking">Looking through the guide…</p>');
+			const status = this.querySelector<HTMLElement>('[data-status]')!;
+			status.textContent = 'Finding an answer…';
 			let answer = '';
 			let sources: Source[] = [];
+			let finished = false;
 			try {
 				const response = await fetch(this.dataset.endpoint!, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ question, page: this.dataset.page, history: this.history.slice(-6) }),
 				});
-				if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+				if (!response.ok) {
+					throw new Error(response.status === 429 ? 'Too many requests. Wait a few minutes before trying again.' : `Request failed (HTTP ${response.status}).`);
+				}
+				if (!response.body) throw new Error('The assistant returned no response.');
 				const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
 				let buffer = '';
+				const readEvent = (line: string) => {
+					if (!line.trim()) return;
+					const event = JSON.parse(line) as StreamEvent;
+					if (event.type === 'delta' && event.text) answer += event.text;
+					if (event.type === 'sources' && event.sources) sources = event.sources;
+					if (event.type === 'done') finished = true;
+					if (event.type === 'error') throw new Error(event.message ?? 'The assistant could not answer.');
+				};
 				while (true) {
 					const { value, done } = await reader.read();
 					if (done) break;
 					buffer += value;
 					const lines = buffer.split('\n');
 					buffer = lines.pop() ?? '';
-					for (const line of lines) {
-						if (!line.trim()) continue;
-						const event = JSON.parse(line) as { type: string; text?: string; message?: string; sources?: Source[] };
-						if (event.type === 'delta' && event.text) answer += event.text;
-						if (event.type === 'sources' && event.sources) sources = event.sources;
-						if (event.type === 'error') throw new Error(event.message ?? 'Unknown error');
+					const previousAnswer = answer;
+					lines.forEach(readEvent);
+					if (answer !== previousAnswer) {
+						if (status.textContent !== 'Writing a response…') status.textContent = 'Writing a response…';
+						this.updateMessage(answerEl, renderMarkdown(answer));
 					}
-					answerEl.innerHTML = renderMarkdown(answer);
-					messages.scrollTop = messages.scrollHeight;
 				}
+				readEvent(buffer);
+				if (!finished) throw new Error('The response ended before it was complete.');
+				if (!answer.trim()) throw new Error('The assistant returned an empty response.');
 				const links = sources
 					.flatMap((s) => {
 						const href = guideHref(s.url);
 						return href ? [`<li><a href="${escapeHtml(href)}">${escapeHtml(s.title)}</a></li>`] : [];
 					})
 					.join('');
-				answerEl.innerHTML = renderMarkdown(answer) + (links ? `<p class="ask-sources-title">Sources</p><ul class="ask-sources">${links}</ul>` : '');
+				this.updateMessage(answerEl, renderMarkdown(answer) + (links ? `<p class="ask-sources-title">Related guide pages</p><ul class="ask-sources">${links}</ul>` : ''));
 				this.history.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
+				status.textContent = 'Answer ready.';
 			} catch (error) {
-				answerEl.innerHTML = `<p class="ask-error">Sorry, the AI assistant is unavailable right now (${escapeHtml(String((error as Error).message))}).</p>`;
+				const detail = error instanceof Error ? error.message : 'An unexpected error occurred.';
+				this.updateMessage(answerEl, `${answer ? renderMarkdown(answer) : ''}<p class="ask-error">Could not complete the response. ${escapeHtml(detail)} Try again.</p>`);
+				status.textContent = 'Response failed. Try again.';
 			} finally {
 				this.busy = false;
-				messages.scrollTop = messages.scrollHeight;
+				this.updateControls();
 			}
 		}
 	}
@@ -194,195 +323,518 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 	if (!customElements.get('ask-ai')) customElements.define('ask-ai', AskAi);
 </script>
 
-<style>
-	.ask-fab {
+<style is:global>
+	ask-ai :is(button, a):focus-visible {
+		outline: 2px solid var(--sl-color-accent-high);
+		outline-offset: 3px;
+	}
+	ask-ai button {
+		font: inherit;
+		cursor: pointer;
+	}
+	ask-ai button:disabled {
+		cursor: not-allowed;
+		opacity: 0.5;
+	}
+	ask-ai .ask-sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	ask-ai .ask-fab {
 		position: fixed;
 		z-index: 50;
-		inset-block-end: 1.25rem;
+		inset-block-end: max(1.25rem, env(safe-area-inset-bottom));
 		inset-inline-end: 1.25rem;
 		display: inline-flex;
 		align-items: center;
-		gap: 0.45rem;
+		gap: 0.55rem;
+		min-height: 3rem;
 		padding: 0.65rem 1rem;
 		border: 0;
 		border-radius: 999px;
 		background: var(--ng-gradient, var(--sl-color-accent));
 		color: #fff;
-		font-weight: 600;
-		font-size: var(--sl-text-sm);
-		box-shadow: 0 8px 24px hsla(330, 90%, 40%, 0.35);
-		cursor: pointer;
+		font-size: 0.875rem;
+		font-weight: 700;
+		box-shadow: 0 8px 24px hsla(330, 90%, 35%, 0.3);
 	}
-	.ask-fab:hover {
-		filter: brightness(1.08);
+	ask-ai .ask-fab:hover {
+		filter: brightness(1.1);
 	}
-	.ask-dialog {
-		width: min(42rem, calc(100vw - 2rem));
-		height: min(80vh, 46rem);
-		max-height: min(80vh, 46rem);
+	ask-ai .ask-dialog {
+		position: fixed;
+		inset-block: 0;
+		inset-inline: auto 0;
+		box-sizing: border-box;
+		width: min(28rem, 100vw);
+		max-width: 100vw;
+		height: 100vh;
+		height: 100dvh;
+		max-height: 100dvh;
+		margin: 0;
 		padding: 0;
 		overflow: hidden;
-		border: 1px solid var(--sl-color-gray-5);
-		border-radius: 1rem;
+		border: 0;
+		border-inline-start: 1px solid var(--sl-color-gray-5);
 		background: var(--sl-color-black);
 		color: var(--sl-color-gray-1);
-		box-shadow: var(--sl-shadow-lg);
+		font-family: var(--sl-font);
+		font-size: 0.875rem;
+		line-height: 1.5;
+		box-shadow: -1rem 0 3rem hsla(240, 20%, 4%, 0.2);
 	}
-	.ask-dialog[open] {
+	ask-ai .ask-dialog[open] {
 		display: flex;
 		flex-direction: column;
 	}
-	.ask-dialog::backdrop {
-		background: hsla(240, 16%, 4%, 0.6);
-		backdrop-filter: blur(4px);
+	ask-ai .ask-dialog::backdrop {
+		background: hsla(240, 20%, 5%, 0.52);
 	}
-	.ask-header {
+	ask-ai .ask-header {
+		display: flex;
+		flex: none;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: max(1rem, env(safe-area-inset-top)) 1.25rem 1rem;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+	ask-ai .ask-brand,
+	ask-ai .ask-header-actions {
+		display: flex;
+		align-items: center;
+	}
+	ask-ai .ask-brand {
+		min-width: 0;
+		gap: 0.7rem;
+	}
+	ask-ai .ask-brand img {
+		flex: none;
+	}
+	ask-ai .ask-brand-label,
+	ask-ai .ask-header h2 {
+		margin: 0;
+		line-height: 1.2;
+	}
+	ask-ai .ask-brand-label {
+		color: var(--sl-color-gray-2);
+		font-size: 0.7rem;
+		font-weight: 600;
+	}
+	ask-ai .ask-header h2 {
+		margin-top: 0.2rem;
+		color: var(--sl-color-white);
+		font-size: 1.05rem;
+		font-weight: 750;
+		letter-spacing: -0.02em;
+	}
+	ask-ai .ask-header-actions {
+		flex: none;
+		gap: 0.2rem;
+	}
+	ask-ai :is(.ask-reset, .ask-close) {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 2.5rem;
+		border: 0;
+		border-radius: 0.55rem;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+	}
+	ask-ai .ask-reset {
+		gap: 0.25rem;
+		padding: 0.4rem 0.55rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+	ask-ai .ask-close {
+		width: 2.5rem;
+		padding: 0;
+	}
+	ask-ai :is(.ask-reset, .ask-close):not(:disabled):hover {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+	}
+	ask-ai .ask-context {
+		position: relative;
+		flex: none;
+		margin: 0.9rem 1.25rem 0;
+		padding: 0.65rem 0.85rem 0.65rem 1rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.65rem;
+		background: var(--sl-color-gray-6);
+	}
+	ask-ai .ask-context::before {
+		position: absolute;
+		inset-block: 0.6rem;
+		inset-inline-start: 0;
+		width: 3px;
+		border-radius: 0 3px 3px 0;
+		background: var(--ng-gradient-soft);
+		content: '';
+	}
+	ask-ai :is(.ask-context-label, .ask-empty-label, .ask-prompt-label) {
+		margin: 0;
+		color: var(--sl-color-gray-2);
+		font-family: var(--sl-font-mono);
+		font-size: 0.65rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	ask-ai .ask-context-title {
+		margin: 0.2rem 0 0;
+		color: var(--sl-color-white);
+		font-size: 0.85rem;
+		font-weight: 600;
+		overflow-wrap: anywhere;
+	}
+	ask-ai .ask-messages {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: 1.4rem;
+		min-height: 0;
+		overflow: auto;
+		overscroll-behavior: contain;
+		padding: 1.25rem;
+		scroll-behavior: auto;
+	}
+	ask-ai .ask-empty {
+		padding: 1.65rem 0 1rem;
+	}
+	ask-ai .ask-empty[hidden] {
+		display: none;
+	}
+	ask-ai .ask-empty h3 {
+		margin: 0.55rem 0 0;
+		color: var(--sl-color-white);
+		font-size: 1.5rem;
+		font-weight: 750;
+		letter-spacing: -0.035em;
+		line-height: 1.2;
+	}
+	ask-ai .ask-empty-copy {
+		max-width: 21rem;
+		margin: 0.75rem 0 0;
+		color: var(--sl-color-gray-2);
+		line-height: 1.65;
+	}
+	ask-ai .ask-prompt-label {
+		margin-top: 2rem;
+	}
+	ask-ai .ask-prompts {
+		display: grid;
+		gap: 0.55rem;
+		margin-top: 0.7rem;
+	}
+	ask-ai .ask-prompts button {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.85rem 1rem;
-		border-bottom: 1px solid var(--sl-color-gray-5);
-	}
-	.ask-header h2 {
-		margin: 0;
-		font-size: var(--sl-text-lg);
-	}
-	.ask-close {
-		border: 0;
-		background: none;
-		color: var(--sl-color-gray-3);
-		font-size: 1.1rem;
-		cursor: pointer;
-	}
-	.ask-messages {
-		flex: 1;
-		min-height: 0;
-		overflow: auto;
-		padding: 1rem;
-		display: flex;
-		flex-direction: column;
 		gap: 0.75rem;
-		font-size: var(--sl-text-sm);
-	}
-	.ask-hint {
-		margin: 0;
-		color: var(--sl-color-gray-3);
-	}
-	.ask-msg {
-		max-width: 92%;
-		padding: 0.6rem 0.85rem;
-		border-radius: 0.75rem;
-		line-height: 1.55;
-		overflow-wrap: anywhere;
-	}
-	.ask-msg :global(p) {
-		margin: 0 0 0.5rem;
-	}
-	.ask-msg :global(p:last-child) {
-		margin-bottom: 0;
-	}
-	.ask-msg :global(pre),
-	.ask-msg pre {
-		margin: 0.5rem 0;
-		padding: 0.6rem;
-		border-radius: 0.5rem;
-		background: var(--sl-color-gray-6);
-		overflow-x: auto;
-		white-space: pre-wrap;
-		font-size: var(--sl-text-xs);
-	}
-	.ask-user {
-		align-self: flex-end;
-		background: var(--sl-color-accent-low);
-		color: var(--sl-color-white);
-	}
-	.ask-assistant {
-		align-self: flex-start;
-		background: var(--sl-color-gray-6);
-	}
-	.ask-msg :global(.ask-sources-title) {
-		margin-top: 0.6rem;
-		font-weight: 600;
-		font-size: var(--sl-text-xs);
-		color: var(--sl-color-gray-3);
-	}
-	.ask-msg :global(.ask-error) {
-		color: var(--sl-color-red-high, #f87171);
-	}
-	.ask-msg :global(.ask-thinking) {
-		color: var(--sl-color-gray-3);
-	}
-	.ask-form {
-		display: flex;
-		gap: 0.5rem;
-		padding: 0.75rem;
-		border-top: 1px solid var(--sl-color-gray-5);
-	}
-	.ask-form textarea {
-		flex: 1;
-		resize: none;
-		padding: 0.55rem 0.7rem;
+		min-height: 2.9rem;
+		padding: 0.7rem 0.8rem;
 		border: 1px solid var(--sl-color-gray-5);
-		border-radius: 0.6rem;
+		border-radius: 0.65rem;
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		font-size: 0.8rem;
+		font-weight: 500;
+		text-align: start;
+	}
+	ask-ai .ask-prompts button svg {
+		flex: none;
+		color: var(--sl-color-accent-high);
+	}
+	ask-ai .ask-prompts button:hover {
+		border-color: var(--sl-color-accent);
 		background: var(--sl-color-gray-6);
-		color: var(--sl-color-white);
-		font: inherit;
-		font-size: var(--sl-text-sm);
 	}
-	.ask-send {
-		padding: 0 1rem;
-		border: 0;
-		border-radius: 0.6rem;
-		background: var(--sl-color-accent);
-		color: #fff;
-		font-weight: 600;
-		cursor: pointer;
-	}
-</style>
-
-<style is:global>
-	/* Messages are created in JavaScript, so they do not receive Astro's scoped class. */
 	ask-ai .ask-msg {
-		max-width: 92%;
-		padding: 0.6rem 0.85rem;
-		border-radius: 0.75rem;
-		line-height: 1.55;
+		min-width: 0;
+		max-width: 100%;
+		line-height: 1.65;
 		overflow-wrap: anywhere;
 	}
-	ask-ai .ask-msg p {
-		margin: 0 0 0.5rem;
+	ask-ai .ask-msg-label {
+		margin-bottom: 0.45rem;
+		color: var(--sl-color-gray-2);
+		font-size: 0.72rem;
+		font-weight: 700;
 	}
-	ask-ai .ask-msg p:last-child {
-		margin-bottom: 0;
-	}
-	ask-ai .ask-msg pre {
-		margin: 0.5rem 0;
-		padding: 0.75rem;
-		border-radius: 0.5rem;
-		background: var(--sl-color-gray-6);
-		overflow-x: auto;
-		white-space: pre-wrap;
-		font-size: var(--sl-text-xs);
-	}
-	ask-ai .ask-msg code {
-		font-family: var(--sl-font-mono);
+	ask-ai .ask-assistant .ask-msg-label::before {
+		display: inline-block;
+		width: 0.5rem;
+		height: 0.5rem;
+		margin-inline-end: 0.45rem;
+		border-radius: 50%;
+		background: var(--ng-gradient-soft);
+		content: '';
 	}
 	ask-ai .ask-user {
 		align-self: flex-end;
+		max-width: 90%;
+	}
+	ask-ai .ask-user .ask-msg-label {
+		text-align: end;
+	}
+	ask-ai .ask-user .ask-msg-content {
+		padding: 0.65rem 0.85rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.85rem 0.85rem 0.2rem 0.85rem;
 		background: var(--sl-color-accent-low);
 		color: var(--sl-color-white);
+		white-space: pre-wrap;
 	}
 	ask-ai .ask-assistant {
-		align-self: flex-start;
-		background: var(--sl-color-gray-6);
+		align-self: stretch;
 	}
-	ask-ai .ask-sources-title {
-		margin-top: 0.6rem;
-		font-weight: 600;
-		font-size: var(--sl-text-xs);
-		color: var(--sl-color-gray-3);
+	ask-ai .ask-msg-content > :first-child {
+		margin-top: 0;
+	}
+	ask-ai .ask-msg-content > :last-child {
+		margin-bottom: 0;
+	}
+	ask-ai .ask-msg-content p,
+	ask-ai .ask-msg-content ul,
+	ask-ai .ask-msg-content ol {
+		margin: 0.65rem 0;
+	}
+	ask-ai .ask-msg-content :is(ul, ol) {
+		padding-inline-start: 1.3rem;
+	}
+	ask-ai .ask-msg-content li + li {
+		margin-top: 0.3rem;
+	}
+	ask-ai .ask-msg-content a {
+		color: var(--sl-color-accent-high);
+		text-underline-offset: 0.2em;
+	}
+	ask-ai .ask-msg-content pre {
+		max-width: 100%;
+		margin: 0.8rem 0;
+		padding: 0.9rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.65rem;
+		background: var(--sl-color-gray-6);
+		overflow-x: auto;
+		overscroll-behavior-x: contain;
+		white-space: pre;
+		font-size: 0.75rem;
+		line-height: 1.6;
+	}
+	ask-ai .ask-msg-content code {
+		font-family: var(--sl-font-mono);
+	}
+	ask-ai .ask-msg-content :not(pre) > code {
+		padding: 0.1em 0.3em;
+		border-radius: 0.25rem;
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-accent-high);
+		font-size: 0.9em;
+	}
+	ask-ai .ask-msg-content .ask-sources-title {
+		margin-top: 1.15rem;
+		padding-top: 0.8rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		color: var(--sl-color-gray-2);
+		font-size: 0.72rem;
+		font-weight: 700;
+	}
+	ask-ai .ask-msg-content .ask-sources {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		padding: 0;
+		list-style: none;
+	}
+	ask-ai .ask-sources li + li {
+		margin: 0;
+	}
+	ask-ai .ask-sources a {
+		display: inline-block;
+		padding: 0.3rem 0.55rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		background: var(--sl-color-gray-6);
+		font-size: 0.75rem;
+		font-weight: 500;
+		text-decoration: none;
+	}
+	ask-ai .ask-sources a:hover {
+		border-color: var(--sl-color-accent);
+		text-decoration: underline;
+	}
+	ask-ai .ask-thinking {
+		color: var(--sl-color-gray-2);
 	}
 	ask-ai .ask-error {
-		color: var(--sl-color-red-high, #f87171);
+		padding: 0.7rem 0.8rem;
+		border: 1px solid var(--sl-color-red);
+		border-radius: 0.6rem;
+		color: var(--sl-color-red-high);
+	}
+	ask-ai .ask-status {
+		flex: none;
+		margin: 0;
+		padding: 0 1.25rem 0.55rem;
+		color: var(--sl-color-gray-2);
+		font-size: 0.72rem;
+	}
+	ask-ai .ask-status:empty {
+		height: 0;
+		overflow: hidden;
+		padding: 0;
+	}
+	ask-ai .ask-status:empty::before {
+		display: none;
+	}
+	ask-ai .ask-status::before {
+		display: inline-block;
+		width: 0.4rem;
+		height: 0.4rem;
+		margin-inline-end: 0.45rem;
+		border-radius: 50%;
+		background: var(--sl-color-accent);
+		vertical-align: 0.1em;
+		content: '';
+	}
+	ask-ai .ask-form {
+		flex: none;
+		padding: 0.9rem 1.25rem max(0.9rem, env(safe-area-inset-bottom));
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+	ask-ai .ask-form label {
+		display: block;
+		margin-bottom: 0.45rem;
+		color: var(--sl-color-white);
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+	ask-ai .ask-compose {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background: var(--sl-color-gray-6);
+	}
+	ask-ai .ask-compose:focus-within {
+		border-color: var(--sl-color-accent);
+		outline: 2px solid var(--sl-color-accent-high);
+		outline-offset: 2px;
+	}
+	ask-ai .ask-form textarea {
+		display: block;
+		box-sizing: border-box;
+		width: 100%;
+		min-height: 3.75rem;
+		max-height: 9rem;
+		resize: vertical;
+		padding: 0.75rem 0.8rem 0.25rem;
+		border: 0;
+		border-radius: 0.75rem;
+		background: transparent;
+		color: var(--sl-color-white);
+		font: inherit;
+	}
+	ask-ai .ask-form textarea::placeholder {
+		color: var(--sl-color-gray-3);
+		opacity: 1;
+	}
+	ask-ai .ask-form textarea:focus {
+		outline: 0;
+	}
+	ask-ai .ask-compose-actions {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.3rem 0.5rem 0.5rem 0.8rem;
+	}
+	ask-ai .ask-compose-actions > span {
+		color: var(--sl-color-gray-2);
+		font-size: 0.65rem;
+		line-height: 1.35;
+	}
+	ask-ai .ask-compose-actions .ask-touch-hint {
+		display: none;
+	}
+	ask-ai .ask-send {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3rem;
+		min-height: 2.25rem;
+		padding: 0.45rem 0.75rem;
+		border: 0;
+		border-radius: 0.5rem;
+		background: var(--ng-gradient, var(--sl-color-accent));
+		color: #fff;
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+	ask-ai .ask-send:not(:disabled):hover {
+		filter: brightness(1.1);
+	}
+	ask-ai .ask-disclaimer {
+		margin: 0.6rem 0 0;
+		color: var(--sl-color-gray-2);
+		font-size: 0.68rem;
+		line-height: 1.4;
+		text-align: center;
+	}
+	@media (max-width: 30rem) {
+		ask-ai .ask-header {
+			padding-inline: 1rem;
+		}
+		ask-ai .ask-context {
+			margin-inline: 1rem;
+		}
+		ask-ai .ask-messages {
+			padding-inline: 1rem;
+		}
+		ask-ai .ask-status {
+			padding-inline: 1rem;
+		}
+		ask-ai .ask-form {
+			padding-inline: 1rem;
+		}
+	}
+	@media (max-height: 34rem) {
+		ask-ai .ask-empty {
+			padding-top: 0;
+		}
+		ask-ai .ask-prompt-label {
+			margin-top: 1rem;
+		}
+	}
+	@media (hover: none) and (pointer: coarse) {
+		ask-ai .ask-compose-actions .ask-shortcut-hint {
+			display: none;
+		}
+		ask-ai .ask-compose-actions .ask-touch-hint {
+			display: inline;
+		}
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		ask-ai .ask-dialog[open] {
+			animation: ask-drawer-in 180ms ease-out;
+		}
+		@keyframes ask-drawer-in {
+			from {
+				transform: translateX(1rem);
+				opacity: 0;
+			}
+			to {
+				transform: translateX(0);
+				opacity: 1;
+			}
+		}
 	}
 </style>

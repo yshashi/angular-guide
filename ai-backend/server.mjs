@@ -83,12 +83,19 @@ async function ensureIndex() {
 	}
 }
 
-function search(query, pageId) {
+function isPageUrl(url, pageId) {
+	if (!pageId) return false;
+	if (pageId === 'index') return /^https?:\/\/[^/]+\/?$/.test(url);
+	return url.endsWith(`/${pageId}/`);
+}
+
+function search(query, pageId, { currentPageOnly = false } = {}) {
 	const terms = [...new Set(tokenize(query))];
 	const n = index.chunks.length;
 	const k1 = 1.4;
 	const b = 0.75;
 	return index.chunks
+		.filter((chunk) => !currentPageOnly || isPageUrl(chunk.url, pageId))
 		.map((chunk) => {
 			let score = 0;
 			for (const term of terms) {
@@ -98,7 +105,7 @@ function search(query, pageId) {
 				const idf = Math.log(1 + (n - df + 0.5) / (df + 0.5));
 				score += idf * ((f * (k1 + 1)) / (f + k1 * (1 - b + (b * chunk.len) / index.avgLen)));
 			}
-			if (pageId && chunk.url.endsWith(`/${pageId}/`)) score *= 1.3;
+			if (isPageUrl(chunk.url, pageId)) score *= 1.3;
 			return { chunk, score };
 		})
 		.filter((r) => r.score > 0)
@@ -181,7 +188,14 @@ async function streamAnswer(res, { question, page, history }) {
 	const send = (event) => res.write(`${JSON.stringify(event)}\n`);
 	await ensureIndex();
 	const lastUserTurn = history.filter((t) => t.role === 'user').at(-1)?.content ?? '';
-	const chunks = search(`${question} ${lastUserTurn}`, page);
+	const currentPage = index.chunks.find((chunk) => isPageUrl(chunk.url, page));
+	const refersToPage = /\b(?:this|current)\s+(?:page|article|guide|topic)\b/i.test(question);
+	const pageTerms = refersToPage ? currentPage?.pageTitle ?? '' : '';
+	const query = `${question} ${lastUserTurn} ${pageTerms}`;
+	const pageChunks = refersToPage && currentPage
+		? [...new Set([currentPage, ...search(query, page, { currentPageOnly: true })])].slice(0, 2)
+		: [];
+	const chunks = [...new Set([...pageChunks, ...search(query, page)])].slice(0, config.topK);
 	const seen = new Set();
 	const sources = [];
 	for (const c of chunks) {
@@ -191,6 +205,9 @@ async function streamAnswer(res, { question, page, history }) {
 	}
 	send({ type: 'sources', sources });
 	const context = chunks.map((c, i) => `[${i + 1}] ${c.title} (${c.url})\n${c.text}`).join('\n\n');
+	const pageContext = currentPage
+		? `\nThe reader is viewing the NG Guide page ${JSON.stringify(currentPage.pageTitle)} (${currentPage.url}). References to "this page" or "this topic" mean that page. Answer unrelated questions on their own terms.`
+		: '';
 
 	const llm = await fetch(`${config.baseUrl}/chat/completions`, {
 		method: 'POST',
@@ -201,7 +218,7 @@ async function streamAnswer(res, { question, page, history }) {
 			messages: [
 				{
 					role: 'system',
-					content: `${SYSTEM_PROMPT}\n\nDocumentation excerpts:\n\n${context || '(no relevant excerpts found)'}`,
+					content: `${SYSTEM_PROMPT}${pageContext}\n\nDocumentation excerpts:\n\n${context || '(no relevant excerpts found)'}`,
 				},
 				...history,
 				{ role: 'user', content: question },
@@ -234,7 +251,7 @@ async function streamAnswer(res, { question, page, history }) {
 
 ensureIndex().catch((err) => console.warn('Initial docs index delayed:', err.message));
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
 	const origin = req.headers.origin ?? '';
 	const cors = corsHeaders(origin);
 	const url = new URL(req.url ?? '/', 'http://localhost');
@@ -277,4 +294,4 @@ createServer(async (req, res) => {
 		res.write(`${JSON.stringify({ type: 'error', message: 'The assistant failed to answer. Please try again.' })}\n`);
 	}
 	res.end();
-}).listen(config.port, () => console.log(`NG Guide Ask AI backend listening on http://localhost:${config.port}`));
+}).listen(config.port, () => console.log(`NG Guide Ask AI backend listening on http://localhost:${server.address().port}`));

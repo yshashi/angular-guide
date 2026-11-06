@@ -6,7 +6,7 @@ A tiny, dependency-free Node.js (>= 22) service that powers the **Ask AI** butto
 How it works:
 
 1. Downloads the whole guide from `https://ng-guide.letsprogram.in/llms-full.txt` (refreshed every 6 hours).
-2. Splits it into sections and ranks them for each question with BM25 keyword search. The current page gets a small boost.
+2. Splits it into sections and ranks them for each question with BM25 keyword search. The current page gets a small boost; questions about "this page" or "this topic" prioritize excerpts from it.
 3. Sends the best excerpts plus the question to any **OpenAI-compatible** Chat Completions API and streams the answer back.
 
 API keys stay on the server. The browser only talks to this service.
@@ -48,10 +48,17 @@ npm run dev                                  # http://localhost:4321 with the "A
 
 > **Note:** Both `.env` and `ai-backend/.env` are gitignored so your API keys are never committed. If `dist/llms-full.txt` exists locally (after `npm run build`), the backend indexes it directly and falls back to `DOCS_URL` otherwise.
 
+Run the backend regression test with `node --test ai-backend/server.test.mjs`. It uses a local mock model and does not need an API key.
+
 ## Enable it on the website
 
 Set `PUBLIC_ASK_AI_ENDPOINT` (for example `https://api.interviewhelper.in/ng-guide/ask`) in the site's build
 environment. When this variable is empty, the Ask AI button is not rendered at all.
+
+When enabled, visitors can open the assistant from the floating **Ask AI** button or from
+**Ask AI about this page → Open NG Guide assistant**. The conversation remains available when
+the drawer is closed and reopened, but is kept only in the current page's browser memory and
+is lost on navigation or reload. **New chat** clears the current conversation.
 
 ## API contract
 
