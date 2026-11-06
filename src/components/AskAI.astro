@@ -39,50 +39,65 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 		url: string;
 	}
 
-	const SITE_ORIGIN = 'https://ng-guide.letsprogram.in';
+	const GUIDE_ORIGIN = 'https://ng-guide.letsprogram.in';
 
 	function escapeHtml(text: string): string {
 		return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 	}
 
-	function safeUrl(url: string): string | null {
+	function guideHref(url: string): string | null {
+		if (url.startsWith(GUIDE_ORIGIN)) return url.slice(GUIDE_ORIGIN.length) || '/';
 		if (url.startsWith('/') && !url.startsWith('//')) return url;
 		return /^https:\/\//.test(url) ? url : null;
 	}
 
-	/** Minimal Markdown renderer: everything is escaped first, then only a small set of known tags is produced. */
+	function inline(text: string): string {
+		return escapeHtml(text)
+			.replace(/`([^`]+)`/g, '<code>$1</code>')
+			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+			.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, url: string) => {
+				const href = guideHref(url.replace(/&amp;/g, '&'));
+				return href ? `<a href="${escapeHtml(href)}">${label}</a>` : label;
+			});
+	}
+
+	function renderProse(text: string): string {
+		const blocks: string[] = [];
+		for (const para of text.split(/\n{2,}/)) {
+			const lines = para.split('\n').filter((l) => l.trim());
+			if (!lines.length) continue;
+			if (lines.every((l) => /^\s*[-*] /.test(l))) {
+				blocks.push(`<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*] /, ''))}</li>`).join('')}</ul>`);
+			} else if (lines.every((l) => /^\s*\d+\. /.test(l))) {
+				blocks.push(`<ol>${lines.map((l) => `<li>${inline(l.replace(/^\s*\d+\. /, ''))}</li>`).join('')}</ol>`);
+			} else if (/^#{1,6} /.test(lines[0])) {
+				blocks.push(`<p><strong>${inline(lines[0].replace(/^#{1,6} /, ''))}</strong></p>`);
+				if (lines.length > 1) blocks.push(`<p>${lines.slice(1).map(inline).join('<br>')}</p>`);
+			} else {
+				blocks.push(`<p>${lines.map(inline).join('<br>')}</p>`);
+			}
+		}
+		return blocks.join('');
+	}
+
+	/** Escape first, then allow only a small set of generated tags. Unclosed fences stay escaped code. */
 	function renderMarkdown(markdown: string): string {
 		const blocks: string[] = [];
-		const fenced = markdown.split(/```/);
-		fenced.forEach((part, index) => {
-			if (index % 2 === 1) {
-				const code = part.replace(/^[\w-]*\n/, '');
-				blocks.push(`<pre><code>${escapeHtml(code.trimEnd())}</code></pre>`);
-				return;
-			}
-			for (const para of part.split(/\n{2,}/)) {
-				const lines = para.split('\n').filter((l) => l.trim());
-				if (!lines.length) continue;
-				const inline = (text: string) =>
-					escapeHtml(text)
-						.replace(/`([^`]+)`/g, '<code>$1</code>')
-						.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-						.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, url: string) => {
-							const href = safeUrl(url.replace(/&amp;/g, '&'));
-							return href ? `<a href="${escapeHtml(href)}">${label}</a>` : label;
-						});
-				if (lines.every((l) => /^\s*[-*] /.test(l))) {
-					blocks.push(`<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*] /, ''))}</li>`).join('')}</ul>`);
-				} else if (lines.every((l) => /^\s*\d+\. /.test(l))) {
-					blocks.push(`<ol>${lines.map((l) => `<li>${inline(l.replace(/^\s*\d+\. /, ''))}</li>`).join('')}</ol>`);
-				} else if (/^#{1,6} /.test(lines[0])) {
-					blocks.push(`<p><strong>${inline(lines[0].replace(/^#{1,6} /, ''))}</strong></p>`);
-					if (lines.length > 1) blocks.push(`<p>${lines.slice(1).map(inline).join('<br>')}</p>`);
-				} else {
-					blocks.push(`<p>${lines.map(inline).join('<br>')}</p>`);
-				}
-			}
-		});
+		const fence = /```[\w-]*\n?([\s\S]*?)```/g;
+		let last = 0;
+		for (const match of markdown.matchAll(fence)) {
+			const index = match.index ?? 0;
+			blocks.push(renderProse(markdown.slice(last, index)));
+			blocks.push(`<pre><code>${escapeHtml(match[1].replace(/\n$/, ''))}</code></pre>`);
+			last = index + match[0].length;
+		}
+		const rest = markdown.slice(last);
+		const unclosed = rest.indexOf('```');
+		if (unclosed === -1) blocks.push(renderProse(rest));
+		else {
+			blocks.push(renderProse(rest.slice(0, unclosed)));
+			blocks.push(`<pre><code>${escapeHtml(rest.slice(unclosed).replace(/^```[\w-]*\n?/, ''))}</code></pre>`);
+		}
 		return blocks.join('');
 	}
 
@@ -160,8 +175,10 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 					messages.scrollTop = messages.scrollHeight;
 				}
 				const links = sources
-					.filter((s) => s.url.startsWith(`${SITE_ORIGIN}/`) || (s.url.startsWith('/') && !s.url.startsWith('//')))
-					.map((s) => `<li><a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a></li>`)
+					.flatMap((s) => {
+						const href = guideHref(s.url);
+						return href ? [`<li><a href="${escapeHtml(href)}">${escapeHtml(s.title)}</a></li>`] : [];
+					})
 					.join('');
 				answerEl.innerHTML = renderMarkdown(answer) + (links ? `<p class="ask-sources-title">Sources</p><ul class="ask-sources">${links}</ul>` : '');
 				this.history.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
@@ -201,8 +218,10 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 	}
 	.ask-dialog {
 		width: min(42rem, calc(100vw - 2rem));
+		height: min(80vh, 46rem);
 		max-height: min(80vh, 46rem);
 		padding: 0;
+		overflow: hidden;
 		border: 1px solid var(--sl-color-gray-5);
 		border-radius: 1rem;
 		background: var(--sl-color-black);
@@ -237,7 +256,8 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 	}
 	.ask-messages {
 		flex: 1;
-		overflow-y: auto;
+		min-height: 0;
+		overflow: auto;
 		padding: 1rem;
 		display: flex;
 		flex-direction: column;
@@ -261,12 +281,14 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 	.ask-msg :global(p:last-child) {
 		margin-bottom: 0;
 	}
-	.ask-msg :global(pre) {
+	.ask-msg :global(pre),
+	.ask-msg pre {
 		margin: 0.5rem 0;
 		padding: 0.6rem;
 		border-radius: 0.5rem;
 		background: var(--sl-color-gray-6);
 		overflow-x: auto;
+		white-space: pre-wrap;
 		font-size: var(--sl-text-xs);
 	}
 	.ask-user {
@@ -315,5 +337,52 @@ const pageId = Astro.locals.starlightRoute.entry.id;
 		color: #fff;
 		font-weight: 600;
 		cursor: pointer;
+	}
+</style>
+
+<style is:global>
+	/* Messages are created in JavaScript, so they do not receive Astro's scoped class. */
+	ask-ai .ask-msg {
+		max-width: 92%;
+		padding: 0.6rem 0.85rem;
+		border-radius: 0.75rem;
+		line-height: 1.55;
+		overflow-wrap: anywhere;
+	}
+	ask-ai .ask-msg p {
+		margin: 0 0 0.5rem;
+	}
+	ask-ai .ask-msg p:last-child {
+		margin-bottom: 0;
+	}
+	ask-ai .ask-msg pre {
+		margin: 0.5rem 0;
+		padding: 0.75rem;
+		border-radius: 0.5rem;
+		background: var(--sl-color-gray-6);
+		overflow-x: auto;
+		white-space: pre-wrap;
+		font-size: var(--sl-text-xs);
+	}
+	ask-ai .ask-msg code {
+		font-family: var(--sl-font-mono);
+	}
+	ask-ai .ask-user {
+		align-self: flex-end;
+		background: var(--sl-color-accent-low);
+		color: var(--sl-color-white);
+	}
+	ask-ai .ask-assistant {
+		align-self: flex-start;
+		background: var(--sl-color-gray-6);
+	}
+	ask-ai .ask-sources-title {
+		margin-top: 0.6rem;
+		font-weight: 600;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	ask-ai .ask-error {
+		color: var(--sl-color-red-high, #f87171);
 	}
 </style>

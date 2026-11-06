@@ -118,15 +118,30 @@ function rateLimited(ip) {
 	return recent.length > config.rateLimit;
 }
 
+function isLocalOrigin(origin) {
+	try {
+		const { protocol, hostname } = new URL(origin);
+		if (protocol !== 'http:' && protocol !== 'https:') return false;
+		return (
+			hostname === 'localhost' ||
+			hostname === '127.0.0.1' ||
+			hostname === '::1' ||
+			hostname.endsWith('.local') ||
+			/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)
+		);
+	} catch {
+		return false;
+	}
+}
+
 function corsHeaders(origin) {
-	return config.allowedOrigins.includes(origin)
-		? {
-				'Access-Control-Allow-Origin': origin,
-				'Access-Control-Allow-Methods': 'POST, OPTIONS',
-				'Access-Control-Allow-Headers': 'Content-Type',
-				Vary: 'Origin',
-			}
-		: {};
+	if (!origin || (!config.allowedOrigins.includes(origin) && !isLocalOrigin(origin))) return {};
+	return {
+		'Access-Control-Allow-Origin': origin,
+		'Access-Control-Allow-Methods': 'POST, OPTIONS',
+		'Access-Control-Allow-Headers': 'Content-Type',
+		Vary: 'Origin',
+	};
 }
 
 async function readJson(req, limit = 16_000) {
