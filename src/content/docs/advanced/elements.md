@@ -1,544 +1,267 @@
 ---
 title: Angular Elements 🧩
-description: Create reusable web components with Angular Elements - framework-agnostic custom elements
+description: Turn Angular components into framework-agnostic custom elements (Web Components) with createApplication and createCustomElement in Angular 22.
 sidebar:
   order: 6
 ---
 
-Angular Elements allows you to package Angular components as **custom elements** (web components) that work in any HTML page, even outside Angular applications. Build once, use everywhere!
+**Angular Elements** (`@angular/elements`) packages an Angular component as a **custom element**, a standard Web Component that works in any HTML page: a CMS, a server-rendered site, a React or Vue app, or a plain `index.html`. The page just writes `<star-rating value="4"></star-rating>`, and Angular takes care of rendering, inputs, events and change detection.
 
-## 🎯 What are Angular Elements?
+## What you'll learn
 
-Angular Elements are **Angular components packaged as custom elements** - standard web components that work with any JavaScript framework or vanilla HTML.
+- When Angular Elements is (and isn't) the right tool
+- Creating custom elements with `createApplication()` and `createCustomElement()`
+- How inputs map to attributes and properties, and outputs to DOM events
+- Style isolation with Shadow DOM and content projection
+- TypeScript typings for custom elements
+- Building and embedding the bundle in another page
 
-**Key Features:**
-- **🌐 Framework Agnostic** - Use in React, Vue, or vanilla JS
-- **📦 Self-Contained** - All dependencies bundled
-- **🔄 Reusable** - Share across projects
-- **⚡ Lightweight** - Tree-shakeable bundles
+## When to use Angular Elements
 
-**Use Cases:**
-- Widget libraries for multiple frameworks
-- Micro frontends architecture
-- CMS content widgets
-- Third-party embeddable components
+| Good fit | Not a good fit |
+| --- | --- |
+| Embedding Angular widgets in non-Angular pages (CMS, legacy apps, static sites) | Reusing components **inside** an Angular app (just import the component) |
+| Sharing a widget across teams using different frameworks | Complex apps with routing, which are better as a full Angular app |
+| Gradual migration from another framework | Many tiny widgets on one page from *different* Angular builds |
 
-## 🚀 Getting Started
+## How it works
 
-### Installation
+`createCustomElement()` turns a component class into a custom element **class**. You register it with the browser's built-in `customElements.define()`. From then on, every time the browser sees that tag:
+
+1. it creates the element and an Angular component instance for it,
+2. attributes and properties are forwarded to the component's **inputs**,
+3. the component's **outputs** are dispatched as DOM `CustomEvent`s,
+4. when the element is removed from the DOM, the component is destroyed (after a short delay, so moving an element within the page doesn't destroy it).
+
+## Step 1: install
 
 ```bash
-ng add @angular/elements
+npm install @angular/elements
 ```
 
-This installs:
-- `@angular/elements` - Angular Elements package
-- `document-register-element` - Polyfill for older browsers
+## Step 2: write a normal component
 
-### Basic Custom Element
+Nothing special is needed. Use signal inputs and outputs as usual. Attribute values are always **strings**, so use input transforms such as `numberAttribute` and `booleanAttribute`.
 
-```typescript
-import { Component, input } from '@angular/core';
-import { createCustomElement } from '@angular/elements';
+```ts title="star-rating.ts"
+import {
+  Component, ViewEncapsulation, booleanAttribute, computed, input, numberAttribute, output,
+} from '@angular/core';
 
 @Component({
-  selector: 'app-hello',
-  template: `<h1>Hello, {{ name() }}!</h1>`
-})
-export class HelloComponent {
-  name = input<string>('World');
-}
-
-// Register as custom element
-const HelloElement = createCustomElement(HelloComponent, {
-  injector: inject(Injector)
-});
-
-customElements.define('hello-widget', HelloElement);
-```
-
-**Usage in HTML:**
-
-```html
-<hello-widget name="Angular"></hello-widget>
-```
-
-## 🎨 Real-World Examples
-
-<blockquote>
-<p><strong>Note:</strong> Angular Elements work with both standalone and module-based components.</p>
-</blockquote>
-
-### 1. **Counter Widget**
-
-Let's create a reusable counter widget.
-
-```typescript
-import { Component, signal, Injector, inject } from '@angular/core';
-import { createCustomElement } from '@angular/elements';
-
-@Component({
-  selector: 'app-counter',
+  selector: 'app-star-rating',
+  encapsulation: ViewEncapsulation.ShadowDom, // isolate styles from the host page
   template: `
-    <div class="counter">
-      <button (click)="decrement()">-</button>
-      <span>{{ count() }}</span>
-      <button (click)="increment()">+</button>
+    <div role="radiogroup" [attr.aria-label]="label()">
+      @for (star of stars(); track star) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="star === value()"
+          [class.filled]="star <= value()"
+          [disabled]="readonly()"
+          (click)="rated.emit(star)"
+        >
+          ★
+        </button>
+      }
     </div>
   `,
-  styles: [`
-    .counter {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-    button {
-      padding: 8px 16px;
-      font-size: 18px;
-      cursor: pointer;
-    }
-    span {
-      font-size: 24px;
-      min-width: 40px;
-      text-align: center;
-    }
-  `]
-})
-export class CounterComponent {
-  count = signal(0);
-  
-  increment() {
-    this.count.update(c => c + 1);
-  }
-  
-  decrement() {
-    this.count.update(c => c - 1);
-  }
-}
-
-// Register in main.ts or app config
-export function registerCounterElement() {
-  const injector = inject(Injector);
-  const CounterElement = createCustomElement(CounterComponent, { injector });
-  customElements.define('counter-widget', CounterElement);
-}
-```
-
-**Usage:**
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <script src="counter-widget.js"></script>
-</head>
-<body>
-  <h1>My Page</h1>
-  <counter-widget></counter-widget>
-</body>
-</html>
-```
-
-### 2. **User Card Widget**
-
-Let's create a user card component with inputs and outputs.
-
-```typescript
-import { Component, input, output, Injector, inject } from '@angular/core';
-import { createCustomElement } from '@angular/elements';
-
-interface User {
-  name: string;
-  email: string;
-  avatar: string;
-}
-
-@Component({
-  selector: 'app-user-card',
-  template: `
-    <div class="user-card">
-      <img [src]="user().avatar" [alt]="user().name">
-      <div class="info">
-        <h3>{{ user().name }}</h3>
-        <p>{{ user().email }}</p>
-        <button (click)="onContact()">Contact</button>
-      </div>
-    </div>
+  styles: `
+    button { background: none; border: none; font-size: 1.5rem; color: #ccc; cursor: pointer; }
+    button.filled { color: gold; }
   `,
-  styles: [`
-    .user-card {
-      display: flex;
-      gap: 16px;
-      padding: 16px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      max-width: 400px;
-    }
-    img {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-    }
-    .info {
-      flex: 1;
-    }
-    button {
-      margin-top: 8px;
-      padding: 8px 16px;
-      background: #1976d2;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-  `]
 })
-export class UserCardComponent {
-  user = input.required<User>();
-  contact = output<User>();
-  
-  onContact() {
-    this.contact.emit(this.user());
-  }
-}
+export class StarRating {
+  readonly value = input(0, { transform: numberAttribute });
+  readonly max = input(5, { transform: numberAttribute });
+  readonly readonly = input(false, { transform: booleanAttribute });
+  readonly label = input('Rating');
+  readonly rated = output<number>();
 
-// Register element
-export function registerUserCardElement() {
-  const injector = inject(Injector);
-  const UserCardElement = createCustomElement(UserCardComponent, { injector });
-  customElements.define('user-card', UserCardElement);
+  protected readonly stars = computed(() => Array.from({ length: this.max() }, (_, i) => i + 1));
 }
 ```
 
-**Usage:**
+## Step 3: register the element in `main.ts`
 
-```html
-<user-card id="userCard"></user-card>
+Instead of `bootstrapApplication()`, create the application environment with `createApplication()` (from `@angular/platform-browser`). It sets up the injector and providers without rendering a root component. Then pass its injector to `createCustomElement()`:
 
-<script>
-  const userCard = document.getElementById('userCard');
-  
-  // Set input
-  userCard.user = {
-    name: 'John Doe',
-    email: 'john@example.com',
-    avatar: '/avatar.jpg'
-  };
-  
-  // Listen to output
-  userCard.addEventListener('contact', (event) => {
-    console.log('Contact user:', event.detail);
-  });
-</script>
-```
-
-### 3. **Chart Widget**
-
-Let's create a chart widget that can be embedded anywhere.
-
-```typescript
-import { Component, input, effect, ElementRef, inject } from '@angular/core';
-import { createCustomElement } from '@angular/elements';
-
-@Component({
-  selector: 'app-chart',
-  template: `<canvas #canvas></canvas>`,
-  styles: [`
-    canvas {
-      max-width: 100%;
-      height: 300px;
-    }
-  `]
-})
-export class ChartComponent {
-  private el = inject(ElementRef);
-  
-  data = input.required<number[]>();
-  type = input<'bar' | 'line'>('bar');
-  
-  constructor() {
-    effect(() => {
-      this.renderChart();
-    });
-  }
-  
-  private renderChart() {
-    const canvas = this.el.nativeElement.querySelector('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    // Simple chart rendering (use Chart.js in production)
-    const data = this.data();
-    const max = Math.max(...data);
-    
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    data.forEach((value, index) => {
-      const height = (value / max) * canvas.height;
-      const x = (index * canvas.width) / data.length;
-      const width = canvas.width / data.length - 10;
-      
-      ctx.fillStyle = '#1976d2';
-      ctx.fillRect(x, canvas.height - height, width, height);
-    });
-  }
-}
-
-// Register element
-export function registerChartElement() {
-  const injector = inject(Injector);
-  const ChartElement = createCustomElement(ChartComponent, { injector });
-  customElements.define('chart-widget', ChartElement);
-}
-```
-
-**Usage:**
-
-```html
-<chart-widget id="chart" type="bar"></chart-widget>
-
-<script>
-  const chart = document.getElementById('chart');
-  chart.data = [10, 20, 30, 25, 40];
-</script>
-```
-
-## 🏗️ Building for Production
-
-### Build Configuration
-
-```typescript
-// main.ts
+```ts title="main.ts"
 import { createApplication } from '@angular/platform-browser';
 import { createCustomElement } from '@angular/elements';
-import { CounterComponent } from './counter.component';
+import { provideHttpClient } from '@angular/common/http';
+import { StarRating } from './app/star-rating';
+import { Greeting } from './app/greeting';
 
 createApplication({
-  providers: []
-}).then(appRef => {
-  const CounterElement = createCustomElement(CounterComponent, {
-    injector: appRef.injector
+  providers: [provideHttpClient()], // app-wide providers, like in app.config.ts
+})
+  .then((app) => {
+    customElements.define('star-rating', createCustomElement(StarRating, { injector: app.injector }));
+    customElements.define('hello-greeting', createCustomElement(Greeting, { injector: app.injector }));
+  })
+  .catch((err) => console.error(err));
+```
+
+- One `createApplication()` can register **many** elements. They share the same root injector, so a `@Service()` is a singleton across all of them.
+- Like `bootstrapApplication()`, `createApplication()` is **zoneless** by default (since v21). Signals, `output()` and `setInput()` all schedule change detection automatically.
+
+:::caution[Use a different tag name than the component selector]
+Register the element under a name that is **not** the component's `selector` (here `star-rating` vs `app-star-rating`). If they match and the component is also used in an Angular template, Angular can create two component instances for one element. Custom element names must contain a hyphen.
+:::
+
+## Step 4: use it anywhere
+
+```html title="any-page.html"
+<link rel="stylesheet" href="/widgets/styles.css" />
+<script type="module" src="/widgets/main.js"></script>
+
+<star-rating value="3" max="5" label="Rate this article"></star-rating>
+<hello-greeting name="Ada">Welcome back.</hello-greeting>
+
+<script type="module">
+  const rating = document.querySelector('star-rating');
+
+  rating.addEventListener('rated', (event) => {
+    console.log('User picked', event.detail, 'stars');
+    rating.value = event.detail; // set an input through a property
   });
-  
-  customElements.define('counter-widget', CounterElement);
+</script>
+```
+
+## Inputs, attributes and properties
+
+Each component input becomes **both** an HTML attribute and a JavaScript property:
+
+| Component | Attribute (strings) | Property (any type) |
+| --- | --- | --- |
+| `value = input(0)` | `value="3"` | `el.value = 3` |
+| `maxStars = input(5)` | `max-stars="10"` (camelCase → dash-case) | `el.maxStars = 10` |
+| `x = input('', { alias: 'myInputProp' })` | `my-input-prop="..."` | `el.myInputProp = '...'` |
+
+Properties can carry objects and arrays, which attributes can't.
+
+:::note[Changed in v21: signal inputs are plain properties]
+Since Angular 21, signal inputs are read and written like any other property: `el.value` returns the current value. Before v21 you had to call `el.value()` to read a signal input from outside. Update such code when upgrading.
+:::
+
+## Outputs become DOM events
+
+Each `output()` is dispatched as a `CustomEvent` whose **name is the output name** (or its alias) and whose **`detail`** is the emitted value:
+
+```ts
+// component
+readonly rated = output<number>();             // event "rated"
+readonly closed = output<void>({ alias: 'close' }); // event "close"
+```
+
+```ts
+// outside Angular
+el.addEventListener('rated', (event) => {
+  const stars = (event as CustomEvent<number>).detail;
 });
 ```
 
-### Angular.json Configuration
+The events don't bubble. Listen on the element itself.
 
-```json
-{
-  "projects": {
-    "elements": {
-      "architect": {
-        "build": {
-          "options": {
-            "outputHashing": "none",
-            "scripts": [],
-            "styles": []
-          },
-          "configurations": {
-            "production": {
-              "optimization": true,
-              "buildOptimizer": true
-            }
-          }
-        }
-      }
-    }
+## Styles and content projection
+
+- With `ViewEncapsulation.ShadowDom`, the component's styles live inside a shadow root, so host-page CSS can't break the widget and the widget's CSS can't leak out. CSS custom properties (`--brand-color`) still pass through, which makes them a good theming API.
+- With the default `Emulated` encapsulation, component styles are added to the document `<head>`.
+- Children written inside the tag are projected into the component's `<ng-content>` slots **once**, when the element is connected. Later changes to those children aren't re-projected. With Shadow DOM you can use a native `<slot>` instead, which stays live.
+
+```ts title="greeting.ts"
+@Component({
+  selector: 'app-greeting',
+  template: `<p>Hello, {{ name() }}! <ng-content /></p>`,
+})
+export class Greeting {
+  readonly name = input('friend');
+}
+```
+
+## TypeScript typings
+
+`document.createElement('star-rating')` returns a plain `HTMLElement`, because TypeScript doesn't know about your element. Teach it once by augmenting `HTMLElementTagNameMap` with `NgElement` and `WithProperties` from `@angular/elements`:
+
+```ts title="custom-elements.d.ts"
+import { NgElement, WithProperties } from '@angular/elements';
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'star-rating': NgElement & WithProperties<{ value: number; max: number; readonly: boolean; label: string }>;
   }
 }
 ```
 
-### Bundle Single File
+```ts
+const el = document.createElement('star-rating');
+el.value = 3;       // ✅ typed as number
+el.value = 'three'; // ❌ compile error
+```
+
+For one-off cases, cast instead: `document.querySelector('hello-greeting') as NgElement & WithProperties<{ name: string }>`.
+
+## Using custom elements inside Angular templates
+
+If an Angular app consumes custom elements (yours or someone else's), add `CUSTOM_ELEMENTS_SCHEMA` to the component that uses them so the compiler accepts the unknown tag:
+
+```ts
+@Component({
+  selector: 'app-host',
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  template: `<star-rating [value]="3" (rated)="onRated($event)"></star-rating>`,
+})
+export class Host {
+  onRated(e: Event) {
+    console.log((e as CustomEvent<number>).detail);
+  }
+}
+```
+
+## Building and embedding
+
+A dedicated project for your widgets keeps the bundle small:
 
 ```bash
-# Build the project
-ng build --configuration production
-
-# Concatenate files (using concat or similar tool)
-cat dist/elements/runtime.js \
-    dist/elements/polyfills.js \
-    dist/elements/main.js > widget.js
+ng new rating-widgets --routing=false --ssr=false --style=css
+cd rating-widgets
+npm install @angular/elements
 ```
 
-## 🔧 Advanced Patterns
+Replace `src/main.ts` with the `createApplication()` code above, then build:
 
-### Multiple Elements in One Package
-
-```typescript
-// elements.module.ts
-import { Injector, inject } from '@angular/core';
-import { createCustomElement } from '@angular/elements';
-import { CounterComponent } from './counter.component';
-import { UserCardComponent } from './user-card.component';
-import { ChartComponent } from './chart.component';
-
-export function registerAllElements() {
-  const injector = inject(Injector);
-  
-  const elements = [
-    { component: CounterComponent, tag: 'counter-widget' },
-    { component: UserCardComponent, tag: 'user-card' },
-    { component: ChartComponent, tag: 'chart-widget' }
-  ];
-  
-  elements.forEach(({ component, tag }) => {
-    const element = createCustomElement(component, { injector });
-    customElements.define(tag, element);
-  });
-}
+```bash
+ng build --output-hashing=none
 ```
 
-### Lazy Loading Elements
+`dist/rating-widgets/browser/` then contains `main.js` (plus lazy `chunk-*.js` files, if any) and `styles.css`. The application builder outputs **ES modules**, so:
 
-```typescript
-export async function loadCounterWidget() {
-  const { CounterComponent } = await import('./counter.component');
-  const injector = inject(Injector);
-  
-  const CounterElement = createCustomElement(CounterComponent, { injector });
-  customElements.define('counter-widget', CounterElement);
-}
+- load it with `<script type="module" src=".../main.js">`,
+- deploy all files from the folder together, because `main.js` imports its chunks by relative path,
+- include `styles.css` only if you use global styles.
 
-// Usage
-document.getElementById('loadBtn').addEventListener('click', () => {
-  loadCounterWidget();
-});
-```
+`--output-hashing=none` keeps stable file names for the embedding page. If you keep hashing on, use cache-busting through your deployment instead.
 
-### Communication Between Elements
+## Limitations and tips
 
-```typescript
-// Event bus service
-@Injectable({ providedIn: 'root' })
-export class EventBusService {
-  private events = new Subject<{ type: string; data: any }>();
-  
-  emit(type: string, data: any) {
-    this.events.next({ type, data });
-  }
-  
-  on(type: string) {
-    return this.events.pipe(
-      filter(event => event.type === type),
-      map(event => event.data)
-    );
-  }
-}
+- **Bundle size:** each Angular Elements build includes the Angular runtime. Several widgets from one build share it, but widgets from **separate** builds each ship their own copy. Prefer one build that registers all your elements.
+- **Inputs only, no two-way binding:** `model()` inputs work as inputs, and their changes are emitted as `<name>Change` events.
+- **Removing and re-adding:** the component is destroyed shortly after the element leaves the DOM. Re-adding it later creates a **new** component instance, so its state is lost.
+- **SSR:** custom elements are created in the browser. Server-rendered host pages show the tag empty until the script loads.
+- **Register once:** calling `customElements.define()` twice with the same name throws. Guard it with `if (!customElements.get('star-rating'))` when scripts may load twice.
 
-// Widget A
-@Component({
-  selector: 'app-sender',
-})
-export class SenderComponent {
-  private eventBus = inject(EventBusService);
-  
-  sendMessage() {
-    this.eventBus.emit('message', { text: 'Hello!' });
-  }
-}
+## Key takeaways
 
-// Widget B
-@Component({
-  selector: 'app-receiver',
-})
-export class ReceiverComponent {
-  private eventBus = inject(EventBusService);
-  
-  constructor() {
-    this.eventBus.on('message').subscribe(data => {
-      console.log('Received:', data);
-    });
-  }
-}
-```
+- `createApplication()` + `createCustomElement()` + `customElements.define()` turns any component into a Web Component.
+- Inputs map to dash-case attributes and camelCase properties. Outputs become `CustomEvent`s with the value in `detail`.
+- Since v21, signal inputs are read directly as properties (`el.value`).
+- Use Shadow DOM for style isolation and `HTMLElementTagNameMap` for typings.
+- Build with the application builder and load `main.js` as an ES module.
 
-## ✅ Best Practices
+## Next steps
 
-### 1. **Keep Elements Self-Contained**
-
-```typescript
-// ✅ Good - All dependencies included
-@Component({
-  selector: 'app-widget',
-  imports: [CommonModule, FormsModule],
-  template: `...`
-})
-export class WidgetComponent {}
-```
-
-### 2. **Use Attribute Inputs for Primitives**
-
-```typescript
-// ✅ Good - Simple attributes
-<my-widget count="5" title="Hello"></my-widget>
-
-// For complex objects, use properties
-const widget = document.querySelector('my-widget');
-widget.data = { complex: 'object' };
-```
-
-### 3. **Emit Custom Events**
-
-```typescript
-// ✅ Good - Use CustomEvent
-this.clicked.emit(data);
-
-// Translates to:
-element.dispatchEvent(new CustomEvent('clicked', { detail: data }));
-```
-
-### 4. **Handle Styles Properly**
-
-```typescript
-// ✅ Good - Encapsulated styles
-@Component({
-  selector: 'app-widget',
-  styles: [`
-    :host {
-      display: block;
-      /* Styles scoped to element */
-    }
-  `]
-})
-```
-
-### 5. **Provide Fallback Content**
-
-```html
-<!-- ✅ Good - Fallback for unsupported browsers -->
-<my-widget>
-  <p>Your browser doesn't support custom elements.</p>
-</my-widget>
-```
-
-## 🎯 Common Use Cases
-
-- **Widget Libraries** - Reusable UI components
-- **Micro Frontends** - Independent deployable modules
-- **CMS Integration** - Embeddable content widgets
-- **Third-Party Widgets** - Analytics, chat, forms
-- **Cross-Framework Components** - Use in React/Vue apps
-- **Legacy App Migration** - Gradual Angular adoption
-- **Marketing Widgets** - Embeddable promotional content
-
-## 🎓 Learning Checklist
-
-- [ ] Understand Angular Elements and web components
-- [ ] Create custom elements from Angular components
-- [ ] Handle inputs and outputs in custom elements
-- [ ] Build and bundle elements for production
-- [ ] Register multiple elements in one package
-- [ ] Implement lazy loading for elements
-- [ ] Handle cross-element communication
-- [ ] Deploy elements to CDN or npm
-
-## 🚀 Next Steps
-
-1. **[Micro Frontends](/advanced/micro-frontends/)** - Build micro frontend architectures
-2. **[Performance Optimization](/advanced/performance/)** - Optimize your applications
-3. **[Bundle Optimization](/advanced/bundle-optimization/)** - Reduce bundle sizes
-
----
-
-**Pro Tip**: Angular Elements are perfect for creating framework-agnostic widgets! Use them to build reusable components that work anywhere. Keep elements self-contained and well-documented for maximum reusability! 🧩
+- [Micro Frontends](/advanced/micro-frontends/): combine independently deployed apps
+- [Dynamic Components](/advanced/dynamic-components/): render components from code inside Angular
+- [Bundle Optimization](/advanced/bundle-optimization/): keep widget bundles small

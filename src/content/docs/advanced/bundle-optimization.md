@@ -157,11 +157,13 @@ import { DashboardModule } from './dashboard';
 ### 2. **Use Production Mode**
 
 ```bash
-# ✅ Always build for production
+# ✅ Production build (default in Angular CLI)
+ng build
+# or explicitly:
 ng build --configuration production
 
-# ❌ Avoid development builds
-ng build
+# 🛠️ Unminified development build with source maps
+ng build --configuration development
 ```
 
 ### 3. **Optimize Images**

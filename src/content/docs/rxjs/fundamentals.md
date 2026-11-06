@@ -1,452 +1,424 @@
 ---
 title: RxJS Fundamentals 🔄
-description: Master RxJS basics for Angular - reactive programming, streams, and asynchronous data handling
+description: Learn RxJS from zero for Angular 22 - streams, Observables, operators, subscriptions, and how RxJS fits next to signals.
 sidebar:
   order: 1
 ---
 
-RxJS (Reactive Extensions for JavaScript) is the backbone of Angular's reactive programming model. Learn how to work with data streams and handle asynchronous operations elegantly!
+RxJS (Reactive Extensions for JavaScript) is a library for working with **values that arrive over time**: clicks, keystrokes,
+HTTP responses, WebSocket messages, timers. Angular uses RxJS in `HttpClient`, the Router and Reactive Forms, and gives you
+ready-made bridges between RxJS and [signals](/modern/signals/).
 
-## 🎯 What is RxJS?
+This page gives you the mental model. The rest of the RxJS section builds on it step by step.
 
-**RxJS** is a library for **reactive programming** using Observables. Think of it as a way to work with data that arrives over time - like user clicks, HTTP responses, or timer events.
+## What you'll learn
 
-**Simple explanation:**
-- Instead of waiting for data, you **subscribe** to a stream
-- Data flows through **operators** that transform it
-- You react to data as it arrives
-- Clean, composable, and powerful!
+- What a stream is and why Observables exist
+- The building blocks: Observable, Observer, Subscription, operators, Subjects
+- How Observables differ from Promises and from signals
+- How to create Observables and transform them with `pipe()`
+- Where Angular uses RxJS, and how to clean up subscriptions the modern way
 
-**Key Concepts:**
+:::note[Which RxJS version?]
+New Angular 22 projects install **RxJS 7.8** (`"rxjs": "~7.8.0"` in `package.json`). Angular 22 supports
+`rxjs ^6.5.3 || ^7.4`. Everything in this section is written for RxJS 7.8. RxJS 8 is not released as stable, so
+we don't use any RxJS 8-only APIs.
+:::
 
-- **Observable** - A stream of data over time (like a river of values)
-- **Observer** - Listens to the Observable and reacts to values
-- **Subscription** - The connection between Observable and Observer
-- **Operators** - Functions that transform data (map, filter, etc.)
-- **Subject** - Special Observable that can multicast to many Observers
+## The big idea: streams
 
-## 🎯 Why RxJS in Angular?
+A **stream** is a sequence of values delivered over time. Think of a conveyor belt: items arrive one by one, and you
+decide what to do with each item as it arrives.
 
-Angular uses RxJS everywhere! Understanding it is essential for Angular development.
+```
+keystrokes:  --a----b--c--------d-->
+HTTP call:   -----------response|
+timer:       ----0----1----2----3-->
+```
 
-**Where you'll use RxJS:**
+That text notation is called a **marble diagram**. Time flows left to right, each letter is a value, `|` means
+"completed" and `#` means "errored". You'll see marble diagrams throughout this section.
 
-- **HTTP Requests** - All HTTP calls return Observables
-- **Forms** - Reactive forms emit value changes as Observables
-- **Router** - Navigation events are Observable streams
-- **Event Handling** - Convert DOM events to Observables
-- **State Management** - Share data reactively across components
+### Push vs pull
 
-**Benefits:**
+| | Single value | Multiple values |
+|---|---|---|
+| **Pull** (you ask for the value) | Function | Iterator / generator |
+| **Push** (the value is delivered to you) | Promise | **Observable** |
 
-- Handle async operations easily
-- Cancel requests when needed
-- Combine multiple data sources
-- Transform data on the fly
-- Prevent memory leaks
+An Observable is the "push, many values" corner of this table. A Promise gives you **one** value; an Observable can give
+you **zero, one, or many** values, and can finish (complete) or fail (error).
 
-## 🚀 Basic Observable
+## The building blocks
 
-### Creating Your First Observable
+| Concept | What it is | Analogy |
+|---|---|---|
+| **Observable** | A blueprint for a stream of values. Nothing happens until someone subscribes. | A YouTube video |
+| **Observer** | An object with `next`, `error` and `complete` callbacks that receives the values. | The viewer |
+| **Subscription** | The live connection between an Observable and an Observer. Call `unsubscribe()` to stop. | Pressing play (and stop) |
+| **Operator** | A function that takes an Observable and returns a new, transformed Observable. | A video filter |
+| **Subject** | An Observable you can also push values into, shared by many subscribers. | A live stream |
+| **Scheduler** | Controls *when* work happens (sync, microtask, timer, animation frame). | The clock |
 
-```typescript
+## Your first Observable
+
+```ts
 import { Observable } from 'rxjs';
 
-// Create a simple Observable
-const numbers$ = new Observable<number>(subscriber => {
+const numbers$ = new Observable<number>((subscriber) => {
   subscriber.next(1);
   subscriber.next(2);
   subscriber.next(3);
   subscriber.complete();
 });
 
-// Subscribe to the Observable
 numbers$.subscribe({
   next: (value) => console.log('Value:', value),
-  complete: () => console.log('Complete!')
+  error: (err) => console.error('Error:', err),
+  complete: () => console.log('Done!'),
 });
 
-// Output:
 // Value: 1
 // Value: 2
 // Value: 3
-// Complete!
+// Done!
 ```
 
-### Observable vs Promise
+- The function passed to `new Observable()` runs **each time** someone subscribes.
+- `subscriber.next(value)` sends a value, `subscriber.complete()` ends the stream, `subscriber.error(err)` fails it.
+- After `complete()` or `error()`, no more values are delivered.
 
-```typescript
-// ❌ Promise - Single value, eager execution
-const promise = new Promise((resolve) => {
-  console.log('Promise executed immediately!');
+:::tip[Passing only a `next` callback is fine]
+`numbers$.subscribe((value) => console.log(value))` is still valid. What's **deprecated** is passing three separate
+callbacks: `subscribe(next, error, complete)`. When you need `error` or `complete`, pass an **observer object** as above.
+:::
+
+### Observables are lazy
+
+Nothing runs until you subscribe, and every subscriber gets its own execution:
+
+```ts
+import { Observable } from 'rxjs';
+
+const random$ = new Observable<number>((subscriber) => {
+  console.log('Producing a value…');
+  subscriber.next(Math.random());
+  subscriber.complete();
+});
+
+// Nothing logged yet — no one has subscribed.
+
+random$.subscribe((n) => console.log('A got', n));
+random$.subscribe((n) => console.log('B got', n)); // A and B get DIFFERENT numbers
+```
+
+This "one execution per subscriber" behaviour is called a **cold** Observable. `HttpClient` requests are cold: two
+subscriptions send **two** HTTP requests. You'll learn how to share one execution in [Subjects](/rxjs/subjects/).
+
+### The lifecycle and cleanup
+
+The function you pass to `new Observable()` can return a **teardown** function. RxJS calls it when the subscriber
+unsubscribes, or when the Observable completes or errors.
+
+```ts
+import { Observable } from 'rxjs';
+
+const ticks$ = new Observable<number>((subscriber) => {
+  let count = 0;
+  const id = setInterval(() => subscriber.next(count++), 1000);
+
+  return () => {
+    clearInterval(id); // teardown: stop the timer
+    console.log('Cleaned up');
+  };
+});
+
+const subscription = ticks$.subscribe((n) => console.log('tick', n));
+
+setTimeout(() => subscription.unsubscribe(), 3500);
+// tick 0, tick 1, tick 2, Cleaned up
+```
+
+If you forget to unsubscribe from an endless stream like this, the timer keeps running forever — a **memory leak**.
+Angular gives you tools so that you rarely call `unsubscribe()` yourself (see [Cleaning up](#cleaning-up-subscriptions-in-angular)).
+
+## Observable vs Promise
+
+```ts
+import { Observable } from 'rxjs';
+
+const promise = new Promise<number>((resolve) => {
+  console.log('Promise runs immediately (eager)');
   resolve(42);
 });
 
-// ✅ Observable - Multiple values, lazy execution
-const observable$ = new Observable(subscriber => {
-  console.log('Observable executed only when subscribed!');
+const observable$ = new Observable<number>((subscriber) => {
+  console.log('Observable runs only when subscribed (lazy)');
   subscriber.next(42);
+  subscriber.complete();
 });
 
-// Observable doesn't execute until subscribed
-observable$.subscribe(value => console.log(value));
+observable$.subscribe((value) => console.log(value));
 ```
 
-## 🎨 RxJS in Angular Components
+| | Promise | Observable |
+|---|---|---|
+| Values | Exactly one | Zero, one, or many |
+| Starts | Immediately (eager) | On `subscribe()` (lazy) |
+| Cancel | Not built in | `unsubscribe()` |
+| Sharing | Always shared | Cold by default (one execution per subscriber) |
+| Operators | `then`/`catch` | 100+ operators (`map`, `filter`, `switchMap`…) |
+| Sync/async | Always async | Can be sync or async |
 
-### 1. **HTTP Requests**
+### Converting between them
 
-Let's use RxJS with Angular's HttpClient.
+```ts
+import { firstValueFrom, from, lastValueFrom, of } from 'rxjs';
 
-```typescript
-import { Component, inject, signal } from '@angular/core';
+// Promise → Observable
+const fromPromise$ = from(fetch('/api/health'));
+
+// Observable → Promise
+async function demo() {
+  const first = await firstValueFrom(of(1, 2, 3)); // 1
+  const last = await lastValueFrom(of(1, 2, 3)); // 3
+  console.log(first, last);
+}
+```
+
+:::caution[`toPromise()` is deprecated]
+`observable.toPromise()` is deprecated in RxJS 7 and will be removed in RxJS 8. Use `firstValueFrom()` (resolve with the
+first value) or `lastValueFrom()` (resolve with the last value when the Observable completes). Both reject with
+`EmptyError` if the Observable completes without emitting — pass `{ defaultValue }` to avoid that.
+:::
+
+## Creating Observables
+
+You rarely call `new Observable()` yourself. RxJS ships **creation functions**:
+
+```ts
+import { defer, EMPTY, from, fromEvent, interval, NEVER, of, range, throwError, timer } from 'rxjs';
+
+of(1, 2, 3); // emits 1, 2, 3 then completes
+from([10, 20, 30]); // array, Promise, iterable, or another Observable
+from(Promise.resolve('hi')); // emits 'hi' then completes
+range(1, 5); // 1, 2, 3, 4, 5
+interval(1000); // 0, 1, 2… every second, forever
+timer(2000); // emits 0 after 2s, then completes
+timer(0, 1000); // emits 0 immediately, then every second
+fromEvent<MouseEvent>(document, 'click'); // DOM events
+defer(() => from(fetch('/api'))); // creates the source lazily, per subscriber
+throwError(() => new Error('Oops')); // errors immediately
+EMPTY; // completes immediately, no values
+NEVER; // never emits, never completes
+```
+
+| Function | Use it for |
+|---|---|
+| `of(...values)` | A fixed list of values, mocks, fallbacks |
+| `from(input)` | Converting arrays, Promises, iterables |
+| `interval(ms)` / `timer(due, period?)` | Polling, countdowns, delays |
+| `fromEvent(target, name)` | Events on `window`/`document` or third-party emitters |
+| `defer(factory)` | Make Promise-based code lazy and retryable |
+| `throwError(() => err)` | Returning an error inside `catchError`/`switchMap` |
+| `EMPTY` / `NEVER` | "Do nothing" branches |
+
+:::caution[Always pass a factory to `throwError`]
+`throwError(new Error('x'))` (passing the error directly) is deprecated. Write `throwError(() => new Error('x'))`.
+:::
+
+## Operators and `pipe()`
+
+Operators are functions you chain with `pipe()`. Each operator returns a **new** Observable — the original is never changed.
+
+```ts
+import { filter, map, of } from 'rxjs';
+
+of(1, 2, 3, 4, 5)
+  .pipe(
+    filter((n) => n % 2 === 0), // keep even numbers
+    map((n) => n * 10), // multiply by 10
+  )
+  .subscribe((n) => console.log(n));
+
+// 20
+// 40
+```
+
+```
+source:   -1-2-3-4-5|
+filter:   ---2---4--|
+map:      ---20--40-|
+```
+
+Import operators straight from `'rxjs'` (supported since RxJS 7.2). The older `'rxjs/operators'` path still works,
+but new code doesn't need it.
+
+The operators you'll use most:
+
+| Category | Operators | Page |
+|---|---|---|
+| Transform | `map`, `scan`, `switchMap`, `mergeMap`, `concatMap`, `exhaustMap` | [Transformation](/rxjs/transformation-operators/) |
+| Filter | `filter`, `debounceTime`, `distinctUntilChanged`, `take`, `first` | [Filtering](/rxjs/filtering-operators/) |
+| Combine | `combineLatest`, `forkJoin`, `merge`, `withLatestFrom` | [Combination](/rxjs/combination-operators/) |
+| Errors | `catchError`, `retry`, `finalize` | [Error handling](/rxjs/error-handling/) |
+| Side effects | `tap` | everywhere |
+
+## Where Angular uses RxJS
+
+| Angular API | What you get |
+|---|---|
+| `HttpClient.get()` / `post()`… | A cold Observable that emits one response and completes |
+| `Router.events` | A stream of navigation events |
+| `ActivatedRoute.paramMap`, `queryParamMap`, `data` | Observables of route state |
+| `FormControl.valueChanges`, `statusChanges`, `events` | Streams of Reactive Forms changes |
+| `@angular/core/rxjs-interop` | `toSignal`, `toObservable`, `takeUntilDestroyed`, `rxResource`, `outputFromObservable`, `outputToObservable` |
+
+### Signals or RxJS?
+
+Modern Angular uses **both**. A good rule of thumb:
+
+| Use **signals** for… | Use **RxJS** for… |
+|---|---|
+| State that has a current value (`count`, `user`, `filters`) | Events over time (keystrokes, clicks, WebSocket messages) |
+| Derived values (`computed()`) | Time-based logic (`debounceTime`, `throttleTime`, `interval`) |
+| What the template reads | Racing, cancelling, retrying async work (`switchMap`, `retry`) |
+| Simple async reads (`resource`, `httpResource`) | Combining many async sources |
+
+Then convert at the boundary with `toSignal()` (Observable → signal) and `toObservable()` (signal → Observable).
+
+## A first Angular example
+
+Here's a search box that waits until the user stops typing, then shows the term. RxJS handles the timing, a signal feeds
+the template.
+
+```ts title="search-box.ts"
+import { Component } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { debounceTime, distinctUntilChanged, map } from 'rxjs';
+
+@Component({
+  selector: 'app-search-box',
+  imports: [ReactiveFormsModule],
+  template: `
+    <input [formControl]="search" placeholder="Search…" />
+    <p>Searching for: {{ term() }}</p>
+  `,
+})
+export class SearchBox {
+  protected readonly search = new FormControl('', { nonNullable: true });
+
+  protected readonly term = toSignal(
+    this.search.valueChanges.pipe(
+      map((value) => value.trim()),
+      debounceTime(300), // wait 300 ms after the last keystroke
+      distinctUntilChanged(), // ignore repeats
+    ),
+    { initialValue: '' },
+  );
+}
+```
+
+`toSignal()` subscribes for you and **unsubscribes automatically** when the component is destroyed. Components are
+OnPush by default since Angular 22, and signals tell Angular exactly when to re-render.
+
+And an HTTP request — `HttpClient` returns an Observable:
+
+```ts title="user-list.ts"
+import { Component, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 interface User {
   id: number;
   name: string;
-  email: string;
 }
 
 @Component({
-  selector: 'app-users',
+  selector: 'app-user-list',
   template: `
-    <div class="users">
-      <h2>Users</h2>
-      
-      @if (loading()) {
-        <p>Loading...</p>
-      }
-      
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
-      
-      @for (user of users(); track user.id) {
-        <div class="user-card">
-          <h3>{{ user.name }}</h3>
-          <p>{{ user.email }}</p>
-        </div>
-      }
-    </div>
-  `
-})
-export class UsersComponent {
-  private http = inject(HttpClient);
-  
-  users = signal<User[]>([]);
-  loading = signal(false);
-  error = signal<string | null>(null);
-
-  ngOnInit() {
-    this.loadUsers();
-  }
-
-  loadUsers() {
-    this.loading.set(true);
-    
-    // HttpClient returns an Observable
-    this.http.get<User[]>('https://api.example.com/users')
-      .subscribe({
-        next: (data) => {
-          this.users.set(data);
-          this.loading.set(false);
-        },
-        error: (err) => {
-          this.error.set('Failed to load users');
-          this.loading.set(false);
-        }
-      });
-  }
-}
-```
-
-### 2. **Reactive Forms**
-
-Let's use RxJS with reactive forms.
-
-```typescript
-import { Component, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-
-@Component({
-  selector: 'app-search',
-  imports: [ReactiveFormsModule],
-  template: `
-    <div class="search">
-      <input 
-        [formControl]="searchControl" 
-        placeholder="Search..."
-      >
-      
-      <div class="results">
-        <p>Searching for: {{ searchTerm() }}</p>
-      </div>
-    </div>
-  `
-})
-export class SearchComponent {
-  searchControl = new FormControl('');
-  searchTerm = signal('');
-
-  ngOnInit() {
-    // Listen to form value changes
-    this.searchControl.valueChanges
-      .pipe(
-        debounceTime(300),           // Wait 300ms after typing
-        distinctUntilChanged()       // Only if value changed
-      )
-      .subscribe(value => {
-        this.searchTerm.set(value || '');
-        this.performSearch(value || '');
-      });
-  }
-
-  performSearch(term: string) {
-    console.log('Searching for:', term);
-    // Perform API call here
-  }
-}
-```
-
-### 3. **Event Streams**
-
-Let's handle DOM events as Observables.
-
-```typescript
-import { Component, ElementRef, viewChild, signal } from '@angular/core';
-import { fromEvent } from 'rxjs';
-import { throttleTime, map } from 'rxjs/operators';
-
-@Component({
-  selector: 'app-click-tracker',
-  template: `
-    <div class="tracker">
-      <button #clickBtn>Click Me!</button>
-      <p>Clicks: {{ clickCount() }}</p>
-      <p>Position: {{ position() }}</p>
-    </div>
-  `
-})
-export class ClickTrackerComponent {
-  clickBtn = viewChild<ElementRef>('clickBtn');
-  
-  clickCount = signal(0);
-  position = signal('');
-
-  ngAfterViewInit() {
-    const button = this.clickBtn()?.nativeElement;
-    
-    if (button) {
-      // Convert DOM event to Observable
-      fromEvent<MouseEvent>(button, 'click')
-        .pipe(
-          throttleTime(1000),  // Throttle clicks to once per second
-          map(event => ({
-            x: event.clientX,
-            y: event.clientY
-          }))
-        )
-        .subscribe(pos => {
-          this.clickCount.update(count => count + 1);
-          this.position.set(`X: ${pos.x}, Y: ${pos.y}`);
-        });
+    @for (user of users(); track user.id) {
+      <p>{{ user.name }}</p>
+    } @empty {
+      <p>Loading…</p>
     }
-  }
-}
-```
-
-## 🎨 Creation Operators
-
-### Common Ways to Create Observables
-
-```typescript
-import { 
-  of, from, interval, timer, 
-  fromEvent, ajax 
-} from 'rxjs';
-
-// 1. of() - Emit values in sequence
-of(1, 2, 3, 4, 5).subscribe(console.log);
-
-// 2. from() - Convert array/promise to Observable
-from([10, 20, 30]).subscribe(console.log);
-
-// 3. interval() - Emit values at intervals
-interval(1000).subscribe(val => console.log('Tick:', val));
-
-// 4. timer() - Emit after delay
-timer(2000).subscribe(() => console.log('2 seconds passed'));
-
-// 5. fromEvent() - Convert DOM events
-const clicks$ = fromEvent(document, 'click');
-clicks$.subscribe(event => console.log('Clicked!'));
-
-// 6. ajax() - HTTP requests
-ajax('https://api.example.com/data')
-  .subscribe(response => console.log(response));
-```
-
-## ✅ Best Practices
-
-### 1. **Always Unsubscribe**
-
-```typescript
-import { Component, OnDestroy } from '@angular/core';
-import { Subscription, interval } from 'rxjs';
-
-@Component({
-  selector: 'app-timer',
-  template: `<p>Timer: {{ count }}</p>`
+  `,
 })
-export class TimerComponent implements OnDestroy {
-  count = 0;
-  private subscription!: Subscription;
+export class UserList {
+  private readonly http = inject(HttpClient);
 
-  ngOnInit() {
-    // ✅ Store subscription
-    this.subscription = interval(1000)
-      .subscribe(val => this.count = val);
-  }
-
-  ngOnDestroy() {
-    // ✅ Unsubscribe to prevent memory leaks
-    this.subscription.unsubscribe();
-  }
+  protected readonly users = toSignal(this.http.get<User[]>('/api/users'), { initialValue: [] });
 }
 ```
 
-### 2. **Use Async Pipe**
+:::tip
+For plain "load this data" cases, [`httpResource`](/modern/http-resource-api/) also gives you loading and error signals
+without writing any RxJS. Reach for RxJS when you need operators such as `debounceTime`, `switchMap` or `retry`.
+:::
 
-```typescript
-import { Component } from '@angular/core';
-import { Observable, interval } from 'rxjs';
-import { map } from 'rxjs/operators';
-import { AsyncPipe } from '@angular/common';
+## Cleaning up subscriptions in Angular
 
-@Component({
-  selector: 'app-timer',
-  imports: [AsyncPipe],
-  template: `
-    <!-- ✅ Async pipe auto-unsubscribes -->
-    <p>Timer: {{ timer$ | async }}</p>
-  `
-})
-export class TimerComponent {
-  timer$: Observable<number> = interval(1000)
-    .pipe(map(val => val + 1));
-}
-```
+Every `subscribe()` you write is a resource you own. Use one of these, in order of preference:
 
-### 3. **Use takeUntilDestroyed**
+| Technique | When |
+|---|---|
+| `toSignal(obs$)` | You want to show the value in a template or use it in `computed()` |
+| `async` pipe | You keep an Observable and render it with `{{ obs$ \| async }}` |
+| `takeUntilDestroyed()` | You must `subscribe()` for a side effect (logging, navigation, saving) |
+| Nothing | The Observable completes on its own (e.g. a single `HttpClient` call) |
 
-```typescript
+```ts title="clock.ts"
 import { Component, signal } from '@angular/core';
-import { interval } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { interval } from 'rxjs';
 
 @Component({
-  selector: 'app-timer',
-  template: `<p>Timer: {{ count() }}</p>`
+  selector: 'app-clock',
+  template: `<p>Seconds: {{ seconds() }}</p>`,
 })
-export class TimerComponent {
-  count = signal(0);
+export class Clock {
+  protected readonly seconds = signal(0);
 
   constructor() {
-    // ✅ Auto-unsubscribes when component destroys
     interval(1000)
-      .pipe(takeUntilDestroyed())
-      .subscribe(val => this.count.set(val));
+      .pipe(takeUntilDestroyed()) // unsubscribes when the component is destroyed
+      .subscribe((n) => this.seconds.set(n + 1));
   }
 }
 ```
 
-### 4. **Naming Convention**
+`takeUntilDestroyed()` without arguments must be called in an **injection context** (a constructor or field initializer).
+Elsewhere, pass a `DestroyRef`: `takeUntilDestroyed(this.destroyRef)`. More in [RxJS Patterns in Angular](/rxjs/angular-patterns/).
 
-```typescript
-// ✅ Good - Use $ suffix for Observables
-const users$ = this.http.get<User[]>('/api/users');
-const searchTerm$ = this.searchControl.valueChanges;
+## Naming convention: the `$` suffix
 
-// ❌ Avoid - No clear indication it's an Observable
-const users = this.http.get<User[]>('/api/users');
+End Observable variable names with `$` so readers can tell streams from plain values and signals:
+
+```ts
+const users$ = this.http.get<User[]>('/api/users'); // Observable
+const users = toSignal(users$, { initialValue: [] }); // Signal
 ```
 
-### 5. **Error Handling**
+## Common mistakes
 
-```typescript
-import { catchError, of } from 'rxjs';
+- **Forgetting to subscribe.** `this.http.post(...)` does nothing until something subscribes (or `toSignal`/`async` pipe does it for you).
+- **Subscribing twice by accident.** Each subscription to a cold Observable re-runs it — two subscriptions to an HTTP call send two requests.
+- **Nesting `subscribe()` inside `subscribe()`.** Use a flattening operator like `switchMap` instead ([Higher-order Observables](/rxjs/higher-order-observables/)).
+- **Leaking endless streams.** `interval`, `fromEvent`, `valueChanges` and Router events never complete — always clean them up.
+- **Using deprecated APIs.** `toPromise()`, `subscribe(next, error, complete)` and `throwError(value)` will be removed in RxJS 8.
 
-// ✅ Good - Handle errors gracefully
-this.http.get<User[]>('/api/users')
-  .pipe(
-    catchError(error => {
-      console.error('Error:', error);
-      return of([]); // Return empty array as fallback
-    })
-  )
-  .subscribe(users => console.log(users));
-```
+## Key takeaways
 
-## 🎯 Observable Lifecycle
+- An Observable is a lazy, cancellable stream of zero or more values.
+- Subscribing starts the work; unsubscribing (or completion) runs the teardown.
+- Operators are chained with `pipe()` and always return new Observables.
+- In Angular 22, keep **state in signals** and use **RxJS for events, timing and async coordination**; bridge with `toSignal`/`toObservable`.
+- Prefer `toSignal`, the `async` pipe or `takeUntilDestroyed` over manual `unsubscribe()`.
 
-```typescript
-import { Observable } from 'rxjs';
+## Next steps
 
-const observable$ = new Observable(subscriber => {
-  console.log('1. Observable created');
-  
-  subscriber.next('Hello');
-  subscriber.next('World');
-  
-  // Cleanup function
-  return () => {
-    console.log('4. Cleanup/Unsubscribe');
-  };
-});
-
-console.log('2. Before subscribe');
-
-const subscription = observable$.subscribe({
-  next: (value) => console.log('3. Received:', value),
-  complete: () => console.log('Complete'),
-  error: (err) => console.error('Error:', err)
-});
-
-console.log('5. After subscribe');
-
-// Later...
-subscription.unsubscribe();
-
-// Output:
-// 2. Before subscribe
-// 1. Observable created
-// 3. Received: Hello
-// 3. Received: World
-// 5. After subscribe
-// 4. Cleanup/Unsubscribe
-```
-
-## 🎓 Learning Checklist
-
-- [ ] Understand Observable vs Promise
-- [ ] Create Observables with creation operators
-- [ ] Subscribe and unsubscribe properly
-- [ ] Use async pipe in templates
-- [ ] Handle errors in Observables
-- [ ] Use takeUntilDestroyed for cleanup
-- [ ] Follow naming conventions ($ suffix)
-- [ ] Work with HttpClient Observables
-- [ ] Handle form value changes
-- [ ] Convert DOM events to Observables
-
-## 🚀 Next Steps
-
-1. **[Observables & Observers](/rxjs/observables/)** - Deep dive into Observables
-2. **[Subjects & BehaviorSubject](/rxjs/subjects/)** - Multicast Observables
-3. **[Transformation Operators](/rxjs/transformation-operators/)** - Transform data streams
-
----
-
-**Pro Tip**: RxJS has a learning curve, but it's essential for Angular! Start with simple use cases like HTTP requests and form handling. Use the async pipe whenever possible to avoid manual subscription management! 🔄
+- [Observables & Observers](/rxjs/observables/) — creation, observers, hot vs cold in depth
+- [Subjects & BehaviorSubject](/rxjs/subjects/) — multicasting and sharing
+- [Transformation Operators](/rxjs/transformation-operators/) — `map`, `scan`, `switchMap` and friends
+- [Signals](/modern/signals/) — Angular's reactive state primitive

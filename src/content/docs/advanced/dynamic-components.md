@@ -1,879 +1,491 @@
 ---
 title: Dynamic Components 🔄
-description: Load and manage components dynamically at runtime in Angular
+description: Render components chosen at runtime in Angular 22 with @defer, NgComponentOutlet, ViewContainerRef.createComponent, createComponent() and the bindings API.
 sidebar:
   order: 2
 ---
 
-Dynamic components allow you to load components at runtime based on user actions, data, or application state. This powerful feature enables flexible, data-driven UIs and plugin architectures.
+Most of the time you know which component to show, so you put `<app-user-card />` in a template. Sometimes the component is only known **at runtime**: a dashboard built from user settings, a CMS that returns "render a `hero` block here", a toast or dialog opened from a service, or a plugin loaded later. That's what dynamic components are for.
 
-## 🎯 What are Dynamic Components?
+Angular 22 gives you several tools for this. Picking the right one is half the job.
 
-Dynamic components are components that are **created and inserted into the DOM at runtime**, rather than being declared in templates at compile time. They're perfect for:
+## What you'll learn
 
-- **Modal dialogs** - Show different content based on context
-- **Tab systems** - Load tab content on demand
-- **Plugin architectures** - Load features dynamically
-- **Dashboard widgets** - User-configurable layouts
-- **Form builders** - Dynamic form fields
-- **Notification systems** - Different notification types
+- Which API to use: `@defer`, `@switch`, `NgComponentOutlet`, `ViewContainerRef` or `createComponent()`
+- Passing inputs, content and injectors to `NgComponentOutlet`
+- Creating components from code with `ViewContainerRef.createComponent()`
+- The bindings API: `inputBinding()`, `outputBinding()`, `twoWayBinding()` and `directives`
+- Rendering outside the component tree (toasts, overlays) with `createComponent()`
+- Lazy loading, cleanup and error handling
 
-## 🚀 Basic Dynamic Component Loading
+## Choosing the right tool
 
-### Using ViewContainerRef
+| You want to... | Use |
+| --- | --- |
+| Lazy load a component you already know about | [`@defer`](/modern/control-flow/) |
+| Pick one of a few known components | `@if` / `@switch` in the template |
+| Render a component **type** stored in a variable, declaratively | `NgComponentOutlet` |
+| Create, insert, move or remove components from TypeScript at a specific place | `ViewContainerRef.createComponent()` |
+| Render a component **outside** any view (attached to `document.body`) | `createComponent()` + `ApplicationRef.attachView()` |
+| Ship a component to non-Angular pages | [Angular Elements](/advanced/elements/) |
 
-```typescript
-import { Component, ViewContainerRef, inject } from '@angular/core';
-import { WelcomeComponent } from './welcome.component';
+:::caution[`ComponentFactoryResolver` was removed in v22]
+`ComponentFactoryResolver` and `ComponentFactory` no longer exist in Angular 22. Pass the component class directly instead:
 
-@Component({
-  selector: 'app-container',
-  template: `
-    <div class="container">
-      <h2>Dynamic Component Container</h2>
-      <button (click)="loadComponent()">Load Component</button>
-      <button (click)="clear()">Clear</button>
-    </div>
-  `
-})
-export class ContainerComponent {
-  private viewContainer = inject(ViewContainerRef);
+```ts del={1,2} ins={3}
+const factory = this.resolver.resolveComponentFactory(Alert);
+const ref = this.vcr.createComponent(factory);
+const ref = this.vcr.createComponent(Alert);
+```
 
-  loadComponent() {
-    // Clear existing components
-    this.viewContainer.clear();
-    
-    // Create and insert the component
-    const componentRef = this.viewContainer.createComponent(WelcomeComponent);
-    
-    // Optionally set inputs
-    componentRef.setInput('username', 'John Doe');
-  }
+Outside of a view container, use the standalone `createComponent()` function (shown [below](#rendering-outside-the-component-tree-with-createcomponent)).
+:::
 
-  clear() {
-    this.viewContainer.clear();
+## Start simple: `@defer` and `@switch`
+
+If the set of components is known, you don't need any dynamic API. Choose with control flow, and let `@defer` split the code into a lazy chunk:
+
+```html
+@switch (block().type) {
+  @case ('hero') { <app-hero-block [data]="block()" /> }
+  @case ('gallery') {
+    @defer (on viewport) {
+      <app-gallery-block [data]="block()" />
+    } @placeholder {
+      <div class="gallery-skeleton"></div>
+    }
   }
 }
 ```
 
-### Component to Load
+Everything inside `@defer` is loaded only when the trigger fires, and the bindings stay normal, type-checked template bindings. Use the APIs below only when the component **type itself** comes from data or code.
 
-```typescript
+## `NgComponentOutlet`: dynamic component in a template
+
+`NgComponentOutlet` (from `@angular/common`) renders whatever component type you give it.
+
+```ts title="profile-card.ts"
+import { Component, computed, input } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
+import { AdminBio } from './admin-bio';
+import { StandardBio } from './standard-bio';
+import { User } from './user';
+
+@Component({
+  selector: 'app-profile-card',
+  imports: [NgComponentOutlet],
+  template: `
+    <h2>{{ user().name }}</h2>
+    <ng-container *ngComponentOutlet="bioComponent(); inputs: { user: user() }" />
+  `,
+})
+export class ProfileCard {
+  readonly user = input.required<User>();
+  protected readonly bioComponent = computed(() => (this.user().isAdmin ? AdminBio : StandardBio));
+}
+```
+
+```ts title="admin-bio.ts"
 import { Component, input } from '@angular/core';
+import { User } from './user';
 
 @Component({
-  selector: 'app-welcome',
-  template: `
-    <div class="welcome">
-      <h3>Welcome, {{ username() }}!</h3>
-      <p>This component was loaded dynamically.</p>
-    </div>
-  `
+  selector: 'app-admin-bio',
+  template: `<p>👑 {{ user().name }} is an administrator.</p>`,
 })
-export class WelcomeComponent {
-  username = input<string>('Guest');
+export class AdminBio {
+  readonly user = input.required<User>();
 }
 ```
 
-## 🎨 Real-World Examples
+When `bioComponent()` changes, the old component is destroyed and the new one is created. When the `inputs` object changes, the inputs are updated on the existing instance.
 
+### All the options
 
+| Microsyntax key | Input | Purpose |
+| --- | --- | --- |
+| (main value) | `ngComponentOutlet` | Component class (or `null` to render nothing) |
+| `inputs` | `ngComponentOutletInputs` | Object of input values (`{ name: value }`) |
+| `injector` | `ngComponentOutletInjector` | Custom parent injector |
+| `environmentInjector` | `ngComponentOutletEnvironmentInjector` | Custom environment injector |
+| `content` | `ngComponentOutletContent` | Projected nodes: `Node[][]`, one array per `<ng-content>` slot |
+| `ngModule` | `ngComponentOutletNgModule` | Legacy: NgModule to load with the component |
 
-### 1. **Dynamic Modal System**
+Here's an example that uses `injector`, `content` and the exported instance:
 
-Let's build a flexible modal system that can display different content dynamically.
+```ts title="outlet-options.ts"
+import {
+  Component, InjectionToken, Injector, TemplateRef, ViewContainerRef,
+  computed, inject, signal, viewChild,
+} from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
 
-**Modal Service:**
-
-```typescript
-import { Injectable, inject, signal, Type } from '@angular/core';
-
-export interface ModalConfig {
-  component: Type<any>;
-  data?: any;
-  title?: string;
-}
-
-@Injectable({ providedIn: 'root' })
-export class ModalService {
-  private modalConfig = signal<ModalConfig | null>(null);
-  
-  isOpen = signal(false);
-  config = this.modalConfig.asReadonly();
-
-  open(config: ModalConfig) {
-    this.modalConfig.set(config);
-    this.isOpen.set(true);
-  }
-
-  close() {
-    this.isOpen.set(false);
-    setTimeout(() => this.modalConfig.set(null), 300); // Animation delay
-  }
-}
-```
-
-**Modal Container Component:**
-
-```typescript
-import { Component, ViewContainerRef, effect, inject } from '@angular/core';
-import { ModalService } from './modal.service';
+export const THEME = new InjectionToken<'light' | 'dark'>('THEME', { factory: () => 'light' });
 
 @Component({
-  selector: 'app-modal-container',
+  selector: 'app-panel',
+  template: `<section [class]="theme"><ng-content /></section>`,
+})
+export class Panel {
+  protected readonly theme = inject(THEME);
+}
+
+@Component({
+  selector: 'app-counter',
+  template: `<p>Count: {{ count() }}</p>`,
+})
+export class Counter {
+  readonly count = signal(0);
+  increment() {
+    this.count.update((c) => c + 1);
+  }
+}
+
+@Component({
+  selector: 'app-outlet-options',
+  imports: [NgComponentOutlet],
   template: `
-    @if (modalService.isOpen()) {
-      <div class="modal-overlay" (click)="modalService.close()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-          <div class="modal-header">
-            <h3>{{ modalService.config()?.title || 'Modal' }}</h3>
-            <button (click)="modalService.close()">&times;</button>
-          </div>
-          <div class="modal-body">
-            <!-- Dynamic component loads here -->
-          </div>
-        </div>
-      </div>
-    }
+    <!-- custom injector + projected content -->
+    <ng-container *ngComponentOutlet="panel; injector: darkInjector; content: panelContent()" />
+    <ng-template #panelBody><p>Projected into the panel</p></ng-template>
+
+    <!-- grab the created instance with exportAs -->
+    <ng-container [ngComponentOutlet]="counter" #outlet="ngComponentOutlet" />
+    <button (click)="outlet.componentInstance?.increment()">+1</button>
   `,
 })
-export class ModalContainerComponent {
-  modalService = inject(ModalService);
-  private viewContainer = inject(ViewContainerRef);
+export class OutletOptions {
+  private readonly vcr = inject(ViewContainerRef);
+  protected readonly panel = Panel;
+  protected readonly counter = Counter;
 
-  constructor() {
-    effect(() => {
-      const config = this.modalService.config();
-      
-      if (config && this.modalService.isOpen()) {
-        this.loadComponent(config);
-      } else {
-        this.viewContainer.clear();
-      }
-    });
-  }
-
-  private loadComponent(config: ModalConfig) {
-    this.viewContainer.clear();
-    const componentRef = this.viewContainer.createComponent(config.component);
-    
-    // Pass data to the component
-    if (config.data) {
-      Object.keys(config.data).forEach(key => {
-        componentRef.setInput(key, config.data[key]);
-      });
-    }
-  }
-}
-```
-
-**Example Modal Content Components:**
-
-```typescript
-// Confirmation Modal
-@Component({
-  selector: 'app-confirm-modal',
-  template: `
-    <div class="confirm-content">
-      <p>{{ message() }}</p>
-      <div class="actions">
-        <button (click)="onConfirm()">Confirm</button>
-        <button (click)="onCancel()">Cancel</button>
-      </div>
-    </div>
-  `
-})
-export class ConfirmModalComponent {
-  private modalService = inject(ModalService);
-  
-  message = input<string>('Are you sure?');
-  onConfirmCallback = input<() => void>(() => {});
-
-  onConfirm() {
-    this.onConfirmCallback()();
-    this.modalService.close();
-  }
-
-  onCancel() {
-    this.modalService.close();
-  }
-}
-
-// User Details Modal
-@Component({
-  selector: 'app-user-details-modal',
-  template: `
-    <div class="user-details">
-      <img [src]="user().avatar" [alt]="user().name">
-      <h4>{{ user().name }}</h4>
-      <p>{{ user().email }}</p>
-      <p>{{ user().bio }}</p>
-    </div>
-  `
-})
-export class UserDetailsModalComponent {
-  user = input.required<User>();
-}
-```
-
-**Usage:**
-
-```typescript
-@Component({
-  selector: 'app-dashboard',
-  imports: [ModalContainerComponent],
-  template: `
-    <div class="dashboard">
-      <button (click)="showConfirmation()">Delete Item</button>
-      <button (click)="showUserDetails()">View Profile</button>
-    </div>
-    
-    <app-modal-container />
-  `
-})
-export class DashboardComponent {
-  private modalService = inject(ModalService);
-
-  showConfirmation() {
-    this.modalService.open({
-      component: ConfirmModalComponent,
-      title: 'Confirm Deletion',
-      data: {
-        message: 'Are you sure you want to delete this item?',
-        onConfirmCallback: () => this.deleteItem()
-      }
-    });
-  }
-
-  showUserDetails() {
-    this.modalService.open({
-      component: UserDetailsModalComponent,
-      title: 'User Profile',
-      data: {
-        user: {
-          name: 'John Doe',
-          email: 'john@example.com',
-          avatar: '/assets/avatar.jpg',
-          bio: 'Software Developer'
-        }
-      }
-    });
-  }
-
-  deleteItem() {
-    console.log('Item deleted!');
-  }
-}
-```
-
-### 2. **Dynamic Tab System**
-
-Let's create a tab system that loads tab content dynamically.
-
-**Tab Configuration:**
-
-```typescript
-import { Type } from '@angular/core';
-
-export interface TabConfig {
-  id: string;
-  label: string;
-  component: Type<any>;
-  data?: any;
-}
-```
-
-**Tab Container Component:**
-
-```typescript
-import { Component, input, signal, ViewContainerRef, effect, inject } from '@angular/core';
-import { TabConfig } from './tab-config';
-
-@Component({
-  selector: 'app-tabs',
-  template: `
-    <div class="tabs">
-      <div class="tab-headers">
-        @for (tab of tabs(); track tab.id) {
-          <button 
-            class="tab-header"
-            [class.active]="activeTabId() === tab.id"
-            (click)="selectTab(tab.id)">
-            {{ tab.label }}
-          </button>
-        }
-      </div>
-      
-      <div class="tab-content">
-        <!-- Dynamic tab content loads here -->
-      </div>
-    </div>
-  `,
-})
-export class TabsComponent {
-  private viewContainer = inject(ViewContainerRef);
-  
-  tabs = input.required<TabConfig[]>();
-  activeTabId = signal<string>('');
-
-  constructor() {
-    // Set first tab as active by default
-    effect(() => {
-      const tabsList = this.tabs();
-      if (tabsList.length > 0 && !this.activeTabId()) {
-        this.activeTabId.set(tabsList[0].id);
-      }
-    });
-
-    // Load component when active tab changes
-    effect(() => {
-      const activeId = this.activeTabId();
-      const tab = this.tabs().find(t => t.id === activeId);
-      
-      if (tab) {
-        this.loadTabContent(tab);
-      }
-    });
-  }
-
-  selectTab(tabId: string) {
-    this.activeTabId.set(tabId);
-  }
-
-  private loadTabContent(tab: TabConfig) {
-    this.viewContainer.clear();
-    const componentRef = this.viewContainer.createComponent(tab.component);
-    
-    // Pass data to the tab component
-    if (tab.data) {
-      Object.keys(tab.data).forEach(key => {
-        componentRef.setInput(key, tab.data[key]);
-      });
-    }
-  }
-}
-```
-
-**Example Tab Content Components:**
-
-```typescript
-// Profile Tab
-@Component({
-  selector: 'app-profile-tab',
-  template: `
-    <div class="profile">
-      <h3>Profile Information</h3>
-      <p>Name: {{ user().name }}</p>
-      <p>Email: {{ user().email }}</p>
-    </div>
-  `
-})
-export class ProfileTabComponent {
-  user = input.required<User>();
-}
-
-// Settings Tab
-@Component({
-  selector: 'app-settings-tab',
-  template: `
-    <div class="settings">
-      <h3>Settings</h3>
-      <label>
-        <input type="checkbox" [checked]="notifications()">
-        Enable Notifications
-      </label>
-    </div>
-  `
-})
-export class SettingsTabComponent {
-  notifications = input<boolean>(true);
-}
-
-// Activity Tab
-@Component({
-  selector: 'app-activity-tab',
-  template: `
-    <div class="activity">
-      <h3>Recent Activity</h3>
-      @for (activity of activities(); track activity.id) {
-        <div class="activity-item">
-          <span>{{ activity.action }}</span>
-          <span>{{ activity.timestamp }}</span>
-        </div>
-      }
-    </div>
-  `
-})
-export class ActivityTabComponent {
-  activities = input.required<Activity[]>();
-}
-```
-
-**Usage:**
-
-```typescript
-@Component({
-  selector: 'app-user-dashboard',
-  imports: [TabsComponent],
-  template: `
-    <app-tabs [tabs]="tabConfigs()" />
-  `
-})
-export class UserDashboardComponent {
-  private user = signal({
-    name: 'John Doe',
-    email: 'john@example.com'
+  protected readonly darkInjector = Injector.create({
+    providers: [{ provide: THEME, useValue: 'dark' }],
+    parent: inject(Injector),
   });
 
-  tabConfigs = signal<TabConfig[]>([
-    {
-      id: 'profile',
-      label: 'Profile',
-      component: ProfileTabComponent,
-      data: { user: this.user() }
-    },
-    {
-      id: 'settings',
-      label: 'Settings',
-      component: SettingsTabComponent,
-      data: { notifications: true }
-    },
-    {
-      id: 'activity',
-      label: 'Activity',
-      component: ActivityTabComponent,
-      data: {
-        activities: [
-          { id: 1, action: 'Logged in', timestamp: '2 hours ago' },
-          { id: 2, action: 'Updated profile', timestamp: '1 day ago' }
-        ]
+  private readonly panelBody = viewChild.required<TemplateRef<unknown>>('panelBody');
+  protected readonly panelContent = computed(() => [
+    this.vcr.createEmbeddedView(this.panelBody()).rootNodes,
+  ]);
+}
+```
+
+:::note
+`NgComponentOutlet` has no option for **outputs**. If you need to listen to a dynamic component's events, use `ViewContainerRef.createComponent()` with `outputBinding()` (next section), or share state through a service.
+:::
+
+## `ViewContainerRef.createComponent()`: create from code
+
+A **view container** is a spot in the DOM where Angular can insert views. Any directive or component can inject `ViewContainerRef` for its own location, or you can query one from the template with `read: ViewContainerRef`. New components are inserted **after** the anchor element, in order.
+
+```ts title="alert-host.ts"
+import { Component, input, output, viewChild, ViewContainerRef } from '@angular/core';
+
+@Component({
+  selector: 'app-alert',
+  template: `
+    <div class="alert" [class]="'alert--' + type()">
+      {{ message() }}
+      <button (click)="closed.emit()">✕</button>
+    </div>
+  `,
+})
+export class Alert {
+  readonly message = input.required<string>();
+  readonly type = input<'info' | 'error'>('info');
+  readonly closed = output<void>();
+}
+
+@Component({
+  selector: 'app-alert-host',
+  template: `
+    <button (click)="show()">Show alert</button>
+    <ng-container #alerts />
+  `,
+})
+export class AlertHost {
+  private readonly alerts = viewChild.required('alerts', { read: ViewContainerRef });
+
+  show() {
+    const ref = this.alerts().createComponent(Alert);
+    ref.setInput('message', 'Saved successfully!'); // works for signal inputs and marks the view for check
+    ref.setInput('type', 'info');
+
+    const sub = ref.instance.closed.subscribe(() => ref.destroy());
+    ref.onDestroy(() => sub.unsubscribe());
+  }
+}
+```
+
+Useful `ViewContainerRef` and `ComponentRef` members:
+
+| API | What it does |
+| --- | --- |
+| `vcr.createComponent(Cmp, options?)` | Create and insert. Options: `index`, `injector`, `environmentInjector`, `projectableNodes`, `bindings`, `directives`, `onError` |
+| `vcr.clear()` / `vcr.remove(i)` | Destroy all views / the view at index `i` |
+| `vcr.move(viewRef, i)` / `vcr.indexOf(viewRef)` / `vcr.length` | Reorder and inspect |
+| `vcr.detach(i)` / `vcr.insert(viewRef, i)` | Move a view without destroying it |
+| `ref.setInput(name, value)` | Set an input by its public name |
+| `ref.instance` | The component instance |
+| `ref.location` | `ElementRef` of the host element |
+| `ref.destroy()` / `ref.onDestroy(fn)` | Destroy / run code on destroy |
+
+:::tip
+Always use `ref.setInput()` instead of assigning `ref.instance.someInput = ...`. Signal inputs are read-only, and `setInput()` also schedules change detection. That matters for OnPush components (the default since v22) and in zoneless apps.
+:::
+
+## The bindings API: template-like bindings from code
+
+Instead of calling `setInput()` and subscribing to outputs by hand, pass a `bindings` array when you create the component. These helpers come from `@angular/core`:
+
+| Helper | Template equivalent |
+| --- | --- |
+| `inputBinding('name', () => value)` | `[name]="value"`, re-evaluated during change detection, so a signal keeps it in sync |
+| `outputBinding<T>('name', (event: T) => ...)` | `(name)="handler($event)"`, unsubscribed automatically on destroy |
+| `twoWayBinding('name', writableSignal)` | `[(name)]="writableSignal"` for `model()` inputs |
+
+You can also attach **directives** to the new component's host element with `directives`, each with its own bindings.
+
+```ts title="warning-host.ts"
+import {
+  Component, ComponentRef, Directive, ViewContainerRef, input, inputBinding, model, output,
+  outputBinding, signal, twoWayBinding, viewChild,
+} from '@angular/core';
+
+@Component({
+  selector: 'app-warning',
+  template: `
+    @if (expanded()) {
+      <section>
+        <p>{{ text() }}</p>
+        <button (click)="expanded.set(false)">Collapse</button>
+        <button (click)="dismissed.emit('user')">Dismiss</button>
+      </section>
+    }
+  `,
+})
+export class Warning {
+  readonly text = input.required<string>();
+  readonly expanded = model(true);
+  readonly dismissed = output<string>();
+}
+
+@Directive({
+  selector: '[appTheme]',
+  host: { '[attr.data-theme]': 'appTheme()' },
+})
+export class Theme {
+  readonly appTheme = input('light');
+}
+
+@Component({
+  selector: 'app-warning-host',
+  template: `<ng-container #slot />`,
+})
+export class WarningHost {
+  private readonly slot = viewChild.required('slot', { read: ViewContainerRef });
+
+  readonly text = signal('Disk almost full');
+  readonly expanded = signal(true);
+  private ref?: ComponentRef<Warning>;
+
+  show() {
+    this.ref?.destroy();
+    this.ref = this.slot().createComponent(Warning, {
+      bindings: [
+        inputBinding('text', this.text),            // a signal is a () => value function
+        twoWayBinding('expanded', this.expanded),   // stays in sync both ways
+        outputBinding<string>('dismissed', (reason) => {
+          console.log('Dismissed by', reason);
+          this.ref?.destroy();
+        }),
+      ],
+      directives: [{ type: Theme, bindings: [inputBinding('appTheme', () => 'warning')] }],
+    });
+  }
+
+  updateText() {
+    this.text.set('Disk full!'); // the Warning component updates automatically
+  }
+}
+```
+
+Binding names are strings, so they aren't type-checked like template bindings. In development mode a misspelled input name throws a runtime error (NG0315), so keep these calls close to the component they target.
+
+## Rendering outside the component tree with `createComponent()`
+
+Toasts, dialogs and overlays often need to live directly under `<body>`. The standalone `createComponent()` function creates a component that isn't attached to any view. You decide where the host element goes, and you register the view with `ApplicationRef` so change detection runs for it.
+
+```ts title="toast.service.ts"
+import {
+  ApplicationRef, Component, DOCUMENT, EnvironmentInjector, Service,
+  createComponent, inject, input, inputBinding, output, outputBinding,
+} from '@angular/core';
+
+@Component({
+  selector: 'app-toast',
+  host: { role: 'status', class: 'toast' },
+  template: `{{ message() }} <button (click)="closed.emit()">Close</button>`,
+})
+export class Toast {
+  readonly message = input.required<string>();
+  readonly closed = output<void>();
+}
+
+@Service()
+export class ToastService {
+  private readonly appRef = inject(ApplicationRef);
+  private readonly injector = inject(EnvironmentInjector);
+  private readonly document = inject(DOCUMENT); // SSR-safe access to document
+
+  show(message: string, durationMs = 3000) {
+    const host = this.document.createElement('div');
+    this.document.body.appendChild(host);
+
+    const ref = createComponent(Toast, {
+      environmentInjector: this.injector, // required: where services come from
+      hostElement: host,                  // optional: otherwise Angular creates an element
+      bindings: [
+        inputBinding('message', () => message),
+        outputBinding('closed', () => close()),
+      ],
+    });
+    this.appRef.attachView(ref.hostView); // include it in change detection
+
+    const close = () => {
+      clearTimeout(timer);
+      if (!ref.hostView.destroyed) {
+        this.appRef.detachView(ref.hostView);
+        ref.destroy();
+        host.remove();
       }
-    }
-  ]);
-}
-```
-
-### 3. **Dynamic Form Builder**
-
-Let's build a dynamic form system that creates form fields based on configuration.
-
-**Form Field Configuration:**
-
-```typescript
-export type FieldType = 'text' | 'email' | 'number' | 'select' | 'checkbox' | 'textarea';
-
-export interface FieldConfig {
-  type: FieldType;
-  name: string;
-  label: string;
-  value?: any;
-  required?: boolean;
-  options?: { label: string; value: any }[];
-  placeholder?: string;
-}
-```
-
-**Field Components:**
-
-```typescript
-// Text Input Component
-@Component({
-  selector: 'app-text-field',
-  imports: [ReactiveFormsModule],
-  template: `
-    <div class="form-field">
-      <label [for]="config().name">
-        {{ config().label }}
-        @if (config().required) {
-          <span class="required">*</span>
-        }
-      </label>
-      <input 
-        [id]="config().name"
-        [type]="config().type"
-        [formControl]="control()"
-        [placeholder]="config().placeholder || ''"
-      />
-    </div>
-  `
-})
-export class TextFieldComponent {
-  config = input.required<FieldConfig>();
-  control = input.required<FormControl>();
-}
-
-// Select Component
-@Component({
-  selector: 'app-select-field',
-  imports: [ReactiveFormsModule],
-  template: `
-    <div class="form-field">
-      <label [for]="config().name">{{ config().label }}</label>
-      <select [id]="config().name" [formControl]="control()">
-        <option value="">Select...</option>
-        @for (option of config().options; track option.value) {
-          <option [value]="option.value">{{ option.label }}</option>
-        }
-      </select>
-    </div>
-  `
-})
-export class SelectFieldComponent {
-  config = input.required<FieldConfig>();
-  control = input.required<FormControl>();
-}
-```
-
-**Dynamic Form Component:**
-
-```typescript
-import { Component, input, signal, ViewContainerRef, effect, inject } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-
-@Component({
-  selector: 'app-dynamic-form',
-  template: `
-    <form [formGroup]="form" (ngSubmit)="onSubmit()">
-      <div class="form-fields">
-        <!-- Dynamic fields load here -->
-      </div>
-      
-      <button type="submit" [disabled]="form.invalid">
-        Submit
-      </button>
-    </form>
-  `
-})
-export class DynamicFormComponent {
-  private fb = inject(FormBuilder);
-  private viewContainer = inject(ViewContainerRef);
-  
-  fields = input.required<FieldConfig[]>();
-  form!: FormGroup;
-
-  constructor() {
-    effect(() => {
-      this.buildForm();
-      this.loadFields();
-    });
-  }
-
-  private buildForm() {
-    const group: any = {};
-    
-    this.fields().forEach(field => {
-      const validators = field.required ? [Validators.required] : [];
-      group[field.name] = [field.value || '', validators];
-    });
-    
-    this.form = this.fb.group(group);
-  }
-
-  private loadFields() {
-    this.viewContainer.clear();
-    
-    this.fields().forEach(fieldConfig => {
-      const component = this.getComponentForType(fieldConfig.type);
-      const componentRef = this.viewContainer.createComponent(component);
-      
-      componentRef.setInput('config', fieldConfig);
-      componentRef.setInput('control', this.form.get(fieldConfig.name));
-    });
-  }
-
-  private getComponentForType(type: FieldType) {
-    const componentMap = {
-      text: TextFieldComponent,
-      email: TextFieldComponent,
-      number: TextFieldComponent,
-      select: SelectFieldComponent,
-      checkbox: CheckboxFieldComponent,
-      textarea: TextareaFieldComponent
     };
-    
-    return componentMap[type];
-  }
-
-  onSubmit() {
-    if (this.form.valid) {
-      console.log('Form submitted:', this.form.value);
-    }
+    const timer = setTimeout(close, durationMs);
+    return close;
   }
 }
 ```
 
-**Usage:**
-
-```typescript
-@Component({
-  selector: 'app-registration',
-  imports: [DynamicFormComponent],
-  template: `
-    <h2>User Registration</h2>
-    <app-dynamic-form [fields]="formFields()" />
-  `
-})
-export class RegistrationComponent {
-  formFields = signal<FieldConfig[]>([
-    {
-      type: 'text',
-      name: 'firstName',
-      label: 'First Name',
-      required: true,
-      placeholder: 'Enter your first name'
-    },
-    {
-      type: 'text',
-      name: 'lastName',
-      label: 'Last Name',
-      required: true
-    },
-    {
-      type: 'email',
-      name: 'email',
-      label: 'Email',
-      required: true,
-      placeholder: 'your@email.com'
-    },
-    {
-      type: 'select',
-      name: 'country',
-      label: 'Country',
-      required: true,
-      options: [
-        { label: 'United States', value: 'us' },
-        { label: 'United Kingdom', value: 'uk' },
-        { label: 'Canada', value: 'ca' }
-      ]
-    }
-  ]);
+```ts
+// anywhere in the app
+private readonly toasts = inject(ToastService);
+save() {
+  this.toasts.show('Profile saved');
 }
 ```
 
-### 4. **Dynamic Dashboard Widgets**
+:::tip
+For production dialogs, menus and overlays, the Angular CDK (`@angular/cdk/overlay`, `@angular/cdk/dialog`) and Angular Material already handle positioning, focus trapping, scroll blocking and accessibility on top of these same APIs.
+:::
 
-Let's create a customizable dashboard where users can add/remove widgets.
+## Lazy loading dynamic components
 
-**Widget Configuration:**
+Every dynamic API accepts a component **class**, so you can load that class with a dynamic `import()`. The bundler puts it into its own chunk.
 
-```typescript
-export interface WidgetConfig {
-  id: string;
-  type: string;
-  component: Type<any>;
-  title: string;
-  data?: any;
-  position?: { row: number; col: number };
-}
-```
+```ts title="dashboard.ts"
+import { Component, Type, ViewContainerRef, reflectComponentType, viewChild } from '@angular/core';
 
-**Dashboard Component:**
+type WidgetLoader = () => Promise<Type<unknown>>;
 
-```typescript
-import { Component, signal, ViewContainerRef, inject } from '@angular/core';
+// A registry: the keys could come from user settings or a CMS
+const WIDGETS: Record<string, WidgetLoader> = {
+  weather: () => import('./widgets/weather').then((m) => m.Weather),
+  stocks: () => import('./widgets/stocks').then((m) => m.Stocks),
+};
 
 @Component({
   selector: 'app-dashboard',
   template: `
-    <div class="dashboard">
-      <div class="dashboard-header">
-        <h2>My Dashboard</h2>
-        <button (click)="addWidget()">Add Widget</button>
-      </div>
-      
-      <div class="widget-grid">
-        @for (widget of widgets(); track widget.id) {
-          <div class="widget-container">
-            <div class="widget-header">
-              <h3>{{ widget.title }}</h3>
-              <button (click)="removeWidget(widget.id)">&times;</button>
-            </div>
-            <div class="widget-content" #widgetContent></div>
-          </div>
-        }
-      </div>
-    </div>
+    @for (name of widgetNames; track name) {
+      <button (click)="add(name)">Add {{ name }}</button>
+    }
+    <ng-container #grid />
   `,
 })
-export class DashboardComponent {
-  widgets = signal<WidgetConfig[]>([
-    {
-      id: '1',
-      type: 'stats',
-      component: StatsWidgetComponent,
-      title: 'Statistics',
-      data: { value: 1234, label: 'Total Users' }
-    },
-    {
-      id: '2',
-      type: 'chart',
-      component: ChartWidgetComponent,
-      title: 'Sales Chart',
-      data: { chartData: [10, 20, 30, 40] }
+export class Dashboard {
+  private readonly grid = viewChild.required('grid', { read: ViewContainerRef });
+  protected readonly widgetNames = Object.keys(WIDGETS);
+
+  async add(name: string) {
+    const component = await WIDGETS[name]();
+    const ref = this.grid().createComponent(component);
+
+    // Inspect the component's public API before setting inputs
+    const mirror = reflectComponentType(component);
+    if (mirror?.inputs.some((i) => i.templateName === 'title')) {
+      ref.setInput('title', name);
     }
-  ]);
-
-  addWidget() {
-    const newWidget: WidgetConfig = {
-      id: Date.now().toString(),
-      type: 'stats',
-      component: StatsWidgetComponent,
-      title: 'New Widget',
-      data: { value: 0, label: 'New Metric' }
-    };
-    
-    this.widgets.update(w => [...w, newWidget]);
-  }
-
-  removeWidget(id: string) {
-    this.widgets.update(w => w.filter(widget => widget.id !== id));
   }
 }
 ```
 
-## ✅ Best Practices
+The same works declaratively with a signal and `NgComponentOutlet`:
 
-### 1. **Use Signals for State Management**
+```ts title="admin-settings.ts"
+import { Component, Type, signal } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
 
-```typescript
-// ✅ Good - Signals for reactive state
 @Component({
-  selector: 'app-container',
+  selector: 'app-admin-settings',
+  imports: [NgComponentOutlet],
+  template: `
+    @if (advanced(); as cmp) {
+      <ng-container *ngComponentOutlet="cmp" />
+    } @else {
+      <button (click)="loadAdvanced()">Load advanced settings</button>
+    }
+  `,
 })
-export class ContainerComponent {
-  activeComponent = signal<Type<any> | null>(null);
-  componentData = signal<any>(null);
-}
+export class AdminSettings {
+  protected readonly advanced = signal<Type<unknown> | null>(null);
 
-// ❌ Avoid - Plain properties
-@Component({
-  selector: 'app-container',
-})
-export class ContainerComponent {
-  activeComponent: Type<any> | null = null;
-  componentData: any = null;
-}
-```
-
-### 2. **Clean Up Component References**
-
-```typescript
-@Component({
-  selector: 'app-container',
-})
-export class ContainerComponent {
-  private componentRef?: ComponentRef<any>;
-
-  loadComponent(component: Type<any>) {
-    // Clean up previous component
-    this.componentRef?.destroy();
-    
-    this.componentRef = this.viewContainer.createComponent(component);
-  }
-
-  ngOnDestroy() {
-    this.componentRef?.destroy();
+  async loadAdvanced() {
+    const { AdvancedSettings } = await import('./advanced-settings');
+    this.advanced.set(AdvancedSettings);
   }
 }
 ```
 
-### 3. **Type-Safe Component Data**
+If the component is known at build time, `@defer (on interaction)` does the same thing with less code.
 
-```typescript
-// ✅ Good - Type-safe configuration
-interface ComponentConfig<T = any> {
-  component: Type<T>;
-  data: T extends { data: infer D } ? D : any;
-}
+## Handling rendering errors
 
-// ❌ Avoid - Untyped data
-interface ComponentConfig {
-  component: any;
-  data: any;
-}
-```
-
-### 4. **Use inject() Function**
-
-```typescript
-// ✅ Good - inject() function
-@Component({
-  selector: 'app-container',
-})
-export class ContainerComponent {
-  private viewContainer = inject(ViewContainerRef);
-  private componentFactoryResolver = inject(ComponentFactoryResolver);
-}
-
-:::caution[Legacy Syntax]
-In older Angular versions, dependencies were injected via the constructor:
-```ts
-constructor(
-  private viewContainer: ViewContainerRef,
-  private componentFactoryResolver: ComponentFactoryResolver
-) {}
-```
-This syntax is still supported but not recommended for new projects. Note that `ComponentFactoryResolver` is deprecated — use `ViewContainerRef.createComponent()` directly.
+:::caution[Developer preview]
+The `onError` option and its `ErrorDetails` argument are in developer preview (v22.2). They are the programmatic equivalent of the template `@boundary` / `@error` blocks.
 :::
+
+```ts
+const ref = this.grid().createComponent(component, {
+  onError: (error, details) => {
+    console.error('Widget failed while rendering', error, details.declarationType);
+    ref.destroy();
+  },
+});
 ```
 
-### 5. **Handle Component Lifecycle**
+`onError` catches errors thrown during change detection and lifecycle hooks of the created component. Errors thrown in its constructor are still thrown synchronously from `createComponent()`.
 
-```typescript
-@Component({
-  selector: 'app-container',
-})
-export class ContainerComponent {
-  private componentRef?: ComponentRef<any>;
+## Common mistakes
 
-  loadComponent(component: Type<any>) {
-    const ref = this.viewContainer.createComponent(component);
-    
-    // Subscribe to component outputs
-    if (ref.instance.closed) {
-      ref.instance.closed.subscribe(() => {
-        this.removeComponent();
-      });
-    }
-    
-    this.componentRef = ref;
-  }
+- **Using `ComponentFactoryResolver`.** It was removed in v22. Pass the class directly.
+- **Assigning inputs with `ref.instance.x = value`.** This doesn't work for signal inputs and doesn't trigger change detection. Use `setInput()` or `inputBinding()`.
+- **Forgetting `appRef.attachView()`** after `createComponent()`. The component renders once and never updates.
+- **Leaking components.** Call `ref.destroy()` or `vcr.clear()` when they're no longer needed. Components inside a `ViewContainerRef` are destroyed with their parent; components attached to `ApplicationRef` are not.
+- **Reaching for dynamic APIs too early.** `@if`, `@switch` and `@defer` cover most cases with full type checking.
+- **Using `document` directly.** Inject `DOCUMENT` so the code also works during server-side rendering.
 
-  removeComponent() {
-    this.componentRef?.destroy();
-    this.componentRef = undefined;
-  }
-}
-```
+## Key takeaways
 
-## 🎯 Common Use Cases
+- Prefer templates (`@switch`, `@defer`). Use dynamic APIs when the component type is data.
+- `NgComponentOutlet` handles inputs, injector and content declaratively. It doesn't support outputs.
+- `ViewContainerRef.createComponent(Cmp, { bindings, directives })` is the imperative workhorse.
+- `createComponent()` plus `ApplicationRef.attachView()` renders anywhere in the DOM.
+- `inputBinding`, `outputBinding` and `twoWayBinding` give you template-like, auto-cleaned bindings from code.
 
-- **Modal/Dialog Systems** - Show different content types
-- **Wizard/Stepper Forms** - Load steps dynamically
-- **Plugin Architecture** - Load features on demand
-- **Dashboard Widgets** - User-customizable layouts
-- **Notification System** - Different notification types
-- **Content Management** - Dynamic page builders
-- **A/B Testing** - Load variants dynamically
-- **Feature Flags** - Conditional component loading
+## Next steps
 
-## 🎓 Learning Checklist
-
-- [ ] Understand ViewContainerRef and component creation
-- [ ] Load components dynamically at runtime
-- [ ] Pass data to dynamic components using setInput()
-- [ ] Handle component lifecycle and cleanup
-- [ ] Build reusable dynamic component systems
-- [ ] Implement modal and tab systems
-- [ ] Create dynamic forms
-- [ ] Manage component references properly
-
-## 🚀 Next Steps
-
-1. **[Content Projection](/advanced/content-projection/)** - Create flexible component APIs
-2. **[Advanced DI Patterns](/advanced/dependency-injection/)** - Master dependency injection
-3. **[Custom Directives](/advanced/custom-directives/)** - Add behavior to elements
-
----
-
-**Pro Tip**: Dynamic components are powerful but add complexity. Use them when you truly need runtime flexibility. For most cases, structural directives like `@if` and `@switch` are simpler and more performant! 🎯
+- [Content Projection](/advanced/content-projection/): `ng-template`, `ngTemplateOutlet` and projection slots
+- [Custom Directives](/advanced/custom-directives/): structural directives use the same `ViewContainerRef`
+- [Angular Elements](/advanced/elements/): turn components into framework-agnostic custom elements
+- [Memory Management](/advanced/memory-management/): clean up what you create

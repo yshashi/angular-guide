@@ -1,341 +1,322 @@
 ---
 title: Filtering Operators 🔍
-description: Master RxJS filtering operators - filter, debounceTime, distinctUntilChanged, take, and more
+description: RxJS filtering operators for Angular - filter, take, first, skip, distinctUntilChanged, debounceTime, throttleTime, auditTime and takeUntil, with real examples.
 sidebar:
   order: 5
 ---
 
-Filtering operators help you control which values pass through your Observable streams. Perfect for search, forms, and user interactions!
+Filtering operators decide **which values get through** a stream. Some look at each value (`filter`), some count
+values (`take`, `skip`), some drop duplicates (`distinctUntilChanged`), and some limit the **rate** of values
+over time (`debounceTime`, `throttleTime`). Together they turn noisy event streams into exactly the values you need.
 
-## 🎯 The filter Operator
+## What you'll learn
 
-**filter** only emits values that pass a condition - just like Array.filter()!
+- `filter` (including type-narrowing filters)
+- Taking and skipping: `take`, `takeWhile`, `takeUntil`, `first`, `last`, `skip`
+- Removing duplicates: `distinct`, `distinctUntilChanged`, `distinctUntilKeyChanged`
+- Rate limiting: `debounceTime`, `throttleTime`, `auditTime`, `sampleTime`
+- Which one to pick for search boxes, scroll handlers and buttons
 
-### Basic Example
+## `filter` — keep values that pass a test
 
-```typescript
-import { of } from 'rxjs';
-import { filter } from 'rxjs/operators';
-
-// Only emit even numbers
-of(1, 2, 3, 4, 5, 6)
-  .pipe(
-    filter(num => num % 2 === 0)
-  )
-  .subscribe(console.log);
-
-// Output: 2, 4, 6
+```
+source:            --1--2--3--4--|
+filter(isEven):    -----2-----4--|
 ```
 
-### Real-World: Filter Valid Inputs
+```ts
+import { filter, of } from 'rxjs';
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { filter } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+of(1, 2, 3, 4)
+  .pipe(filter((n) => n % 2 === 0))
+  .subscribe((n) => console.log(n)); // 2, 4
+```
 
-@Component({
-  selector: 'app-email-input',
-  imports: [ReactiveFormsModule],
-  template: `
-    <input [formControl]="emailControl" placeholder="Enter email">
-    <p>Valid email: {{ validEmail() }}</p>
-  `
-})
-export class EmailInputComponent {
-  emailControl = new FormControl('');
-  validEmail = signal('');
+### Type-narrowing filters
+
+`filter` understands TypeScript type guards, so the type after the filter is narrowed:
+
+```ts
+import { filter, Observable } from 'rxjs';
+
+interface User {
+  id: number;
+  name: string;
+}
+
+declare const maybeUser$: Observable<User | null>;
+
+// Observable<User> — null is removed from the type
+const user$ = maybeUser$.pipe(filter((u): u is User => u !== null));
+
+// Shortcut: filter(Boolean) removes all falsy values and narrows the type too
+const user2$ = maybeUser$.pipe(filter(Boolean));
+```
+
+### Real-world: only react to finished navigations
+
+```ts title="page-tracker.ts"
+import { inject, Service } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, map } from 'rxjs';
+
+@Service()
+export class PageTracker {
+  private readonly router = inject(Router);
 
   constructor() {
-    this.emailControl.valueChanges
+    this.router.events
       .pipe(
-        filter(email => email !== null && email.includes('@')),
-        takeUntilDestroyed()
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        map((e) => e.urlAfterRedirects),
       )
-      .subscribe(email => this.validEmail.set(email));
+      .subscribe((url) => console.log('Page view:', url));
   }
 }
 ```
 
-## 🎯 The debounceTime Operator
+## Taking and skipping values
 
-**debounceTime** waits for a pause before emitting. Perfect for search boxes!
+| Operator | Emits | Completes |
+|---|---|---|
+| `take(n)` | The first `n` values | After `n` values |
+| `takeWhile(pred, inclusive?)` | Values while `pred` is true | When `pred` first returns false |
+| `takeUntil(notifier$)` | Values until `notifier$` emits | When `notifier$` emits |
+| `first()` / `first(pred)` | The first (matching) value | Immediately after it |
+| `last()` / `last(pred)` | The last (matching) value | When the source completes |
+| `skip(n)` | Everything except the first `n` values | With the source |
+| `skipWhile(pred)` / `skipUntil(notifier$)` | Values after the condition is met | With the source |
 
-### Example: Search with Delay
+```ts
+import { interval, skip, take, takeWhile } from 'rxjs';
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
-import { debounceTime, switchMap } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+interval(1000).pipe(take(3)).subscribe((n) => console.log(n)); // 0, 1, 2 then complete
 
-@Component({
-  selector: 'app-search',
-  imports: [ReactiveFormsModule],
-  template: `
-    <input [formControl]="searchControl" placeholder="Search...">
-    
-    @for (result of results(); track result.id) {
-      <div>{{ result.name }}</div>
-    }
-  `
-})
-export class SearchComponent {
-  private http = inject(HttpClient);
-  
-  searchControl = new FormControl('');
-  results = signal<any[]>([]);
+interval(1000)
+  .pipe(takeWhile((n) => n < 3, true)) // `true` = also emit the value that failed
+  .subscribe((n) => console.log(n)); // 0, 1, 2, 3 then complete
 
-  constructor() {
-    this.searchControl.valueChanges
-      .pipe(
-        debounceTime(300), // Wait 300ms after user stops typing
-        switchMap(term => this.http.get<any[]>(`/api/search?q=${term}`)),
-        takeUntilDestroyed()
-      )
-      .subscribe(results => this.results.set(results));
-  }
-}
+interval(1000).pipe(skip(2), take(2)).subscribe((n) => console.log(n)); // 2, 3
 ```
 
-## 🎯 The distinctUntilChanged Operator
+### `first()` vs `take(1)`
 
-**distinctUntilChanged** only emits when the value actually changes. Prevents duplicate API calls!
+Both emit one value and complete. The difference is what happens if the source completes **without** emitting:
 
-### Example: Avoid Duplicate Calls
+```ts
+import { EMPTY, first, take } from 'rxjs';
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { distinctUntilChanged, debounceTime } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+EMPTY.pipe(take(1)).subscribe({ complete: () => console.log('take(1): completed quietly') });
 
-@Component({
-  selector: 'app-filter',
-  imports: [ReactiveFormsModule],
-  template: `
-    <select [formControl]="categoryControl">
-      <option value="all">All</option>
-      <option value="tech">Tech</option>
-      <option value="sports">Sports</option>
-    </select>
-    <p>Selected: {{ category() }}</p>
-  `
-})
-export class FilterComponent {
-  categoryControl = new FormControl('all');
-  category = signal('all');
-
-  constructor() {
-    this.categoryControl.valueChanges
-      .pipe(
-        distinctUntilChanged(), // Only emit if value changed
-        takeUntilDestroyed()
-      )
-      .subscribe(value => {
-        this.category.set(value || 'all');
-        console.log('Category changed to:', value);
-      });
-  }
-}
+EMPTY.pipe(first()).subscribe({
+  error: (err: Error) => console.log('first():', err.name), // first(): EmptyError
+});
 ```
 
-## 🎯 The take Operator
+Use `first()` when "no value" is a bug you want to hear about. Use `take(1)` when an empty source is fine.
+`first(predicate, defaultValue)` lets you supply a fallback instead of an error.
 
-**take** emits only the first N values, then completes.
+### `takeUntil` and `takeUntilDestroyed`
 
-### Example: Take First 3 Items
+`takeUntil(notifier$)` completes the stream as soon as `notifier$` emits. Here, a countdown stops when the user clicks
+"Cancel":
 
-```typescript
+```ts title="countdown.ts"
 import { Component, signal } from '@angular/core';
-import { interval } from 'rxjs';
-import { take } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { map, Subject, take, takeUntil, timer } from 'rxjs';
 
 @Component({
   selector: 'app-countdown',
-  template: `<p>Count: {{ count() }}</p>`
-})
-export class CountdownComponent {
-  count = signal(0);
-
-  ngOnInit() {
-    // Only take first 3 values
-    interval(1000)
-      .pipe(take(3))
-      .subscribe({
-        next: val => this.count.set(val),
-        complete: () => console.log('Done!')
-      });
-    
-    // Output: 0, 1, 2, then completes
-  }
-}
-```
-
-## 🎯 The takeUntil Operator
-
-**takeUntil** emits values until another Observable emits. Perfect for cleanup!
-
-### Example: Stop on Button Click
-
-```typescript
-import { Component, signal } from '@angular/core';
-import { interval, Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
-
-@Component({
-  selector: 'app-timer',
   template: `
-    <p>Timer: {{ count() }}</p>
-    <button (click)="stop()">Stop</button>
-  `
+    <p>{{ remaining() }}</p>
+    <button type="button" (click)="cancel.next()">Cancel</button>
+  `,
 })
-export class TimerComponent {
-  count = signal(0);
-  private stopSubject = new Subject<void>();
-
-  ngOnInit() {
-    interval(1000)
-      .pipe(
-        takeUntil(this.stopSubject) // Stop when stopSubject emits
-      )
-      .subscribe(val => this.count.set(val));
-  }
-
-  stop() {
-    this.stopSubject.next(); // Trigger stop
-    this.stopSubject.complete();
-  }
-}
-```
-
-## 🎯 The throttleTime Operator
-
-**throttleTime** emits first value, then ignores for specified time. Good for scroll/resize events!
-
-### Example: Throttle Scroll Events
-
-```typescript
-import { Component, ElementRef, viewChild, signal } from '@angular/core';
-import { fromEvent } from 'rxjs';
-import { throttleTime, map } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-@Component({
-  selector: 'app-scroll-tracker',
-  template: `
-    <div #scrollContainer style="height: 400px; overflow-y: scroll;">
-      <div style="height: 2000px;">
-        <p>Scroll position: {{ scrollPosition() }}</p>
-      </div>
-    </div>
-  `
-})
-export class ScrollTrackerComponent {
-  scrollContainer = viewChild<ElementRef>('scrollContainer');
-  scrollPosition = signal(0);
+export class Countdown {
+  protected readonly remaining = signal(10);
+  protected readonly cancel = new Subject<void>();
 
   constructor() {
-    afterNextRender(() => {
-      const container = this.scrollContainer()?.nativeElement;
-      
-      if (container) {
-        fromEvent(container, 'scroll')
-          .pipe(
-            throttleTime(200), // Only emit once every 200ms
-            map(() => container.scrollTop),
-            takeUntilDestroyed()
-          )
-          .subscribe(position => this.scrollPosition.set(position));
-      }
-    });
+    timer(1000, 1000)
+      .pipe(
+        map((i) => 9 - i),
+        take(10),
+        takeUntil(this.cancel), // stop early when Cancel is clicked
+        takeUntilDestroyed(), // and always stop when the component is destroyed
+      )
+      .subscribe((n) => this.remaining.set(n));
   }
 }
 ```
 
-## 🎯 The first Operator
+:::tip
+In Angular you don't need the old `destroy$ = new Subject()` + `takeUntil(this.destroy$)` + `ngOnDestroy` pattern.
+`takeUntilDestroyed()` from `@angular/core/rxjs-interop` does it for you. Put it **last** in the `pipe()` so it also
+covers operators placed before it (like `switchMap`).
+:::
 
-**first** emits only the first value (or first that matches condition), then completes.
+## Removing duplicates
 
-### Example: Get First Match
+```
+source:                  --a--a--b--b--a--|
+distinctUntilChanged():  --a-----b-----a--|
+distinct():              --a-----b--------|
+```
 
-```typescript
-import { Component, signal } from '@angular/core';
+- `distinctUntilChanged()` drops a value if it equals the **previous** one (uses `===` by default).
+- `distinct()` drops a value if it was **ever** seen before (keeps an internal `Set`, so be careful with endless streams).
+
+### Comparing objects
+
+Objects are compared by reference, so `distinctUntilChanged()` alone won't detect "same content":
+
+```ts
+import { distinctUntilChanged, distinctUntilKeyChanged, of } from 'rxjs';
+
+const filters$ = of({ category: 'books', page: 1 }, { category: 'books', page: 1 }, { category: 'games', page: 1 });
+
+// Custom comparator
+filters$
+  .pipe(distinctUntilChanged((a, b) => a.category === b.category && a.page === b.page))
+  .subscribe((f) => console.log(f)); // books, games
+
+// Compare a single key
+filters$.pipe(distinctUntilKeyChanged('category')).subscribe((f) => console.log(f.category)); // books, games
+```
+
+## Rate limiting: debounce, throttle, audit, sample
+
+These operators control **how often** values get through. They all take a duration in milliseconds.
+
+```
+source:           a-b----c---|     (one character = 1 ms, durations = 3 ms)
+debounceTime(3):  -----b----c|     wait for silence, then emit the latest
+throttleTime(3):  a------c---|     emit the first, then ignore for 3 ms
+auditTime(3):     ---b------c|     wait 3 ms after a value, then emit the latest
+```
+
+| Operator | Emits | Best for |
+|---|---|---|
+| `debounceTime(ms)` | The latest value after `ms` of **silence** | Search boxes, auto-save, resize "done" |
+| `throttleTime(ms)` | The **first** value, then ignores for `ms` | Button spam, analytics on scroll |
+| `throttleTime(ms, undefined, { leading: true, trailing: true })` | First **and** last value in each window | Drag/resize where the final position matters |
+| `auditTime(ms)` | The **latest** value at the end of each window | Scroll/mousemove UI updates |
+| `sampleTime(ms)` | The latest value every `ms`, on a fixed clock | Periodic snapshots (e.g. sensor readings) |
+
+:::note
+If the source completes while `debounceTime` is waiting, the pending value is emitted immediately before completion.
+:::
+
+### Real-world: a search box
+
+The classic combination: trim → ignore short terms → wait for a pause → skip repeats.
+
+```ts title="city-search.ts"
+import { Component, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { map, first } from 'rxjs/operators';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { debounceTime, distinctUntilChanged, filter, map, of, switchMap } from 'rxjs';
 
 @Component({
-  selector: 'app-user-finder',
-  template: `<p>Admin: {{ admin() }}</p>`
+  selector: 'app-city-search',
+  imports: [ReactiveFormsModule],
+  template: `
+    <label>
+      City
+      <input [formControl]="query" />
+    </label>
+    <ul>
+      @for (city of cities(); track city) {
+        <li>{{ city }}</li>
+      }
+    </ul>
+  `,
 })
-export class UserFinderComponent {
-  private http = inject(HttpClient);
-  admin = signal('');
+export class CitySearch {
+  private readonly http = inject(HttpClient);
+  protected readonly query = new FormControl('', { nonNullable: true });
 
-  ngOnInit() {
-    this.http.get<any[]>('/api/users')
-      .pipe(
-        map(users => users.find(u => u.role === 'admin')),
-        first() // Take first emission and complete
-      )
-      .subscribe(admin => this.admin.set(admin?.name || 'None'));
+  protected readonly cities = toSignal(
+    this.query.valueChanges.pipe(
+      map((q) => q.trim()),
+      debounceTime(300), // 1. wait until typing pauses
+      distinctUntilChanged(), // 2. skip if the term didn't change
+      switchMap((q) =>
+        q.length < 2
+          ? of([]) // 3. too short: clear results, no request
+          : this.http.get<string[]>('/api/cities', { params: { q } }),
+      ),
+    ),
+    { initialValue: [] },
+  );
+}
+```
+
+Notice the order: `debounceTime` **before** `distinctUntilChanged`, so "ab" → "abc" → "ab" typed quickly is treated as
+"no change". `switchMap` then cancels any outdated request. We handle short terms inside `switchMap` (instead of
+`filter`) so the list clears when the input is emptied. A full comparison with signal-based alternatives is in
+[RxJS Patterns in Angular](/rxjs/angular-patterns/).
+
+### Real-world: show a "back to top" button while scrolling
+
+```ts title="back-to-top.ts"
+import { Component } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { auditTime, distinctUntilChanged, fromEvent, map } from 'rxjs';
+
+@Component({
+  selector: 'app-back-to-top',
+  template: `
+    @if (visible()) {
+      <button type="button" (click)="scrollTop()">↑ Top</button>
+    }
+  `,
+})
+export class BackToTop {
+  protected readonly visible = toSignal(
+    fromEvent(window, 'scroll', { passive: true }).pipe(
+      auditTime(100), // at most one check per 100 ms
+      map(() => window.scrollY > 600),
+      distinctUntilChanged(), // only update when visibility actually flips
+    ),
+    { initialValue: false },
+  );
+
+  protected scrollTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
 ```
 
-## 📊 Quick Comparison
+## Other useful filters
 
-| Operator | Purpose | Common Use |
-|----------|---------|------------|
-| **filter** | Emit if condition true | Validate inputs |
-| **debounceTime** | Wait for pause | Search boxes |
-| **distinctUntilChanged** | Skip duplicates | Avoid duplicate calls |
-| **take** | First N values | Limit results |
-| **takeUntil** | Until signal | Cleanup subscriptions |
-| **throttleTime** | Rate limit | Scroll/resize events |
-| **first** | First value only | One-time fetch |
+| Operator | Purpose |
+|---|---|
+| `ignoreElements()` | Drop all values, keep only `complete`/`error` |
+| `elementAt(i)` | Only the value at index `i` |
+| `single(pred?)` | Exactly one value must match, otherwise error |
+| `debounce(fn)` / `throttle(fn)` / `audit(fn)` | Like the `…Time` versions, but the duration comes from an Observable you return (dynamic timing) |
 
-## ✅ Common Patterns
+## Common mistakes
 
-```typescript
-// Pattern 1: Search Box
-searchControl.valueChanges.pipe(
-  debounceTime(300),           // Wait for typing pause
-  distinctUntilChanged(),      // Skip if same value
-  filter(term => term.length >= 2), // Min 2 characters
-  switchMap(term => this.search(term))
-)
+- **`distinctUntilChanged()` on objects** compares references. Pass a comparator or use `distinctUntilKeyChanged`.
+- **`debounceTime` on the HTTP response** instead of on the user input. Debounce the *trigger*, then `switchMap` to the request.
+- **`first()` on a stream that may be empty** throws `EmptyError`. Use `take(1)` or `first(pred, defaultValue)`.
+- **`takeUntil` in the middle of the pipe.** Operators after it (like `switchMap`) can keep inner subscriptions alive. Put `takeUntil`/`takeUntilDestroyed` last.
+- **`distinct()` on endless streams** grows its memory forever. Pass a `flushes` Observable or use `distinctUntilChanged`.
 
-// Pattern 2: Scroll Events
-fromEvent(window, 'scroll').pipe(
-  throttleTime(200),           // Max once per 200ms
-  map(() => window.scrollY)
-)
+## Key takeaways
 
-// Pattern 3: Component Cleanup
-someObservable$.pipe(
-  takeUntilDestroyed()         // Auto cleanup
-)
-```
+- `filter` keeps values by predicate and narrows types with type guards (or `filter(Boolean)`).
+- `take`, `first`, `takeWhile` and `takeUntil` **complete** the stream — great for automatic cleanup.
+- `distinctUntilChanged` removes consecutive duplicates; give it a comparator for objects.
+- Debounce input, throttle actions, audit visual updates.
+- In Angular, prefer `takeUntilDestroyed()` over a hand-made `destroy$` Subject.
 
-## 🎓 Learning Checklist
+## Next steps
 
-- [ ] Use filter for conditions
-- [ ] Apply debounceTime for search
-- [ ] Use distinctUntilChanged to skip duplicates
-- [ ] Understand take vs first
-- [ ] Use takeUntil for cleanup
-- [ ] Apply throttleTime for events
-- [ ] Combine operators effectively
-
-## 🚀 Next Steps
-
-1. **[Combination Operators](/rxjs/combination-operators/)** - Combine multiple streams
-2. **[Error Handling](/rxjs/error-handling/)** - Handle errors gracefully
-3. **[RxJS Patterns](/rxjs/angular-patterns/)** - Common patterns
-
----
-
-**Pro Tip**: The combo **debounceTime + distinctUntilChanged + filter** is perfect for search! It waits for pauses, skips duplicates, and validates input! 🔍
+- [Combination Operators](/rxjs/combination-operators/) — combine several streams
+- [Error Handling](/rxjs/error-handling/) — keep streams alive when things fail
+- [RxJS Patterns in Angular](/rxjs/angular-patterns/) — typeahead with `toSignal`, `rxResource` and `debounced()`

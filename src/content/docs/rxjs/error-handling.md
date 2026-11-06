@@ -1,428 +1,413 @@
 ---
 title: Error Handling ⚠️
-description: Master error handling in RxJS - catchError, retry, retryWhen for robust Angular applications
+description: Handle RxJS errors in Angular 22 - catchError placement, retry with backoff, timeout, finalize, HttpErrorResponse, interceptors, and errors with toSignal and rxResource.
 sidebar:
   order: 7
 ---
 
-Errors happen! Learn how to handle them gracefully in your RxJS streams so your Angular app stays stable and user-friendly.
+Networks fail, servers return 500s, users go offline. In RxJS an error is a **terminal** notification: once a stream
+errors, it's finished. Good error handling means deciding **where** to catch errors, **what** to show the user, and
+**whether** to try again.
 
-## 🎯 Why Error Handling Matters
+## What you'll learn
 
-When an Observable throws an error:
-- The stream **stops** - no more values are emitted
-- Subscribers receive the error
-- The Observable **completes** (in error state)
+- How errors travel through a `pipe()` and why they end the stream
+- `catchError`: fall back, rethrow, or swallow — and where to put it
+- `retry` with a count, a delay, and exponential backoff (`retryWhen` is deprecated)
+- `timeout` for slow requests and `finalize` for cleanup
+- Handling `HttpErrorResponse` and central handling with an HTTP interceptor
+- How errors behave with `toSignal`, the `async` pipe and `rxResource`
 
-**Without error handling:**
-- Your app might crash
-- Users see broken features
-- No way to recover
+## How errors flow
 
-**With error handling:**
-- Graceful degradation
-- Retry failed operations
-- Show user-friendly messages
-- Keep app running
+When a value-producing step throws or a source errors, every operator below it is skipped until something handles the error:
 
-## 🎯 The catchError Operator
+```
+source:           --a--b--#            (# = error)
+map(...):         --A--B--#            skipped for the error, passes it on
+catchError(...):  --A--B--(F|)         replaced with a fallback F, then completes
+```
 
-**catchError** catches errors and lets you handle them gracefully. You can return a fallback value or a new Observable.
+```ts
+import { catchError, map, of, throwError } from 'rxjs';
 
-### Example: Return Fallback Value
+throwError(() => new Error('Network down'))
+  .pipe(
+    map((x) => x), // skipped
+    catchError((err: Error) => of(`Fallback because: ${err.message}`)),
+  )
+  .subscribe({
+    next: (v) => console.log(v), // Fallback because: Network down
+    complete: () => console.log('complete'),
+  });
+```
 
-```typescript
-import { Component, signal } from '@angular/core';
+:::note
+After `catchError` the stream **completes** (it switched to your fallback Observable). It does not "resume" the
+original source.
+:::
+
+## `catchError` — three ways to respond
+
+`catchError` receives the error and must return a new Observable:
+
+```ts
 import { HttpClient } from '@angular/common/http';
-import { catchError, of } from 'rxjs';
+import { inject } from '@angular/core';
+import { catchError, EMPTY, of, throwError } from 'rxjs';
 
-@Component({
-  selector: 'app-user-list',
-  template: `
-    @for (user of users(); track user.id) {
-      <div>{{ user.name }}</div>
-    }
-    
-    @if (users().length === 0) {
-      <p>No users available</p>
-    }
-  `
-})
-export class UserListComponent {
-  private http = inject(HttpClient);
-  users = signal<any[]>([]);
+// inside an injection context
+const http = inject(HttpClient);
 
-  ngOnInit() {
-    this.http.get<any[]>('/api/users')
-      .pipe(
-        catchError(error => {
-          console.error('Failed to load users:', error);
-          // Return empty array as fallback
-          return of([]);
-        })
-      )
-      .subscribe(users => this.users.set(users));
-  }
+// 1. Fall back to a default value
+http.get<string[]>('/api/tags').pipe(catchError(() => of([])));
+
+// 2. Rethrow a friendlier error for the caller
+http.get('/api/profile').pipe(
+  catchError((err) => throwError(() => new Error('Could not load your profile', { cause: err }))),
+);
+
+// 3. Swallow it: complete without emitting
+http.get('/api/ping').pipe(catchError(() => EMPTY));
+```
+
+Always use the factory form `throwError(() => error)` — passing the error directly is deprecated.
+
+### Where you put `catchError` matters
+
+This is the most important error-handling rule for long-lived streams like search boxes. Compare:
+
+```ts
+import { catchError, of, switchMap } from 'rxjs';
+
+// ❌ Outer catchError: the FIRST failed request kills the whole search stream.
+// After that, typing does nothing.
+term$.pipe(
+  switchMap((term) => api.search(term)),
+  catchError(() => of([])),
+);
+
+// ✅ Inner catchError: only that one request is replaced; the search keeps working.
+term$.pipe(
+  switchMap((term) =>
+    api.search(term).pipe(catchError(() => of([]))),
+  ),
+);
+```
+
+```
+term$:          --a----b----c--->    (the request for "b" fails)
+outer catch:    --A----(x|)          the whole stream is dead after b fails
+inner catch:    --A----x----C--->    b's failure became x, c still works
+```
+
+## `retry` — try again
+
+`HttpClient` requests are **cold**, so resubscribing sends the request again. `retry` does exactly that when an error occurs.
+
+```ts
+import { retry } from 'rxjs';
+
+http.get('/api/flaky').pipe(retry(2)); // up to 3 attempts in total
+```
+
+### Retry with delay and exponential backoff
+
+Pass a config object. `delay` can be a number of milliseconds or a function that returns an Observable — when that
+Observable emits, RxJS retries; if it **errors**, retrying stops and the error is passed on.
+
+```ts title="retry-backoff.ts"
+import { HttpErrorResponse } from '@angular/common/http';
+import { MonoTypeOperatorFunction, retry, throwError, timer } from 'rxjs';
+
+/** Retry network/5xx errors with 1s, 2s, 4s… delays. Never retry 4xx errors. */
+export function retryWithBackoff<T>(maxRetries = 3, baseMs = 1000): MonoTypeOperatorFunction<T> {
+  return retry({
+    count: maxRetries,
+    delay: (error, retryCount) => {
+      const retryable = error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500);
+      if (!retryable) {
+        return throwError(() => error); // stop retrying, pass the error on
+      }
+      return timer(baseMs * 2 ** (retryCount - 1));
+    },
+    resetOnSuccess: true, // reset the counter after a successful emission
+  });
 }
 ```
 
-### Example: Show Error Message
-
-```typescript
-import { Component, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { catchError, of } from 'rxjs';
-
-@Component({
-  selector: 'app-posts',
-  template: `
-    @if (error()) {
-      <div class="error">{{ error() }}</div>
-    }
-    
-    @for (post of posts(); track post.id) {
-      <div>{{ post.title }}</div>
-    }
-  `
-})
-export class PostsComponent {
-  private http = inject(HttpClient);
-  
-  posts = signal<any[]>([]);
-  error = signal<string | null>(null);
-
-  ngOnInit() {
-    this.http.get<any[]>('/api/posts')
-      .pipe(
-        catchError(err => {
-          this.error.set('Failed to load posts. Please try again.');
-          return of([]); // Return empty array to keep stream alive
-        })
-      )
-      .subscribe(posts => this.posts.set(posts));
-  }
-}
+```ts
+http.get<Order[]>('/api/orders').pipe(retryWithBackoff(), catchError(() => of([])));
 ```
 
-## 🎯 The retry Operator
+:::caution[`retryWhen` is deprecated]
+`retryWhen(errors$ => …)` is deprecated in RxJS 7 and will be removed in RxJS 8. Use `retry({ count, delay })` as shown
+above. Similarly, `repeatWhen` is replaced by `repeat({ count, delay })`.
+:::
 
-**retry** automatically retries a failed Observable a specified number of times.
+:::danger[Don't blindly retry writes]
+Retrying a `POST` that actually reached the server can create duplicates (two orders, two payments). Only retry
+idempotent requests (`GET`, `PUT`, `DELETE`) unless your API supports idempotency keys.
+:::
 
-### Example: Retry Failed Request
+## `timeout` — give up on slow sources
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { retry, catchError, of } from 'rxjs';
+```ts
+import { catchError, of, timeout, TimeoutError } from 'rxjs';
 
-@Component({
-  selector: 'app-data-loader',
-  template: `
-    @if (loading()) {
-      <p>Loading...</p>
+http.get<Report>('/api/report').pipe(
+  timeout({ first: 5000 }), // error with TimeoutError if no value within 5 s
+  catchError((err) => {
+    if (err instanceof TimeoutError) {
+      return of(null); // treat as "no report"
     }
-    
-    @if (error()) {
-      <p class="error">{{ error() }}</p>
-    }
-    
-    <div>{{ data() }}</div>
-  `
-})
-export class DataLoaderComponent {
-  private http = inject(HttpClient);
-  
-  data = signal<any>(null);
-  loading = signal(true);
-  error = signal<string | null>(null);
-
-  ngOnInit() {
-    this.http.get('/api/data')
-      .pipe(
-        retry(3), // Retry up to 3 times
-        catchError(err => {
-          this.error.set('Failed after 3 attempts');
-          this.loading.set(false);
-          return of(null);
-        })
-      )
-      .subscribe(data => {
-        this.data.set(data);
-        this.loading.set(false);
-      });
-  }
-}
+    throw err; // rethrow anything else
+  }),
+);
 ```
 
-## 🎯 The retryWhen Operator
+| Option | Meaning |
+|---|---|
+| `first` | Max time (ms or a `Date`) until the **first** value |
+| `each` | Max time **between** values |
+| `with` | Return a fallback Observable instead of erroring: `timeout({ first: 5000, with: () => of(cached) })` |
 
-**retryWhen** gives you full control over retry logic - add delays, conditions, and limits.
+Throwing inside `catchError` (as above) is the same as returning `throwError(() => err)`.
 
-### Example: Retry with Delay
+:::tip[HttpClient has its own `timeout` option]
+`http.get(url, { timeout: 3000 })` aborts the underlying HTTP request after 3 s and errors with an `HttpErrorResponse`
+whose `status` is `0`. It only times the backend request itself (not interceptors). The RxJS `timeout()` operator works
+on **any** Observable and lets you provide a fallback with `with`.
+:::
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { retryWhen, delay, take, catchError, of } from 'rxjs';
+## `finalize` — always clean up
 
-@Component({
-  selector: 'app-smart-retry',
-  template: `
-    <p>Attempt: {{ attempt() }}</p>
-    <p>Status: {{ status() }}</p>
-  `
-})
-export class SmartRetryComponent {
-  private http = inject(HttpClient);
-  
-  attempt = signal(0);
-  status = signal('Loading...');
+`finalize` runs when the stream **completes, errors or is unsubscribed** — perfect for hiding a spinner:
 
-  ngOnInit() {
-    this.http.get('/api/data')
-      .pipe(
-        retryWhen(errors =>
-          errors.pipe(
-            delay(2000),  // Wait 2 seconds before retry
-            take(3),      // Max 3 retries
-            tap(() => this.attempt.update(a => a + 1))
-          )
-        ),
-        catchError(err => {
-          this.status.set('Failed after retries');
-          return of(null);
-        })
-      )
-      .subscribe(data => {
-        this.status.set('Success!');
-      });
-  }
-}
-```
-
-## 🎯 Handle Specific Errors
-
-You can handle different error types differently.
-
-### Example: Handle HTTP Status Codes
-
-```typescript
-import { Component, signal } from '@angular/core';
+```ts title="save-profile.ts"
+import { Component, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { finalize } from 'rxjs';
+
+@Component({
+  selector: 'app-save-profile',
+  template: `
+    <button type="button" (click)="save()" [disabled]="saving()">
+      {{ saving() ? 'Saving…' : 'Save' }}
+    </button>
+    @if (error(); as message) {
+      <p role="alert">{{ message }}</p>
+    }
+  `,
+})
+export class SaveProfile {
+  private readonly http = inject(HttpClient);
+  protected readonly saving = signal(false);
+  protected readonly error = signal<string | null>(null);
+
+  protected save() {
+    this.saving.set(true);
+    this.error.set(null);
+
+    this.http
+      .put('/api/profile', { name: 'Ada' })
+      .pipe(finalize(() => this.saving.set(false))) // runs on success AND on error
+      .subscribe({
+        error: (err: HttpErrorResponse) => this.error.set(this.toMessage(err)),
+      });
+  }
+
+  private toMessage(err: HttpErrorResponse): string {
+    if (err.status === 0) return 'You appear to be offline.';
+    if (err.status === 400) return 'Please check the form and try again.';
+    if (err.status === 401) return 'Your session expired. Please sign in again.';
+    if (err.status >= 500) return 'The server had a problem. Try again later.';
+    return 'Something went wrong.';
+  }
+}
+```
+
+## Understanding `HttpErrorResponse`
+
+Every failed `HttpClient` request errors with an `HttpErrorResponse`:
+
+| Property | Meaning |
+|---|---|
+| `status` | HTTP status code. `0` means no response was received (offline, CORS, DNS failure, or the request `timeout` option expired) |
+| `statusText` | Text for the status, e.g. `'Not Found'` |
+| `error` | The response body (often your API's JSON error object), or the underlying error for network failures |
+| `message` | A generated description including the URL and status |
+| `url` | The request URL |
+
+`HttpStatusCode` (from `@angular/common/http`) gives you named constants such as `HttpStatusCode.NotFound`.
+
+## Central handling with an interceptor
+
+Some reactions are the same for every request — for example "on 401, go to the login page". Put those in a functional
+interceptor:
+
+```ts title="auth-error.interceptor.ts"
+import { HttpErrorResponse, HttpInterceptorFn, HttpStatusCode } from '@angular/common/http';
+import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 
-@Component({
-  selector: 'app-error-handler',
-  template: `
-    @if (errorMessage()) {
-      <div class="alert alert-{{ errorType() }}">
-        {{ errorMessage() }}
-      </div>
-    }
-  `
-})
-export class ErrorHandlerComponent {
-  private http = inject(HttpClient);
-  
-  errorMessage = signal<string | null>(null);
-  errorType = signal<'warning' | 'error'>('error');
+export const authErrorInterceptor: HttpInterceptorFn = (req, next) => {
+  const router = inject(Router);
 
-  loadData() {
-    this.http.get('/api/data')
-      .pipe(
-        catchError((error: HttpErrorResponse) => {
-          if (error.status === 404) {
-            this.errorMessage.set('Data not found');
-            this.errorType.set('warning');
-          } else if (error.status === 401) {
-            this.errorMessage.set('Please log in');
-            this.errorType.set('error');
-          } else if (error.status === 500) {
-            this.errorMessage.set('Server error. Try again later');
-            this.errorType.set('error');
-          } else {
-            this.errorMessage.set('Something went wrong');
-            this.errorType.set('error');
-          }
-          
-          return throwError(() => error);
-        })
-      )
-      .subscribe();
-  }
-}
+  return next(req).pipe(
+    catchError((err: unknown) => {
+      if (err instanceof HttpErrorResponse && err.status === HttpStatusCode.Unauthorized) {
+        router.navigate(['/login'], { queryParams: { returnUrl: router.url } });
+      }
+      return throwError(() => err); // still let the caller decide what to show
+    }),
+  );
+};
 ```
 
-## 🎯 The finalize Operator
+```ts title="app.config.ts"
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
+import { routes } from './app.routes';
+import { authErrorInterceptor } from './auth-error.interceptor';
 
-**finalize** runs cleanup code whether the Observable succeeds or fails. Like try-finally!
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes),
+    provideHttpClient(withInterceptors([authErrorInterceptor])),
+  ],
+};
+```
 
-### Example: Hide Loading Spinner
+## Errors with `toSignal`, the `async` pipe and `rxResource`
 
-```typescript
-import { Component, signal } from '@angular/core';
+How an unhandled error surfaces depends on how you consume the Observable:
+
+| Consumer | What happens on error |
+|---|---|
+| `subscribe()` without an `error` callback | RxJS rethrows it asynchronously; it reaches the browser and, with `provideBrowserGlobalErrorListeners()`, Angular's `ErrorHandler` |
+| `async` pipe | Forwards the error to Angular's `ErrorHandler` |
+| `toSignal()` | The signal **throws the error when it's read** (e.g. in the template) |
+| `rxResource()` / `httpResource()` | No throw: `status()` becomes `'error'` and `error()` holds the error |
+
+So with `toSignal`, handle errors **before** converting — map them into values the template can show:
+
+```ts title="weather.ts"
+import { Component, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { finalize, catchError, of } from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { catchError, map, of, startWith } from 'rxjs';
+
+interface Forecast {
+  summary: string;
+}
+
+type ViewState =
+  | { kind: 'loading' }
+  | { kind: 'loaded'; forecast: Forecast }
+  | { kind: 'error'; message: string };
 
 @Component({
-  selector: 'app-with-loading',
+  selector: 'app-weather',
   template: `
-    @if (loading()) {
-      <div class="spinner">Loading...</div>
+    @let s = state();
+    @switch (s.kind) {
+      @case ('loading') {
+        <p>Loading…</p>
+      }
+      @case ('error') {
+        <p role="alert">Could not load the forecast.</p>
+      }
+      @case ('loaded') {
+        <!-- s is narrowed to the 'loaded' variant here -->
+        <p>{{ s.forecast.summary }}</p>
+      }
     }
-    
-    @if (error()) {
-      <p class="error">{{ error() }}</p>
-    }
-    
-    @for (item of items(); track item.id) {
-      <div>{{ item.name }}</div>
-    }
-  `
+  `,
 })
-export class WithLoadingComponent {
-  private http = inject(HttpClient);
-  
-  items = signal<any[]>([]);
-  loading = signal(false);
-  error = signal<string | null>(null);
+export class Weather {
+  private readonly http = inject(HttpClient);
 
-  loadItems() {
-    this.loading.set(true);
-    this.error.set(null);
-    
-    this.http.get<any[]>('/api/items')
-      .pipe(
-        catchError(err => {
-          this.error.set('Failed to load items');
-          return of([]);
-        }),
-        finalize(() => {
-          // Always runs, success or error!
-          this.loading.set(false);
-        })
-      )
-      .subscribe(items => this.items.set(items));
-  }
+  protected readonly state = toSignal(
+    this.http.get<Forecast>('/api/forecast').pipe(
+      map((forecast): ViewState => ({ kind: 'loaded', forecast })),
+      catchError(() => of<ViewState>({ kind: 'error', message: 'failed' })),
+      startWith<ViewState>({ kind: 'loading' }),
+    ),
+    { requireSync: true }, // startWith makes the first value synchronous
+  );
 }
 ```
 
-## 🎯 Global Error Handler
+Or let `rxResource` track loading and error state for you:
 
-Create a service to handle errors consistently across your app.
+```ts title="weather-resource.ts"
+import { Component, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { rxResource } from '@angular/core/rxjs-interop';
+import { retry } from 'rxjs';
 
-### Example: Error Handler Service
-
-```typescript
-import { Injectable } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-
-@Injectable({ providedIn: 'root' })
-export class ErrorHandlerService {
-  handleError(error: HttpErrorResponse): Observable<never> {
-    let errorMessage = 'An error occurred';
-
-    if (error.error instanceof ErrorEvent) {
-      // Client-side error
-      errorMessage = `Error: ${error.error.message}`;
-    } else {
-      // Server-side error
-      errorMessage = `Error Code: ${error.status}\nMessage: ${error.message}`;
-    }
-
-    console.error(errorMessage);
-    
-    // Show user-friendly message
-    this.showNotification(this.getUserFriendlyMessage(error.status));
-    
-    return throwError(() => new Error(errorMessage));
-  }
-
-  private getUserFriendlyMessage(status: number): string {
-    switch (status) {
-      case 400: return 'Invalid request';
-      case 401: return 'Please log in';
-      case 403: return 'Access denied';
-      case 404: return 'Not found';
-      case 500: return 'Server error';
-      default: return 'Something went wrong';
-    }
-  }
-
-  private showNotification(message: string) {
-    // Show toast, snackbar, etc.
-    console.log('Notification:', message);
-  }
+interface Forecast {
+  summary: string;
 }
 
-// Usage in component
 @Component({
-  selector: 'app-data'
+  selector: 'app-weather-resource',
+  template: `
+    @if (forecast.isLoading()) {
+      <p>Loading…</p>
+    } @else if (forecast.error()) {
+      <p role="alert">Could not load the forecast.</p>
+      <button type="button" (click)="forecast.reload()">Try again</button>
+    } @else if (forecast.hasValue()) {
+      <p>{{ forecast.value().summary }}</p>
+    }
+  `,
 })
-export class DataComponent {
-  private http = inject(HttpClient);
-  private errorHandler = inject(ErrorHandlerService);
+export class WeatherResource {
+  private readonly http = inject(HttpClient);
 
-  loadData() {
-    this.http.get('/api/data')
-      .pipe(
-        catchError(err => this.errorHandler.handleError(err))
-      )
-      .subscribe();
-  }
+  protected readonly forecast = rxResource({
+    stream: () => this.http.get<Forecast>('/api/forecast').pipe(retry(2)),
+  });
 }
 ```
 
-## ✅ Best Practices
+:::caution
+A resource's `value()` **throws** while the status is `'error'`. Check `error()` first or guard with `hasValue()`
+before reading `value()`.
+:::
 
-```typescript
-// ✅ Good - Always handle errors
-this.http.get('/api/data')
-  .pipe(
-    catchError(err => {
-      console.error(err);
-      return of([]); // Fallback value
-    })
-  )
-  .subscribe();
+## Best practices
 
-// ❌ Bad - No error handling
-this.http.get('/api/data')
-  .subscribe(); // Will crash on error!
+- **Handle errors where you have context** — the component or service that made the call knows what message to show.
+  Angular's `ErrorHandler` is for *unexpected* errors (logging, reporting), not for normal UI flows.
+- **Catch inside the flattening operator** for long-lived streams (search, polling, action streams).
+- **Retry only transient failures** (status `0`, `5xx`) and only idempotent requests.
+- **Use `finalize`** for cleanup that must happen on success, error and cancellation.
+- **Give users a way out**: a "Try again" button (`reload()` on resources) beats a silent failure.
 
-// ✅ Good - Use finalize for cleanup
-this.http.get('/api/data')
-  .pipe(
-    finalize(() => this.loading.set(false))
-  )
-  .subscribe();
+## Common mistakes
 
-// ✅ Good - Retry transient errors
-this.http.get('/api/data')
-  .pipe(
-    retry(3),
-    catchError(err => of([]))
-  )
-  .subscribe();
-```
+- **`catchError` at the end of a search/polling pipe** — the first error ends the stream forever.
+- **Returning a plain value from `catchError`** (`catchError(() => [])` emits *nothing* for an empty array, since arrays are converted with `from`). Return `of([])`.
+- **Using `retryWhen`, `throwError(err)` or `subscribe(next, error)`** — all deprecated. Use `retry({...})`, `throwError(() => err)` and observer objects.
+- **Reading `resource.value()` in the error state** — it throws; check `hasValue()`/`error()` first.
+- **Swallowing errors with `EMPTY` everywhere** — the user sees nothing and you never learn about the bug. At least log them.
 
-## 🎓 Learning Checklist
+## Key takeaways
 
-- [ ] Use catchError for error handling
-- [ ] Return fallback values
-- [ ] Implement retry logic
-- [ ] Use finalize for cleanup
-- [ ] Handle specific error types
-- [ ] Create global error handler
-- [ ] Show user-friendly messages
+- An error ends the stream; `catchError` replaces it with another Observable.
+- Put `catchError` **inside** `switchMap`/`mergeMap` to keep outer streams alive.
+- `retry({ count, delay })` replaces `retryWhen`; combine it with `timer` for backoff.
+- `timeout` bounds waiting time; `finalize` always runs.
+- `toSignal` throws errors on read, so map errors to state first — or use `rxResource`/`httpResource`, which expose `error()` and `reload()`.
 
-## 🚀 Next Steps
+## Next steps
 
-1. **[Higher-Order Observables](/rxjs/higher-order-observables/)** - Advanced patterns
-2. **[RxJS Patterns](/rxjs/angular-patterns/)** - Common patterns
-3. **[Testing](/testing/unit-testing/)** - Test error handling
-
----
-
-**Pro Tip**: Always use **catchError** to prevent your app from crashing! Use **finalize** to clean up (like hiding loading spinners) whether the request succeeds or fails! ⚠️
+- [Higher-Order Observables](/rxjs/higher-order-observables/) — where inner `catchError` lives
+- [Schedulers & Testing](/rxjs/schedulers/) — test retries and timeouts with virtual time
+- [Resource API](/modern/resource-api/) — signal-based async state

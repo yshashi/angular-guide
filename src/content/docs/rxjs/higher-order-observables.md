@@ -1,393 +1,374 @@
 ---
 title: Higher-Order Observables 🎯
-description: Master higher-order mapping operators - switchMap, mergeMap, concatMap, exhaustMap deep dive
+description: Deep dive into switchMap, mergeMap, concatMap and exhaustMap - timelines, concurrency, inner error handling and real Angular examples for search, uploads, saves and logins.
 sidebar:
   order: 8
 ---
 
-Higher-order Observables are Observables that emit other Observables. Understanding when to use each mapping operator is crucial for Angular development!
+A **higher-order Observable** is an Observable whose values are themselves Observables — `Observable<Observable<T>>`.
+They appear whenever one event should start another async operation: a keystroke starts a search request, a click
+starts a save, a route change starts a data load. The four **flattening operators** turn them back into a normal
+stream, and choosing the right one prevents race conditions, duplicate requests and lost data.
 
-## 🎯 What Are Higher-Order Observables?
+## What you'll learn
 
-A **higher-order Observable** emits Observables as values (instead of regular values like numbers or strings).
+- Why nested `subscribe()` calls are a bug, and how flattening fixes them
+- Exactly how `switchMap`, `mergeMap`, `concatMap` and `exhaustMap` behave on a timeline
+- Limiting parallelism with `mergeMap(fn, concurrency)`
+- Handling errors inside inner Observables
+- Real Angular examples: route-driven loading, parallel uploads, ordered saves, double-submit protection
 
-**Think of it like this:**
-- Regular Observable: Emits numbers → `1, 2, 3`
-- Higher-Order Observable: Emits Observables → `Observable1, Observable2, Observable3`
+## The problem: nested subscriptions
 
-**Why do we need them?**
-- User types → Trigger search (Observable)
-- Click button → Make API call (Observable)
-- Route changes → Load data (Observable)
-
-**The flattening operators** (switchMap, mergeMap, concatMap, exhaustMap) help us manage these inner Observables.
-
-## 🎯 Visual Comparison
-
-```
-User Input:    A-------B---C-----------D-->
-               |       |   |           |
-switchMap:     a1--a2  b1  c1--c2--c3  d1--d2-->
-               (cancels previous when new arrives)
-
-mergeMap:      a1--a2--b1--c1--c2--c3--d1--d2-->
-               (runs all in parallel)
-
-concatMap:     a1--a2--b1--c1--c2--c3--d1--d2-->
-               (waits for each to complete)
-
-exhaustMap:    a1--a2--------------d1--d2-->
-               (ignores new while busy)
+```ts
+// ❌ Don't do this
+this.route.paramMap.subscribe((params) => {
+  this.http.get<User>(`/api/users/${params.get('id')}`).subscribe((user) => {
+    this.user.set(user);
+  });
+});
 ```
 
-## 🎯 When to Use Each Operator
+What's wrong?
 
-### switchMap - The Default Choice
+- **Race condition:** if the id changes quickly, an older (slower) response can arrive last and overwrite the newer user.
+- **Leaks:** the inner subscription isn't tied to anything; nobody unsubscribes it.
+- **No composition:** you can't add `retry`, `catchError` or `debounceTime` to the whole flow.
 
-**Use when:** You want to cancel previous operations when a new one starts.
+With `map` alone you'd get an Observable of Observables:
 
-**Perfect for:**
-- Search (cancel old search when user types)
-- Navigation (cancel old page load)
-- Auto-save (cancel old save)
+```ts
+const nested$ = this.route.paramMap.pipe(
+  map((params) => this.http.get<User>(`/api/users/${params.get('id')}`)),
+); // Observable<Observable<User>> 😕
+```
 
-### mergeMap - Parallel Processing
+A flattening operator subscribes to each inner Observable **for you** and emits its values:
 
-**Use when:** You want all operations to run in parallel.
+```ts
+// ✅ One stream, one subscription, latest id wins
+const user$ = this.route.paramMap.pipe(
+  switchMap((params) => this.http.get<User>(`/api/users/${params.get('id')}`)),
+); // Observable<User>
+```
 
-**Perfect for:**
-- File uploads (upload multiple files at once)
-- Independent API calls
-- Logging/analytics
+(`switchMap` = `map` + `switchAll`. Likewise `mergeMap` = `map` + `mergeAll`, `concatMap` = `map` + `concatAll`,
+`exhaustMap` = `map` + `exhaustAll`.)
 
-### concatMap - Sequential Processing
+## The four strategies on one timeline
 
-**Use when:** Order matters and you need to wait for each to finish.
+Same outer stream, same inner Observable (each inner emits its value 3 ms after it starts and completes 1 ms later):
 
-**Perfect for:**
-- Queue processing
-- Sequential animations
-- Ordered API calls
+```
+outer:        ab----c---|
+inner(x):     ---X|
 
-### exhaustMap - Ignore Duplicates
+switchMap:    ----B----C|      a is cancelled when b arrives
+mergeMap:     ---AB----C|      a and b run at the same time
+concatMap:    ---A---B---C|    b waits for a; c waits for b
+exhaustMap:   ---A-----C|      b is ignored because a is still running
+```
 
-**Use when:** You want to ignore new requests while processing.
+| Operator | New outer value while an inner is running | Order of results | Risk |
+|---|---|---|---|
+| `switchMap` | Unsubscribe the old inner, start the new one | Only latest | Cancels work (bad for writes) |
+| `mergeMap` | Start another inner in parallel | Whatever finishes first | Out-of-order results, unbounded parallelism |
+| `concatMap` | Queue it; start when the current inner completes | Same as input | Queue can grow; slow |
+| `exhaustMap` | Ignore it | Only the first of a burst | Drops events |
 
-**Perfect for:**
-- Prevent double-click
-- Login/submit buttons
-- Rate limiting
+:::tip[Memory aid]
+**switch** = "I changed my mind", **merge** = "do them all", **concat** = "one at a time, in order",
+**exhaust** = "I'm busy, go away".
+:::
 
-## 🎨 Real-World Examples
+## `switchMap` — latest wins
 
-### Example 1: Search with switchMap
+Use it for **reads** where only the latest request matters: search, filters, route-param loading, autocomplete.
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+```ts title="user-detail.ts"
+import { Component, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { debounceTime, switchMap, distinctUntilChanged } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
+import { catchError, map, of, switchMap } from 'rxjs';
+
+interface User {
+  id: string;
+  name: string;
+}
 
 @Component({
-  selector: 'app-product-search',
-  imports: [ReactiveFormsModule],
+  selector: 'app-user-detail',
   template: `
-    <input [formControl]="searchControl" placeholder="Search products...">
-    
-    @for (product of products(); track product.id) {
-      <div class="product">
-        <h3>{{ product.name }}</h3>
-        <p>\${{ product.price }}</p>
-      </div>
+    @if (user(); as u) {
+      <h2>{{ u.name }}</h2>
+    } @else {
+      <p>User not found.</p>
     }
-  `
+  `,
 })
-export class ProductSearchComponent {
-  private http = inject(HttpClient);
-  
-  searchControl = new FormControl('');
-  products = signal<any[]>([]);
+export class UserDetail {
+  private readonly http = inject(HttpClient);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly user = toSignal(
+    this.route.paramMap.pipe(
+      map((params) => params.get('id')!),
+      switchMap((id) =>
+        this.http.get<User>(`/api/users/${id}`).pipe(
+          catchError(() => of(null)), // inner catchError: one 404 doesn't break later navigations
+        ),
+      ),
+    ),
+  );
+}
+```
+
+When `switchMap` unsubscribes from an in-flight `HttpClient` request, Angular **aborts** the HTTP request, so the
+browser stops waiting for it too.
+
+:::caution[Don't `switchMap` writes]
+If the user clicks "Save" twice, `switchMap` cancels the first `PUT`. The server may or may not have processed it —
+you can't know. Use `concatMap` (keep all, in order) or `exhaustMap` (ignore extras) for writes.
+:::
+
+## `mergeMap` — everything in parallel
+
+Use it when each inner operation is **independent** and order doesn't matter: uploading several files, sending
+analytics, deleting several selected items.
+
+Always consider the optional **concurrency** argument to avoid flooding the server:
+
+```ts title="file-uploader.ts"
+import { Component, inject, signal } from '@angular/core';
+import { HttpClient, HttpEventType } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter, from, map, mergeMap, Subject } from 'rxjs';
+
+interface Progress {
+  name: string;
+  percent: number;
+}
+
+@Component({
+  selector: 'app-file-uploader',
+  template: `
+    <input type="file" multiple (change)="select($event)" />
+    @for (p of progress(); track p.name) {
+      <p>{{ p.name }}: {{ p.percent }}%</p>
+    }
+  `,
+})
+export class FileUploader {
+  private readonly http = inject(HttpClient);
+  private readonly files = new Subject<File[]>();
+  protected readonly progress = signal<Progress[]>([]);
 
   constructor() {
-    this.searchControl.valueChanges
+    this.files
       .pipe(
-        debounceTime(300),
-        distinctUntilChanged(),
-        switchMap(term => {
-          // Previous search is automatically cancelled!
-          return this.http.get<any[]>(`/api/products?search=${term}`);
-        }),
-        takeUntilDestroyed()
+        mergeMap((files) => from(files)), // flatten the array into single files
+        mergeMap((file) => this.upload(file), 3), // at most 3 uploads at the same time
+        takeUntilDestroyed(),
       )
-      .subscribe(products => this.products.set(products));
+      .subscribe((p) =>
+        this.progress.update((list) => [...list.filter((x) => x.name !== p.name), p]),
+      );
+  }
+
+  protected select(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.files.next(Array.from(input.files ?? []));
+  }
+
+  private upload(file: File) {
+    const body = new FormData();
+    body.append('file', file);
+
+    return this.http
+      .post('/api/upload', body, { reportUploadProgress: true, observe: 'events' })
+      .pipe(
+        filter((e) => e.type === HttpEventType.UploadProgress || e.type === HttpEventType.Response),
+        map((e) => ({
+          name: file.name,
+          percent:
+            e.type === HttpEventType.UploadProgress && e.total ? Math.round((100 * e.loaded) / e.total) : 100,
+        })),
+      );
   }
 }
 ```
 
-### Example 2: File Upload with mergeMap
+:::note[Upload progress needs `withXhr()`]
+`HttpClient` uses the Fetch API by default in Angular 22, and Fetch can't report **upload** progress — setting
+`reportUploadProgress` with the default backend throws an error. Add `provideHttpClient(withXhr())` to use
+`XMLHttpRequest` if you need upload progress (don't use `withXhr` for server-side rendering).
+:::
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { HttpClient, HttpEventType } from '@angular/common/http';
-import { from } from 'rxjs';
-import { mergeMap, filter, map } from 'rxjs/operators';
+## `concatMap` — one at a time, in order
 
-interface UploadProgress {
-  file: string;
-  progress: number;
-  complete: boolean;
-}
+Use it when **order matters** or when each step depends on the previous one finishing: saving edits, moving items
+in a sorted list, sending chat messages.
 
-@Component({
-  selector: 'app-multi-upload',
-  template: `
-    <input type="file" multiple (change)="onFilesSelected($event)">
-    
-    @for (upload of uploads(); track upload.file) {
-      <div class="upload-item">
-        <span>{{ upload.file }}</span>
-        <progress [value]="upload.progress" max="100"></progress>
-        <span>{{ upload.progress }}%</span>
-      </div>
-    }
-  `
-})
-export class MultiUploadComponent {
-  private http = inject(HttpClient);
-  uploads = signal<UploadProgress[]>([]);
+```ts title="todo-sync.ts"
+import { HttpClient } from '@angular/common/http';
+import { inject, Service } from '@angular/core';
+import { concatMap, Subject } from 'rxjs';
 
-  onFilesSelected(event: any) {
-    const files: File[] = Array.from(event.target.files);
-    
-    // Initialize progress tracking
-    this.uploads.set(files.map(f => ({
-      file: f.name,
-      progress: 0,
-      complete: false
-    })));
+type TodoChange =
+  | { kind: 'add'; title: string }
+  | { kind: 'toggle'; id: number }
+  | { kind: 'remove'; id: number };
 
-    // Upload all files in parallel with mergeMap
-    from(files)
+@Service()
+export class TodoSync {
+  private readonly http = inject(HttpClient);
+  private readonly changes = new Subject<TodoChange>();
+
+  constructor() {
+    this.changes
       .pipe(
-        mergeMap(file => this.uploadFile(file), 3) // Max 3 concurrent uploads
+        // "add" must reach the server before "toggle" on the same item
+        concatMap((change) => this.send(change)),
       )
       .subscribe();
   }
 
-  uploadFile(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    return this.http.post('/api/upload', formData, {
-      reportProgress: true,
-      observe: 'events'
-    }).pipe(
-      filter(event => event.type === HttpEventType.UploadProgress || 
-                      event.type === HttpEventType.Response),
-      map(event => {
-        if (event.type === HttpEventType.UploadProgress) {
-          const progress = Math.round(100 * event.loaded / (event.total || 1));
-          this.updateProgress(file.name, progress, false);
-        } else if (event.type === HttpEventType.Response) {
-          this.updateProgress(file.name, 100, true);
-        }
-        return event;
-      })
-    );
+  queue(change: TodoChange) {
+    this.changes.next(change);
   }
 
-  updateProgress(fileName: string, progress: number, complete: boolean) {
-    this.uploads.update(uploads =>
-      uploads.map(u => u.file === fileName
-        ? { ...u, progress, complete }
-        : u
-      )
-    );
-  }
-}
-```
-
-### Example 3: Sequential Tasks with concatMap
-
-```typescript
-import { Component, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { from } from 'rxjs';
-import { concatMap, delay } from 'rxjs/operators';
-
-@Component({
-  selector: 'app-task-processor',
-  template: `
-    <button (click)="processTasks()">Process Tasks</button>
-    
-    @for (log of logs(); track $index) {
-      <div>{{ log }}</div>
+  private send(change: TodoChange) {
+    switch (change.kind) {
+      case 'add':
+        return this.http.post('/api/todos', { title: change.title });
+      case 'toggle':
+        return this.http.patch(`/api/todos/${change.id}/toggle`, {});
+      case 'remove':
+        return this.http.delete(`/api/todos/${change.id}`);
     }
-  `
-})
-export class TaskProcessorComponent {
-  private http = inject(HttpClient);
-  logs = signal<string[]>([]);
-
-  processTasks() {
-    const tasks = [
-      { id: 1, name: 'Initialize' },
-      { id: 2, name: 'Process Data' },
-      { id: 3, name: 'Generate Report' },
-      { id: 4, name: 'Send Email' }
-    ];
-
-    from(tasks)
-      .pipe(
-        concatMap(task => {
-          this.addLog(`Starting: ${task.name}`);
-          
-          // Process each task in order, waiting for completion
-          return this.http.post(`/api/tasks/${task.id}/process`, {}).pipe(
-            delay(1000) // Simulate processing time
-          );
-        })
-      )
-      .subscribe({
-        next: () => this.addLog('Task completed'),
-        complete: () => this.addLog('All tasks finished!')
-      });
-  }
-
-  addLog(message: string) {
-    this.logs.update(logs => [...logs, `${new Date().toLocaleTimeString()}: ${message}`]);
   }
 }
 ```
 
-### Example 4: Prevent Double-Submit with exhaustMap
+## `exhaustMap` — ignore while busy
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { Subject } from 'rxjs';
-import { exhaustMap, tap } from 'rxjs/operators';
+Use it for actions that should not overlap: login, "Submit order", pull-to-refresh, "Load more".
+
+```ts title="login-form.ts"
+import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { catchError, exhaustMap, finalize, of, Subject, tap } from 'rxjs';
+
+interface Credentials {
+  email: string;
+  password: string;
+}
 
 @Component({
-  selector: 'app-payment-form',
+  selector: 'app-login-form',
   template: `
-    <form (submit)="onSubmit($event)">
-      <input [(ngModel)]="amount" type="number" placeholder="Amount">
-      
-      <button type="submit" [disabled]="processing()">
-        {{ processing() ? 'Processing...' : 'Pay Now' }}
-      </button>
+    <form (submit)="$event.preventDefault(); submit.next({ email: email.value, password: password.value })">
+      <input #email type="email" placeholder="Email" />
+      <input #password type="password" placeholder="Password" />
+      <button type="submit">{{ busy() ? 'Signing in…' : 'Sign in' }}</button>
+      @if (failed()) {
+        <p role="alert">Wrong email or password.</p>
+      }
     </form>
-    
-    @if (message()) {
-      <div class="message">{{ message() }}</div>
-    }
-  `
+  `,
 })
-export class PaymentFormComponent {
-  private http = inject(HttpClient);
-  private submitSubject = new Subject<void>();
-  
-  amount = 0;
-  processing = signal(false);
-  message = signal('');
+export class LoginForm {
+  private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
+
+  protected readonly submit = new Subject<Credentials>();
+  protected readonly busy = signal(false);
+  protected readonly failed = signal(false);
 
   constructor() {
-    // exhaustMap ignores new submissions while processing
-    this.submitSubject
+    this.submit
       .pipe(
-        tap(() => {
-          this.processing.set(true);
-          this.message.set('');
+        exhaustMap((credentials) => {
+          this.busy.set(true);
+          this.failed.set(false);
+          return this.http.post<{ token: string }>('/api/login', credentials).pipe(
+            tap(() => this.router.navigate(['/dashboard'])),
+            catchError(() => {
+              this.failed.set(true);
+              return of(null); // keep the submit stream alive
+            }),
+            finalize(() => this.busy.set(false)),
+          );
         }),
-        exhaustMap(() => 
-          this.http.post('/api/payment', { amount: this.amount })
-        ),
-        takeUntilDestroyed()
+        takeUntilDestroyed(),
       )
-      .subscribe({
-        next: () => {
-          this.message.set('Payment successful!');
-          this.processing.set(false);
-        },
-        error: () => {
-          this.message.set('Payment failed');
-          this.processing.set(false);
-        }
-      });
-  }
-
-  onSubmit(event: Event) {
-    event.preventDefault();
-    this.submitSubject.next(); // Ignored if already processing!
+      .subscribe();
   }
 }
 ```
 
-## 📊 Decision Tree
+Even if the user double-clicks or presses Enter repeatedly, only **one** login request is in flight.
+
+## Errors inside inner Observables
+
+An error in an inner Observable propagates to the outer stream and **kills it**. For long-lived outer streams
+(route params, form changes, button clicks), always catch errors **inside** the flattening operator, as every example
+above does. See [Error Handling](/rxjs/error-handling/#where-you-put-catcherror-matters).
+
+## Making the right choice
 
 ```
-Do you need to flatten inner Observables?
-│
-├─ Yes → Which behavior do you need?
-│   │
-│   ├─ Cancel previous? → switchMap
-│   │   (search, navigation, auto-save)
-│   │
-│   ├─ Run all in parallel? → mergeMap
-│   │   (file uploads, independent calls)
-│   │
-│   ├─ Must be in order? → concatMap
-│   │   (queue, sequential tasks)
-│   │
-│   └─ Ignore while busy? → exhaustMap
-│       (prevent double-click, rate limit)
-│
-└─ No → Use map
-    (simple transformations)
+Does each new value make the previous work irrelevant?
+├─ Yes → switchMap          (search, filters, route params — reads only)
+└─ No
+   ├─ Should extra values be dropped while busy?
+   │  └─ Yes → exhaustMap   (login, submit, refresh)
+   └─ No, every value must be processed
+      ├─ Does order matter / must they not overlap?
+      │  └─ Yes → concatMap (ordered saves, queues)
+      └─ No → mergeMap      (independent parallel work; set a concurrency limit)
 ```
 
-## ✅ Quick Reference
+:::tip[Signals alternative for reads]
+For the very common "signal/input changes → load data" case, `rxResource` (or `httpResource`) gives you
+`switchMap`-like cancellation plus `isLoading()`, `error()` and `reload()` with no manual flattening. See
+[RxJS Patterns in Angular](/rxjs/angular-patterns/).
+:::
 
-```typescript
-// switchMap - Cancel previous
-search$.pipe(
-  switchMap(term => this.search(term))
-)
+## Related operators
 
-// mergeMap - All parallel
-files$.pipe(
-  mergeMap(file => this.upload(file))
-)
+| Operator | What it does |
+|---|---|
+| `switchAll` / `mergeAll` / `concatAll` / `exhaustAll` | Flatten an existing `Observable<Observable<T>>` |
+| `switchScan` / `mergeScan` | Like `scan`, but the accumulator returns an Observable |
+| `expand` | Recursively map each result to a new inner Observable (pagination) |
 
-// concatMap - Sequential
-tasks$.pipe(
-  concatMap(task => this.process(task))
-)
+:::note[Deprecated forms]
+`exhaust` was renamed to `exhaustAll`. Result-selector arguments (e.g. `switchMap(fn, (outer, inner) => …)`) and
+`switchMapTo`/`mergeMapTo`/`concatMapTo` are deprecated — use a nested `map` instead:
+`switchMap((a) => load(a).pipe(map((b) => ({ a, b }))))`.
+:::
 
-// exhaustMap - Ignore duplicates
-clicks$.pipe(
-  exhaustMap(() => this.save())
-)
-```
+## Common mistakes
 
-## 🎓 Learning Checklist
+- **Nested `subscribe()`** — always use a flattening operator.
+- **`switchMap` for POST/PUT/DELETE** — can cancel writes; use `concatMap` or `exhaustMap`.
+- **`mergeMap` for search** — slower old responses can overwrite newer ones; use `switchMap`.
+- **Unbounded `mergeMap`** — pass a concurrency limit when the source can emit many values.
+- **`catchError` outside the flattening operator** — one failure ends the whole stream.
 
-- [ ] Understand higher-order Observables
-- [ ] Use switchMap as default
-- [ ] Use mergeMap for parallel operations
-- [ ] Use concatMap when order matters
-- [ ] Use exhaustMap to prevent duplicates
-- [ ] Know when to use each operator
+## Key takeaways
 
-## 🚀 Next Steps
+- Flattening operators subscribe to inner Observables for you and manage their lifetime.
+- `switchMap` cancels, `mergeMap` parallelises, `concatMap` queues, `exhaustMap` ignores.
+- Reads → usually `switchMap`; writes → `concatMap` or `exhaustMap`.
+- Catch errors inside the inner Observable to keep the outer stream alive.
 
-1. **[Schedulers & Testing](/rxjs/schedulers/)** - Test RxJS code
-2. **[RxJS Patterns](/rxjs/angular-patterns/)** - Common patterns
-3. **[Testing](/testing/unit-testing/)** - Test your code
+## Next steps
 
----
-
-**Pro Tip**: **switchMap** is your default choice! Use it for 80% of cases. Only switch to others when you have a specific need (parallel, sequential, or ignore duplicates)! 🎯
+- [Schedulers & Testing](/rxjs/schedulers/) — prove these timelines with marble tests
+- [RxJS Patterns in Angular](/rxjs/angular-patterns/) — `rxResource`, `toSignal` and friends
+- [Error Handling](/rxjs/error-handling/) — inner `catchError`, `retry`, `finalize`

@@ -59,21 +59,27 @@ export class DataComponent implements OnDestroy {
 }
 ```
 
-### takeUntilDestroyed (Modern)
+### takeUntilDestroyed and DestroyRef (Modern)
 
 ```typescript
-import { Component } from '@angular/core';
+import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-modern',
 })
 export class ModernComponent {
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor() {
     // ✅ Automatically unsubscribes on destroy
     this.dataService.getData()
       .pipe(takeUntilDestroyed())
       .subscribe(data => console.log(data));
+
+    // ✅ Clean up non-RxJS resources (timers, observers, 3rd-party widgets)
+    const id = setInterval(() => console.log('ping'), 5000);
+    this.destroyRef.onDestroy(() => clearInterval(id));
   }
 }
 ```

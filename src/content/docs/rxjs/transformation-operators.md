@@ -1,38 +1,51 @@
 ---
 title: Transformation Operators 🔄
-description: Master RxJS transformation operators - map, switchMap, mergeMap, concatMap, and exhaustMap
+description: RxJS transformation operators for Angular - map, scan, reduce, pairwise, buffer, groupBy, expand, and an intro to switchMap, mergeMap, concatMap, exhaustMap.
 sidebar:
   order: 4
 ---
 
-Transformation operators change the data flowing through your Observables. These are the most commonly used operators in Angular applications.
+Transformation operators **change the values** flowing through a stream: reshape them, accumulate them, group them, or
+turn each value into a whole new async operation. They are the operators you'll use most in Angular apps.
 
-## 🎯 The map Operator
+## What you'll learn
 
-The **map** operator transforms each value emitted by an Observable.
+- `map` to reshape values (and why `pluck`/`mapTo` are deprecated)
+- `scan` and `reduce` to accumulate state
+- `pairwise`, `bufferTime`/`bufferCount` and `toArray` to work with several values at once
+- `groupBy` and `expand` for advanced cases (per-key streams, pagination)
+- The four flattening operators — `switchMap`, `mergeMap`, `concatMap`, `exhaustMap` — and how to choose
 
-### Basic Example
+All operators are imported from `'rxjs'`:
 
-```typescript
-import { of } from 'rxjs';
-import { map } from 'rxjs/operators';
-
-// Transform numbers to their doubles
-of(1, 2, 3, 4, 5)
-  .pipe(
-    map(value => value * 2)
-  )
-  .subscribe(result => console.log(result));
-
-// Output: 2, 4, 6, 8, 10
+```ts
+import { map, scan, switchMap } from 'rxjs';
 ```
 
-### Real-World: Transform API Response
+## `map` — transform every value
 
-```typescript
-import { Component, inject, signal } from '@angular/core';
+```
+source:  --1--2--3--|
+map(x => x * 10)
+result:  --10-20-30-|
+```
+
+```ts
+import { map, of } from 'rxjs';
+
+of(1, 2, 3)
+  .pipe(map((n) => n * 10))
+  .subscribe((n) => console.log(n)); // 10, 20, 30
+```
+
+### Real-world: shape an API response into a view model
+
+APIs often return data in a shape your UI doesn't want. Map it once, in the service, so components get clean types:
+
+```ts title="user-api.ts"
 import { HttpClient } from '@angular/common/http';
-import { map } from 'rxjs/operators';
+import { inject, Service } from '@angular/core';
+import { map, Observable } from 'rxjs';
 
 interface ApiUser {
   id: number;
@@ -41,314 +54,379 @@ interface ApiUser {
   email: string;
 }
 
-interface User {
+export interface User {
   id: number;
   fullName: string;
   email: string;
 }
 
-@Component({
-  selector: 'app-users',
-  template: `
-    @for (user of users(); track user.id) {
-      <div class="user">
-        <h3>{{ user.fullName }}</h3>
-        <p>{{ user.email }}</p>
-      </div>
-    }
-  `
-})
-export class UsersComponent {
-  private http = inject(HttpClient);
-  users = signal<User[]>([]);
+@Service()
+export class UserApi {
+  private readonly http = inject(HttpClient);
 
-  ngOnInit() {
-    this.http.get<ApiUser[]>('/api/users')
-      .pipe(
-        map(apiUsers => apiUsers.map(user => ({
-          id: user.id,
-          fullName: `${user.first_name} ${user.last_name}`,
-          email: user.email
-        })))
-      )
-      .subscribe(users => this.users.set(users));
+  getUsers(): Observable<User[]> {
+    return this.http.get<ApiUser[]>('/api/users').pipe(
+      map((apiUsers) =>
+        apiUsers.map((u) => ({
+          id: u.id,
+          fullName: `${u.first_name} ${u.last_name}`,
+          email: u.email,
+        })),
+      ),
+    );
   }
 }
 ```
 
-## 🎯 The switchMap Operator
+:::note
+`map` on the Observable runs once per **emission** (one HTTP response). `Array.prototype.map` inside it runs once per
+**item** in the array. Mixing the two is normal and common.
+:::
 
-**switchMap** cancels the previous Observable and switches to a new one. Perfect for search and navigation!
+:::caution[Deprecated: `pluck` and `mapTo`]
+`pluck('a', 'b')` and `mapTo(value)` are deprecated in RxJS 7. Use `map((x) => x.a.b)` (fully type-safe) and
+`map(() => value)` instead.
+:::
 
-### When to Use switchMap
+## `tap` — side effects without changing values
 
-✅ **Use switchMap when:**
-- User searches (cancel old search when typing new)
-- Navigation (cancel old request when navigating)
-- Auto-save (cancel old save when new changes come)
+`tap` lets you *look* at values (logging, analytics, setting a loading flag) without transforming them:
 
-### Example: Search with Auto-Cancel
+```ts
+import { map, of, tap } from 'rxjs';
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
-import { debounceTime, switchMap } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-@Component({
-  selector: 'app-search',
-  imports: [ReactiveFormsModule],
-  template: `
-    <input [formControl]="searchControl" placeholder="Search...">
-    
-    @if (loading()) {
-      <p>Searching...</p>
-    }
-    
-    @for (result of results(); track result.id) {
-      <div class="result">{{ result.name }}</div>
-    }
-  `
-})
-export class SearchComponent {
-  private http = inject(HttpClient);
-  
-  searchControl = new FormControl('');
-  results = signal<any[]>([]);
-  loading = signal(false);
-
-  constructor() {
-    this.searchControl.valueChanges
-      .pipe(
-        debounceTime(300),
-        switchMap(term => {
-          this.loading.set(true);
-          // Previous search is automatically cancelled!
-          return this.http.get<any[]>(`/api/search?q=${term}`);
-        }),
-        takeUntilDestroyed()
-      )
-      .subscribe(results => {
-        this.results.set(results);
-        this.loading.set(false);
-      });
-  }
-}
+of(1, 2, 3)
+  .pipe(
+    tap((n) => console.log('before', n)),
+    map((n) => n * 2),
+    tap({
+      next: (n) => console.log('after', n),
+      complete: () => console.log('done'),
+    }),
+  )
+  .subscribe();
 ```
 
-## 🎯 The mergeMap Operator
+`tap` also accepts `subscribe`, `unsubscribe` and `finalize` callbacks in its observer object, which is handy for debugging.
 
-**mergeMap** runs all Observables concurrently. Good for parallel operations!
+## `scan` — accumulate state over time
 
-### When to Use mergeMap
+`scan` is like `Array.reduce`, but it emits the **running** result after every value:
 
-✅ **Use mergeMap when:**
-- Processing multiple items independently
-- Order doesn't matter
-- Want maximum concurrency
-
-### Example: Upload Multiple Files
-
-```typescript
-import { Component, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { from } from 'rxjs';
-import { mergeMap } from 'rxjs/operators';
-
-@Component({
-  selector: 'app-file-upload',
-  template: `
-    <input type="file" multiple (change)="onFilesSelected($event)">
-    
-    @if (uploading()) {
-      <p>Uploading {{ uploadedCount() }} / {{ totalFiles() }}</p>
-    }
-  `
-})
-export class FileUploadComponent {
-  private http = inject(HttpClient);
-  
-  uploading = signal(false);
-  uploadedCount = signal(0);
-  totalFiles = signal(0);
-
-  onFilesSelected(event: any) {
-    const files: File[] = Array.from(event.target.files);
-    this.totalFiles.set(files.length);
-    this.uploading.set(true);
-    this.uploadedCount.set(0);
-
-    // Upload all files in parallel
-    from(files)
-      .pipe(
-        mergeMap(file => this.uploadFile(file))
-      )
-      .subscribe({
-        next: () => this.uploadedCount.update(c => c + 1),
-        complete: () => this.uploading.set(false)
-      });
-  }
-
-  uploadFile(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post('/api/upload', formData);
-  }
-}
+```
+source:  --1--2--3--|
+scan((acc, x) => acc + x, 0)
+result:  --1--3--6--|
 ```
 
-## 🎯 The concatMap Operator
+```ts
+import { of, scan } from 'rxjs';
 
-**concatMap** processes Observables one at a time, in order. Perfect when order matters!
+of(1, 2, 3)
+  .pipe(scan((total, n) => total + n, 0))
+  .subscribe((t) => console.log(t)); // 1, 3, 6
+```
 
-### When to Use concatMap
+### Real-world: a tiny reducer for a component
 
-✅ **Use concatMap when:**
-- Order is important
-- Need to process sequentially
-- Want to queue operations
+`scan` + a Subject of actions gives you a predictable mini-store. Here's a counter with undo:
 
-### Example: Sequential API Calls
-
-```typescript
+```ts title="undo-counter.ts"
 import { Component } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { from } from 'rxjs';
-import { concatMap } from 'rxjs/operators';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { scan, Subject } from 'rxjs';
+
+type Action = 'inc' | 'dec' | 'undo';
+
+interface State {
+  value: number;
+  history: number[];
+}
 
 @Component({
-  selector: 'app-batch-processor',
-  template: `<button (click)="processBatch()">Process Batch</button>`
+  selector: 'app-undo-counter',
+  template: `
+    <p>Value: {{ state().value }}</p>
+    <button type="button" (click)="actions.next('dec')">-</button>
+    <button type="button" (click)="actions.next('inc')">+</button>
+    <button type="button" (click)="actions.next('undo')" [disabled]="state().history.length === 0">Undo</button>
+  `,
 })
-export class BatchProcessorComponent {
-  private http = inject(HttpClient);
+export class UndoCounter {
+  protected readonly actions = new Subject<Action>();
 
-  processBatch() {
-    const userIds = [1, 2, 3, 4, 5];
-
-    // Process users one by one, in order
-    from(userIds)
-      .pipe(
-        concatMap(id => 
-          this.http.post(`/api/users/${id}/process`, {})
-        )
-      )
-      .subscribe({
-        next: (result) => console.log('Processed:', result),
-        complete: () => console.log('All done!')
-      });
-  }
+  protected readonly state = toSignal(
+    this.actions.pipe(
+      scan(
+        (s: State, action: Action): State => {
+          switch (action) {
+            case 'inc':
+              return { value: s.value + 1, history: [...s.history, s.value] };
+            case 'dec':
+              return { value: s.value - 1, history: [...s.history, s.value] };
+            case 'undo':
+              return { value: s.history.at(-1) ?? s.value, history: s.history.slice(0, -1) };
+          }
+        },
+        { value: 0, history: [] },
+      ),
+    ),
+    { initialValue: { value: 0, history: [] } },
+  );
 }
 ```
 
-## 🎯 The exhaustMap Operator
+:::tip
+For plain component state, a `signal()` with `update()` is simpler. `scan` shines when state is built from a **stream
+of events** that you also want to debounce, filter or combine with other streams.
+:::
 
-**exhaustMap** ignores new values while processing the current one. Perfect for preventing duplicate actions!
+## `reduce` — one final result
 
-### When to Use exhaustMap
+`reduce` is `scan` that only emits **once**, when the source completes:
 
-✅ **Use exhaustMap when:**
-- Preventing double-clicks
-- Avoiding duplicate submissions
-- Rate limiting user actions
+```ts
+import { of, reduce } from 'rxjs';
 
-### Example: Prevent Double Submit
+of(5, 10, 15)
+  .pipe(reduce((sum, n) => sum + n, 0))
+  .subscribe((sum) => console.log(sum)); // 30
+```
 
-```typescript
-import { Component, signal } from '@angular/core';
-import { Subject } from 'rxjs';
-import { exhaustMap } from 'rxjs/operators';
+Never use `reduce` (or `toArray`, `last`) on a stream that doesn't complete — it will never emit.
+
+## Working with several values at once
+
+### `pairwise` — previous and current
+
+```ts
+import { fromEvent, map, pairwise } from 'rxjs';
+
+// Detect scroll direction
+fromEvent(window, 'scroll')
+  .pipe(
+    map(() => window.scrollY),
+    pairwise(), // emits [previous, current]
+    map(([prev, curr]) => (curr > prev ? 'down' : 'up')),
+  )
+  .subscribe((direction) => console.log(direction));
+```
+
+### `bufferCount` and `bufferTime` — batches
+
+```ts
+import { bufferCount, of } from 'rxjs';
+
+of(1, 2, 3, 4, 5)
+  .pipe(bufferCount(2))
+  .subscribe((batch) => console.log(batch)); // [1, 2], [3, 4], [5]
+```
+
+Real-world: batch analytics events and send them every 5 seconds instead of one request per event:
+
+```ts title="analytics.ts"
 import { HttpClient } from '@angular/common/http';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject, Service } from '@angular/core';
+import { bufferTime, concatMap, filter, Subject } from 'rxjs';
 
-@Component({
-  selector: 'app-form',
-  template: `
-    <form (submit)="onSubmit()">
-      <input [(ngModel)]="name" name="name">
-      <button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Submitting...' : 'Submit' }}
-      </button>
-    </form>
-  `
-})
-export class FormComponent {
-  private http = inject(HttpClient);
-  private submitSubject = new Subject<void>();
-  
-  name = '';
-  submitting = signal(false);
+interface TrackEvent {
+  name: string;
+  at: number;
+}
+
+@Service()
+export class Analytics {
+  private readonly http = inject(HttpClient);
+  private readonly events = new Subject<TrackEvent>();
 
   constructor() {
-    // Ignore clicks while submitting
-    this.submitSubject
+    this.events
       .pipe(
-        exhaustMap(() => {
-          this.submitting.set(true);
-          return this.http.post('/api/submit', { name: this.name });
-        }),
-        takeUntilDestroyed()
+        bufferTime(5000), // collect events for 5 s
+        filter((batch) => batch.length > 0), // skip empty batches
+        concatMap((batch) => this.http.post('/api/analytics', batch)), // send batches in order
       )
-      .subscribe({
-        next: () => {
-          console.log('Submitted!');
-          this.submitting.set(false);
-        },
-        error: () => this.submitting.set(false)
-      });
+      .subscribe();
   }
 
-  onSubmit() {
-    this.submitSubject.next();
+  track(name: string) {
+    this.events.next({ name, at: Date.now() });
   }
 }
 ```
 
-## 📊 Quick Comparison
+A root service lives as long as the app, so this subscription never needs to be cleaned up.
 
-| Operator | Behavior | Use Case |
-|----------|----------|----------|
-| **map** | Transform values | Change data format |
-| **switchMap** | Cancel previous | Search, navigation |
-| **mergeMap** | Run all parallel | File uploads |
-| **concatMap** | Run in sequence | Ordered operations |
-| **exhaustMap** | Ignore while busy | Prevent duplicates |
+### `toArray` — collect everything
 
-## ✅ Simple Rules
+```ts
+import { of, toArray } from 'rxjs';
 
-```typescript
-// 1. Transforming data? Use map
-users$.pipe(map(user => user.name))
-
-// 2. Search or navigation? Use switchMap
-search$.pipe(switchMap(term => this.search(term)))
-
-// 3. Multiple parallel tasks? Use mergeMap
-files$.pipe(mergeMap(file => this.upload(file)))
-
-// 4. Must be in order? Use concatMap
-queue$.pipe(concatMap(task => this.process(task)))
-
-// 5. Prevent double-click? Use exhaustMap
-clicks$.pipe(exhaustMap(() => this.save()))
+of('a', 'b', 'c')
+  .pipe(toArray())
+  .subscribe((all) => console.log(all)); // ['a', 'b', 'c']
 ```
 
-## 🎓 Learning Checklist
+## Advanced: `groupBy` and `expand`
 
-- [ ] Use map to transform data
-- [ ] Use switchMap for search/navigation
-- [ ] Use mergeMap for parallel operations
-- [ ] Use concatMap when order matters
-- [ ] Use exhaustMap to prevent duplicates
-- [ ] Understand when to use each operator
+### `groupBy` — one inner stream per key
 
-## 🚀 Next Steps
+`groupBy` splits a stream into groups. Each group is itself an Observable (`GroupedObservable`) with a `key`:
 
-1. **[Filtering Operators](/rxjs/filtering-operators/)** - Filter your data streams
-2. **[Combination Operators](/rxjs/combination-operators/)** - Combine multiple streams
-3. **[Error Handling](/rxjs/error-handling/)** - Handle errors gracefully
+```ts
+import { from, groupBy, mergeMap, reduce } from 'rxjs';
 
----
+const orders = [
+  { customer: 'ana', total: 20 },
+  { customer: 'ben', total: 5 },
+  { customer: 'ana', total: 15 },
+];
 
-**Pro Tip**: Start with **map** and **switchMap** - they cover 80% of use cases! When in doubt, use switchMap for async operations! 🔄
+from(orders)
+  .pipe(
+    groupBy((o) => o.customer),
+    mergeMap((group) => group.pipe(reduce((sum, o) => sum + o.total, 0))),
+  )
+  .subscribe((sum) => console.log(sum)); // 35 (ana), 5 (ben)
+```
+
+### `expand` — recursive calls, e.g. fetching every page
+
+`expand` feeds each result back into itself until you return `EMPTY`. Perfect for "load page 1, then page 2, …":
+
+```ts title="all-products.ts"
+import { HttpClient } from '@angular/common/http';
+import { inject, Service } from '@angular/core';
+import { EMPTY, expand, map, reduce } from 'rxjs';
+
+interface Page<T> {
+  items: T[];
+  nextPage: number | null;
+}
+
+interface Product {
+  id: number;
+  name: string;
+}
+
+@Service()
+export class ProductApi {
+  private readonly http = inject(HttpClient);
+
+  private getPage(page: number) {
+    return this.http.get<Page<Product>>('/api/products', { params: { page } });
+  }
+
+  /** Loads every page and emits one array with all products */
+  getAll() {
+    return this.getPage(1).pipe(
+      expand((res) => (res.nextPage ? this.getPage(res.nextPage) : EMPTY)),
+      map((res) => res.items),
+      reduce((all, items) => [...all, ...items], [] as Product[]),
+    );
+  }
+}
+```
+
+## Flattening operators: when each value starts async work
+
+Often each value should start **another** Observable — an HTTP request, a timer, a save. If you use `map`, you get an
+Observable *of Observables*. **Flattening operators** subscribe to those inner Observables for you and emit their results.
+
+The four operators differ only in what they do **when a new value arrives while the previous inner Observable is still running**:
+
+| Operator | While busy, a new value… | Typical Angular use |
+|---|---|---|
+| `switchMap` | **cancels** the previous inner Observable | Search-as-you-type, route param → load data |
+| `mergeMap` | runs **in parallel** with the previous ones | Upload many files, independent requests |
+| `concatMap` | **waits** in a queue until the previous one completes | Ordered saves, sequential steps |
+| `exhaustMap` | is **ignored** until the current one completes | Login/submit buttons (prevent double submit) |
+
+```ts
+import { concatMap, exhaustMap, mergeMap, switchMap } from 'rxjs';
+
+searchTerm$.pipe(switchMap((term) => api.search(term))); // latest wins
+files$.pipe(mergeMap((file) => api.upload(file), 3)); // up to 3 at once
+edits$.pipe(concatMap((edit) => api.save(edit))); // one at a time, in order
+submitClicks$.pipe(exhaustMap(() => api.login(credentials))); // ignore clicks while logging in
+```
+
+Here's a component that loads a product whenever the `id` input changes. `switchMap` cancels the in-flight request
+if the user navigates to another product before it finishes:
+
+```ts title="product-detail.ts"
+import { Component, inject, input } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { switchMap } from 'rxjs';
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+}
+
+@Component({
+  selector: 'app-product-detail',
+  template: `
+    @if (product(); as p) {
+      <h2>{{ p.name }}</h2>
+      <p>{{ p.price }}</p>
+    } @else {
+      <p>Loading…</p>
+    }
+  `,
+})
+export class ProductDetail {
+  private readonly http = inject(HttpClient);
+  readonly id = input.required<string>();
+
+  protected readonly product = toSignal(
+    toObservable(this.id).pipe(switchMap((id) => this.http.get<Product>(`/api/products/${id}`))),
+  );
+}
+```
+
+:::tip
+This "input → request" pattern is exactly what `rxResource` (or `httpResource`) does for you, with loading and error
+state included. Compare the approaches in [RxJS Patterns in Angular](/rxjs/angular-patterns/).
+:::
+
+Each flattening operator has a deep-dive with timelines and real-world examples in
+[Higher-Order Observables](/rxjs/higher-order-observables/).
+
+## Quick reference
+
+| Operator | What it does |
+|---|---|
+| `map` | Transform each value |
+| `tap` | Side effect, value unchanged |
+| `scan` | Running accumulation (emits each step) |
+| `reduce` | Final accumulation (emits once on complete) |
+| `pairwise` | Emit `[previous, current]` |
+| `bufferCount` / `bufferTime` | Emit arrays of values by count / time |
+| `toArray` | Collect all values into one array on complete |
+| `groupBy` | Split into per-key inner streams |
+| `expand` | Recursively apply a projection (pagination, trees) |
+| `switchMap` / `mergeMap` / `concatMap` / `exhaustMap` | Map each value to an inner Observable and flatten |
+
+## Common mistakes
+
+- **Using `map` to return an Observable.** You'll get `Observable<Observable<T>>`. Use a flattening operator.
+- **Using `mergeMap` for search.** Older responses can arrive after newer ones and overwrite the results. Use `switchMap`.
+- **Using `switchMap` for writes.** Cancelling a `POST`/`PUT` mid-flight can leave the server in an unknown state. Use `concatMap` or `exhaustMap`.
+- **`reduce`/`toArray` on endless streams.** They only emit on completion.
+- **Putting logic in `tap` that should be in `map`.** `tap` is for side effects; its return value is ignored.
+
+## Key takeaways
+
+- `map` reshapes values; `tap` observes them.
+- `scan` accumulates and emits every step; `reduce` emits only the final result.
+- `pairwise`, `buffer*` and `toArray` work with groups of values.
+- Pick the flattening operator by asking "what should happen when a new value arrives while I'm busy?"
+
+## Next steps
+
+- [Filtering Operators](/rxjs/filtering-operators/) — decide which values get through
+- [Higher-Order Observables](/rxjs/higher-order-observables/) — deep dive into the flattening operators
+- [Combination Operators](/rxjs/combination-operators/) — combine several streams

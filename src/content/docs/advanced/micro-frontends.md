@@ -25,7 +25,7 @@ Micro frontends are **independently deployable frontend applications** that work
 - iFrames
 - Server-side composition
 
-> **Note:** Angular uses **esbuild** as the default builder since Angular 17. Module Federation requires a Webpack-based build. Use `@angular-architects/native-federation` for an esbuild-compatible alternative, or configure your project to use the Webpack builder.
+> **Note:** Angular uses `@angular/build:application` (**esbuild + Vite**) as the default builder, and the older Webpack builders are deprecated in Angular 22. Classic Webpack Module Federation requires a custom Webpack builder. For modern Angular 22 projects on the default esbuild builder, prefer **Native Federation** (`@angular-architects/native-federation`) or **Angular Elements** (`@angular/elements`) web components.
 
 ## 🚀 Module Federation Setup
 

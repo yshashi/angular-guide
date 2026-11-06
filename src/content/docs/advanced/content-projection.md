@@ -1,652 +1,439 @@
 ---
 title: Content Projection 📤
-description: Master Angular content projection patterns - single slot, multi-slot, and conditional projection
+description: Build flexible Angular components with ng-content slots, fallback content, ngProjectAs, content queries, ng-template and ngTemplateOutlet.
 sidebar:
   order: 3
 ---
 
-Content projection (also known as transclusion) allows you to create flexible, reusable components by passing content from parent to child components. It's like creating slots where parent components can inject their own content.
+**Content projection** lets the *user* of a component decide what goes inside it. A card, dialog, panel or layout component provides the frame, and the parent fills in the content. It's the Angular version of "slots" in Web Components or `children` in React.
 
-## 🎯 What is Content Projection?
+This page covers `<ng-content>` slots, and then the more powerful **template-based** projection with `<ng-template>` and `ngTemplateOutlet`, which you need for lazy, conditional, repeated or data-driven content.
 
-Content projection lets you **insert content from a parent component into a child component's template**. Think of it as creating customizable "slots" in your components.
+## What you'll learn
 
-**Benefits:**
-- **🔄 Reusability** - Create flexible component templates
-- **🎨 Customization** - Let parents control child content
-- **📦 Composition** - Build complex UIs from simple parts
-- **🧩 Flexibility** - Support multiple content variations
+- Single-slot and multi-slot projection with `<ng-content select>`
+- Fallback (default) content and `ngProjectAs`
+- Why projected content always belongs to the parent
+- Reading projected content with `contentChild()` / `contentChildren()`
+- Passing templates with `<ng-template>` and rendering them with `ngTemplateOutlet`
+- Typed item templates, templates as inputs and the `injector: 'outlet'` option
 
-## 🚀 Basic Content Projection
+## Single-slot projection
 
-### Single-Slot Projection
+Put `<ng-content />` where the content should appear:
 
-```typescript
-// Card component that accepts any content
+```ts title="card.ts"
+import { Component } from '@angular/core';
+
 @Component({
   selector: 'app-card',
   template: `
     <div class="card">
-      <ng-content></ng-content>
+      <ng-content />
     </div>
-  `
+  `,
+  styles: `.card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }`,
 })
-export class CardComponent {}
+export class Card {}
 ```
-
-**Usage:**
 
 ```html
 <app-card>
-  <h2>Card Title</h2>
-  <p>This content is projected into the card!</p>
+  <h2>Hello</h2>
+  <p>Anything goes here.</p>
 </app-card>
 ```
 
-### With Default Content
+Rendered DOM:
 
-```typescript
+```html
+<app-card>
+  <div class="card">
+    <h2>Hello</h2>
+    <p>Anything goes here.</p>
+  </div>
+</app-card>
+```
+
+`<ng-content>` isn't a real element. It's a placeholder that the compiler resolves at **build time**. You can't add directives, classes or bindings to it.
+
+## Multi-slot projection with `select`
+
+Give each `<ng-content>` a CSS selector in `select`. Content goes to the first slot it matches. A slot **without** `select` collects everything else.
+
+```ts title="panel.ts"
+import { Component } from '@angular/core';
+
 @Component({
   selector: 'app-panel',
   template: `
-    <div class="panel">
-      <ng-content>
-        <p>Default content when nothing is projected</p>
-      </ng-content>
-    </div>
-  `
+    <header><ng-content select="[panel-title]">Untitled</ng-content></header>
+    <section><ng-content /></section>
+    <footer><ng-content select="app-panel-actions, .actions" /></footer>
+  `,
 })
-export class PanelComponent {}
-```
+export class Panel {}
 
-## 🎨 Multi-Slot Projection
-
-Use `select` attribute to project content into specific slots.
-
-### Named Slots Example
-
-```typescript
 @Component({
-  selector: 'app-card',
-  template: `
-    <div class="card">
-      <div class="card-header">
-        <ng-content select="[card-header]"></ng-content>
-      </div>
-      
-      <div class="card-body">
-        <ng-content select="[card-body]"></ng-content>
-      </div>
-      
-      <div class="card-footer">
-        <ng-content select="[card-footer]"></ng-content>
-      </div>
-    </div>
-  `
+  selector: 'app-panel-actions',
+  template: `<ng-content />`,
 })
-export class CardComponent {}
+export class PanelActions {}
 ```
-
-**Usage:**
 
 ```html
-<app-card>
-  <div card-header>
-    <h3>Card Title</h3>
-  </div>
-  
-  <div card-body>
-    <p>Main content goes here</p>
-  </div>
-  
-  <div card-footer>
-    <button>Action</button>
-  </div>
-</app-card>
+<app-panel>
+  <h2 panel-title>Settings</h2>
+  <p>Body content</p>
+  <app-panel-actions><button>Save</button></app-panel-actions>
+</app-panel>
 ```
 
-### Using CSS Selectors
+| `select` value | Matches |
+| --- | --- |
+| `select="app-panel-actions"` | Element (tag) name |
+| `select="[panel-title]"` | Attribute |
+| `select=".actions"` | CSS class |
+| `select="button[primary]"` | Combination |
+| `select="a, b"` | Either selector |
 
-```typescript
-@Component({
-  selector: 'app-layout',
-  template: `
-    <header>
-      <ng-content select="header"></ng-content>
-    </header>
-    
-    <main>
-      <ng-content select=".main-content"></ng-content>
-    </main>
-    
-    <aside>
-      <ng-content select="#sidebar"></ng-content>
-    </aside>
-    
-    <footer>
-      <ng-content select="footer"></ng-content>
-    </footer>
-  `
-})
-export class LayoutComponent {}
-```
+Content that doesn't match any slot and has no default slot to go to is **not rendered**.
 
-**Usage:**
+:::note
+The selector is matched against the elements you write in the parent template, **not** against the projected component's own internal DOM. Only top-level nodes are matched. Nested elements travel along with their parent.
+:::
+
+## Fallback content
+
+Anything inside `<ng-content>` is shown only when nothing is projected into that slot:
 
 ```html
-<app-layout>
-  <header>
-    <h1>My App</h1>
-  </header>
-  
-  <div class="main-content">
-    <p>Main content area</p>
-  </div>
-  
-  <div id="sidebar">
-    <nav>Navigation</nav>
-  </div>
-  
-  <footer>
-    <p>&copy; 2024</p>
-  </footer>
-</app-layout>
+<!-- in app-panel's template -->
+<header><ng-content select="[panel-title]">Untitled</ng-content></header>
 ```
-
-## 🎨 Real-World Examples
-
-
-
-### 1. **Reusable Dialog Component**
-
-Let's build a flexible dialog component with header, body, and footer slots.
-
-```typescript
-@Component({
-  selector: 'app-dialog',
-  template: `
-    <div class="dialog-overlay" (click)="close.emit()">
-      <div class="dialog-container" (click)="$event.stopPropagation()">
-        <div class="dialog-header">
-          <ng-content select="[dialog-header]"></ng-content>
-          <button class="close-btn" (click)="close.emit()">&times;</button>
-        </div>
-        
-        <div class="dialog-body">
-          <ng-content select="[dialog-body]"></ng-content>
-        </div>
-        
-        <div class="dialog-footer">
-          <ng-content select="[dialog-footer]"></ng-content>
-        </div>
-      </div>
-    </div>
-  `
-})
-export class DialogComponent {
-  close = output<void>();
-}
-```
-
-**Usage:**
-
-```typescript
-@Component({
-  selector: 'app-user-profile',
-  imports: [DialogComponent],
-  template: `
-    @if (showDialog()) {
-      <app-dialog (close)="showDialog.set(false)">
-        <div dialog-header>
-          <h2>User Profile</h2>
-        </div>
-        
-        <div dialog-body>
-          <p>Name: {{ user().name }}</p>
-          <p>Email: {{ user().email }}</p>
-        </div>
-        
-        <div dialog-footer>
-          <button (click)="save()">Save</button>
-          <button (click)="showDialog.set(false)">Cancel</button>
-        </div>
-      </app-dialog>
-    }
-  `
-})
-export class UserProfileComponent {
-  showDialog = signal(false);
-  user = signal({ name: 'John Doe', email: 'john@example.com' });
-  
-  save() {
-    console.log('Saving user...');
-    this.showDialog.set(false);
-  }
-}
-```
-
-### 2. **Accordion Component**
-
-Let's create an accordion with flexible content projection.
-
-```typescript
-// Accordion Item Component
-@Component({
-  selector: 'app-accordion-item',
-  template: `
-    <div class="accordion-item">
-      <button 
-        class="accordion-header" 
-        (click)="toggle()"
-        [class.active]="isOpen()">
-        <ng-content select="[accordion-title]"></ng-content>
-        <span class="icon">{{ isOpen() ? '−' : '+' }}</span>
-      </button>
-      
-      @if (isOpen()) {
-        <div class="accordion-content">
-          <ng-content select="[accordion-content]"></ng-content>
-        </div>
-      }
-    </div>
-  `
-})
-export class AccordionItemComponent {
-  isOpen = signal(false);
-  
-  toggle() {
-    this.isOpen.update(v => !v);
-  }
-}
-
-// Accordion Container
-@Component({
-  selector: 'app-accordion',
-  template: `
-    <div class="accordion">
-      <ng-content></ng-content>
-    </div>
-  `
-})
-export class AccordionComponent {}
-```
-
-**Usage:**
 
 ```html
-<app-accordion>
-  <app-accordion-item>
-    <h3 accordion-title>What is Angular?</h3>
-    <div accordion-content>
-      <p>Angular is a platform for building web applications.</p>
-    </div>
-  </app-accordion-item>
-  
-  <app-accordion-item>
-    <h3 accordion-title>What are Signals?</h3>
-    <div accordion-content>
-      <p>Signals are Angular's new reactivity primitive.</p>
-    </div>
-  </app-accordion-item>
-</app-accordion>
+<app-panel>
+  <p>No title given, so the header shows "Untitled"</p>
+</app-panel>
 ```
 
-### 3. **Tab Component with Projection**
+## `ngProjectAs`: projecting into a slot under another name
 
-Let's build a tab system using content projection.
+Sometimes the element you want to project doesn't match the slot's selector, or you want to project **several** elements into one slot. Wrap them in an `<ng-container>` with `ngProjectAs`:
 
-```typescript
-// Tab Component
-@Component({
-  selector: 'app-tab',
-  template: `
-    @if (active()) {
-      <div class="tab-panel">
-        <ng-content></ng-content>
-      </div>
-    }
-  `
-})
-export class TabComponent {
-  label = input.required<string>();
-  active = input<boolean>(false);
-}
+```html
+<app-panel>
+  <ng-container ngProjectAs="[panel-title]">
+    <h2>Title</h2>
+    <small>with a subtitle</small>
+  </ng-container>
+  <p>Only body</p>
+</app-panel>
+```
 
-// Tabs Container
+`ngProjectAs` takes a **static** selector string. It can't be bound to an expression.
+
+## Projected content belongs to the parent
+
+This is the most important rule to understand:
+
+- **Creation:** projected content is created by the parent **even if the slot is hidden**. Putting `<ng-content>` inside `@if` doesn't stop the content's components from being created, and their constructors and `ngOnInit` still run.
+- **Change detection:** projected content is checked as part of the **parent's** view. Making the receiving component OnPush (the default since v22) doesn't skip it.
+- **Dependency injection:** projected content resolves dependencies from where it's **declared** (the parent template). It can see the receiving component's `providers` (it's inside that host element), but **not** its `viewProviders`.
+
+```ts
 @Component({
   selector: 'app-tabs',
-  imports: [TabComponent],
-  template: `
-    <div class="tabs">
-      <div class="tab-headers">
-        @for (tab of tabs(); track $index) {
-          <button 
-            class="tab-header"
-            [class.active]="activeIndex() === $index"
-            (click)="selectTab($index)">
-            {{ tab.label() }}
-          </button>
-        }
-      </div>
-      
-      <div class="tab-content">
-        <ng-content></ng-content>
-      </div>
-    </div>
-  `
+  providers: [TabsState],      // visible to projected <app-tab> children
+  viewProviders: [TabsTheme],  // only visible inside app-tabs' own template
+  template: `<ng-content />`,
 })
-export class TabsComponent {
-  tabs = contentChildren(TabComponent);
-  activeIndex = signal(0);
-  
-  selectTab(index: number) {
-    this.activeIndex.set(index);
-    
-    // Update active state of tabs
-    this.tabs().forEach((tab, i) => {
-      tab.active.set(i === index);
-    });
-  }
-}
+export class Tabs {}
 ```
 
-**Usage:**
+:::danger[Don't project conditionally with `@if`]
+`@if (open()) { <ng-content /> }` only hides the DOM. The content is still created up front, and it's created only once. To render content **lazily**, **conditionally** or **multiple times**, accept an `<ng-template>` instead (see [below](#lazy-conditional-and-repeated-content-with-ng-template)).
+:::
 
-```html
-<app-tabs>
-  <app-tab label="Profile">
-    <h3>Profile Information</h3>
-    <p>User profile content here</p>
-  </app-tab>
-  
-  <app-tab label="Settings">
-    <h3>Settings</h3>
-    <p>Settings content here</p>
-  </app-tab>
-  
-  <app-tab label="Activity">
-    <h3>Recent Activity</h3>
-    <p>Activity feed here</p>
-  </app-tab>
-</app-tabs>
+## Reading projected content with content queries
+
+A component can get references to its projected children with signal-based content queries:
+
+```ts
+readonly tabs = contentChildren(Tab);                      // Signal<readonly Tab[]>
+readonly header = contentChild(PanelHeader);                // Signal<PanelHeader | undefined>
+readonly icon = contentChild.required('icon');              // by template reference name
+readonly all = contentChildren(Tab, { descendants: true }); // also search nested elements
+readonly el = contentChild(Tab, { read: ElementRef });       // read a different token
 ```
 
-### 4. **Alert Component with Icon Slot**
+`contentChildren` looks only at **direct** children by default. Pass `descendants: true` to search deeper. `contentChild` searches descendants by default. The results are signals, so you can use them in `computed()` and templates.
 
-Let's create an alert component with customizable icon and content.
+## Lazy, conditional and repeated content with `ng-template`
 
-```typescript
+An `<ng-template>` is a piece of template that is **not rendered** until someone asks for it. The receiving component can render it zero, one or many times, whenever it wants, with `ngTemplateOutlet`.
+
+### Example: tabs that render only the active panel
+
+```ts title="tabs.ts"
+import { Component, TemplateRef, computed, contentChildren, input, signal, viewChild } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+
 @Component({
-  selector: 'app-alert',
+  selector: 'app-tab',
+  // Wrap the projected content in a template, so it's only rendered on demand
+  template: `<ng-template><ng-content /></ng-template>`,
+})
+export class Tab {
+  readonly label = input.required<string>();
+  readonly content = viewChild.required(TemplateRef);
+}
+
+@Component({
+  selector: 'app-tabs',
+  imports: [NgTemplateOutlet],
   template: `
-    <div class="alert" [class]="'alert-' + type()">
-      <div class="alert-icon">
-        <ng-content select="[alert-icon]"></ng-content>
-      </div>
-      
-      <div class="alert-content">
-        <ng-content></ng-content>
-      </div>
-      
-      @if (dismissible()) {
-        <button class="alert-close" (click)="dismiss.emit()">
-          &times;
+    <div role="tablist">
+      @for (tab of tabs(); track tab; let i = $index) {
+        <button
+          role="tab"
+          [attr.aria-selected]="i === active()"
+          [class.active]="i === active()"
+          (click)="active.set(i)"
+        >
+          {{ tab.label() }}
         </button>
       }
     </div>
-  `
+    <div role="tabpanel">
+      @if (activeTab(); as tab) {
+        <ng-container [ngTemplateOutlet]="tab.content()" />
+      }
+    </div>
+  `,
 })
-export class AlertComponent {
-  type = input<'success' | 'warning' | 'error' | 'info'>('info');
-  dismissible = input<boolean>(false);
-  dismiss = output<void>();
+export class Tabs {
+  readonly tabs = contentChildren(Tab);
+  protected readonly active = signal(0);
+  protected readonly activeTab = computed(() => this.tabs()[this.active()]);
 }
 ```
 
-**Usage:**
-
 ```html
-<app-alert type="success" [dismissible]="true">
-  <svg alert-icon><!-- Success icon --></svg>
-  <strong>Success!</strong> Your changes have been saved.
-</app-alert>
-
-<app-alert type="error">
-  <svg alert-icon><!-- Error icon --></svg>
-  <strong>Error!</strong> Something went wrong.
-</app-alert>
+<app-tabs>
+  <app-tab label="Profile"><p>Profile form…</p></app-tab>
+  <app-tab label="Billing"><p>Billing info…</p></app-tab>
+</app-tabs>
 ```
 
-### 5. **List Component with Custom Item Template**
+The **DOM** for inactive tabs isn't rendered. Note that components written directly inside `<app-tab>` are still *created* by the parent (the rule above). For truly lazy panels, have users pass an `<ng-template>` themselves, or combine this with `@defer`. For a production-ready, accessible tabs pattern, see `@angular/aria` (stable in v22) or Angular Material.
 
-Let's create a list component that accepts custom item templates.
+:::tip[Accessible tabs]
+This example shows the projection technique only. A real tab widget also needs arrow-key navigation, `aria-controls` / `id` wiring and focus management.
+:::
 
-```typescript
+### Example: a list with a customizable, typed item template
+
+Libraries often let you customise how each item looks. A tiny **marker directive** finds the template and gives it a typed context.
+
+```ts title="list.ts"
+import { Component, Directive, TemplateRef, contentChild, inject, input } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+
+export interface ListItemContext<T> {
+  $implicit: T; // let-user
+  index: number; // let-i="index"
+}
+
+@Directive({ selector: 'ng-template[appListItem]' })
+export class ListItem<T> {
+  // Only used so TypeScript can infer T from the items you pass in
+  readonly appListItem = input.required<readonly T[]>();
+  readonly template = inject<TemplateRef<ListItemContext<T>>>(TemplateRef);
+
+  static ngTemplateContextGuard<T>(dir: ListItem<T>, ctx: unknown): ctx is ListItemContext<T> {
+    return true;
+  }
+}
+
 @Component({
   selector: 'app-list',
-  template: `
-    <ul class="list">
-      @for (item of items(); track trackBy($index, item)) {
-        <li class="list-item">
-          <ng-content></ng-content>
-        </li>
-      }
-    </ul>
-  `
-})
-export class ListComponent<T> {
-  items = input.required<T[]>();
-  trackBy = input<(index: number, item: T) => any>((i, item) => i);
-}
-```
-
-**Usage:**
-
-```typescript
-@Component({
-  selector: 'app-user-list',
-  imports: [ListComponent],
-  template: `
-    <app-list [items]="users()">
-      @for (user of users(); track user.id) {
-        <div class="user-item">
-          <img [src]="user.avatar" [alt]="user.name">
-          <div>
-            <h4>{{ user.name }}</h4>
-            <p>{{ user.email }}</p>
-          </div>
-        </div>
-      }
-    </app-list>
-  `
-})
-export class UserListComponent {
-  users = signal([
-    { id: 1, name: 'John', email: 'john@example.com', avatar: '/avatar1.jpg' },
-    { id: 2, name: 'Jane', email: 'jane@example.com', avatar: '/avatar2.jpg' }
-  ]);
-}
-```
-
-## 🔍 Advanced Patterns
-
-### Conditional Projection
-
-Check if content was projected using `contentChild()`:
-
-```typescript
-import { Component, contentChild, computed, ElementRef } from '@angular/core';
-
-@Component({
-  selector: 'app-card',
-  template: `
-    <div class="card">
-      @if (hasHeader()) {
-        <div class="card-header">
-          <ng-content select="[card-header]"></ng-content>
-        </div>
-      }
-      
-      <div class="card-body">
-        <ng-content></ng-content>
-      </div>
-    </div>
-  `
-})
-export class CardComponent {
-  headerContent = contentChild<ElementRef>('[card-header]');
-  
-  hasHeader = computed(() => !!this.headerContent());
-}
-```
-
-### NgTemplateOutlet for Dynamic Content
-
-```typescript
-@Component({
-  selector: 'app-container',
   imports: [NgTemplateOutlet],
   template: `
-    <div class="container">
-      <ng-container *ngTemplateOutlet="template(); context: { $implicit: data() }">
-      </ng-container>
-    </div>
-  `
+    <ul>
+      @for (item of items(); track $index) {
+        <li>
+          <ng-container
+            [ngTemplateOutlet]="itemTemplate()?.template ?? defaultItem"
+            [ngTemplateOutletContext]="{ $implicit: item, index: $index }"
+          />
+        </li>
+      } @empty {
+        <li><ng-content select="[empty]">No items</ng-content></li>
+      }
+    </ul>
+    <ng-template #defaultItem let-item>{{ item }}</ng-template>
+  `,
 })
-export class ContainerComponent {
-  template = input.required<TemplateRef<any>>();
-  data = input<any>();
+export class List<T> {
+  readonly items = input.required<readonly T[]>();
+  protected readonly itemTemplate = contentChild(ListItem<T>);
 }
 ```
 
-**Usage:**
+```html
+<app-list [items]="users()">
+  <ng-template [appListItem]="users()" let-user let-i="index">
+    {{ i + 1 }}. <strong>{{ user.name }}</strong>
+  </ng-template>
+  <p empty>No users yet</p>
+</app-list>
+```
+
+Inside the template, `user` is typed as `User`, so `user.nmae` is a compile-time error. Without the guard it would be `any`.
+
+### Passing a template as an input
+
+You don't have to project a template. You can also pass a `TemplateRef` through an input:
+
+```ts title="header-bar.ts"
+import { Component, TemplateRef, input } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+
+@Component({
+  selector: 'app-header-bar',
+  imports: [NgTemplateOutlet],
+  template: `
+    <div class="bar">
+      @if (actions(); as tpl) {
+        <ng-container *ngTemplateOutlet="tpl; context: { $implicit: title() }" />
+      } @else {
+        <span>{{ title() }}</span>
+      }
+    </div>
+  `,
+})
+export class HeaderBar {
+  readonly title = input('');
+  readonly actions = input<TemplateRef<{ $implicit: string }>>();
+}
+```
 
 ```html
-<app-container [template]="customTemplate" [data]="userData">
-</app-container>
-
-<ng-template #customTemplate let-user>
-  <div>
-    <h3>{{ user.name }}</h3>
-    <p>{{ user.email }}</p>
-  </div>
+<app-header-bar title="Orders" [actions]="orderActions" />
+<ng-template #orderActions let-t>
+  <span>{{ t }}</span> <button>New order</button>
 </ng-template>
 ```
 
-## ✅ Best Practices
+### `ngTemplateOutlet` reference
 
-### 1. **Use Semantic Selectors**
+| Microsyntax | Input | Purpose |
+| --- | --- | --- |
+| `*ngTemplateOutlet="tpl"` | `ngTemplateOutlet` | The `TemplateRef` to render (`null` renders nothing) |
+| `context: {...}` | `ngTemplateOutletContext` | Values for `let-` variables. `$implicit` is the default |
+| `injector: inj` | `ngTemplateOutletInjector` | Custom injector, or `'outlet'` (see below) |
 
-```typescript
-// ✅ Good - Clear, semantic selectors
-<ng-content select="[card-header]"></ng-content>
-<ng-content select="[card-body]"></ng-content>
-<ng-content select="[card-footer]"></ng-content>
+## Which injector does a template use?
 
-// ❌ Avoid - Generic selectors
-<ng-content select=".slot1"></ng-content>
-<ng-content select=".slot2"></ng-content>
-```
+By default, a template's content resolves dependencies from where the `<ng-template>` was **declared**, not from where it's rendered. Sometimes you want the opposite.
 
-### 2. **Provide Default Content**
+### `injector: 'outlet'` (v21.2+)
 
-```typescript
-// ✅ Good - Default content for empty slots
-<ng-content select="[header]">
-  <h2>Default Header</h2>
-</ng-content>
+Set `ngTemplateOutletInjector` to the string `'outlet'` to inherit the injector from the **outlet's location**. This is perfect for recursive templates, where each level should see the providers of the component it's rendered in:
 
-// ❌ Avoid - Empty slots without defaults
-<ng-content select="[header]"></ng-content>
-```
+```ts title="tree.ts"
+import { Component, InjectionToken, inject, input } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 
-### 3. **Document Projection Slots**
+export const DEPTH = new InjectionToken<number>('DEPTH', { factory: () => 0 });
 
-```typescript
-/**
- * Card component with content projection
- * 
- * @slot [card-header] - Header content
- * @slot [card-body] - Main content (default slot)
- * @slot [card-footer] - Footer actions
- */
 @Component({
-  selector: 'app-card',
-  template: `...`
+  selector: 'app-tree-node',
+  providers: [{ provide: DEPTH, useFactory: () => inject(DEPTH, { skipSelf: true }) + 1 }],
+  template: `<div [style.padding-left.px]="depth * 16"><ng-content /></div>`,
 })
-export class CardComponent {}
-```
-
-### 4. **Use contentChild/contentChildren Signal Queries**
-
-```typescript
-// ✅ Good - Signal-based content queries
-@Component({
-  selector: 'app-tabs',
-})
-export class TabsComponent {
-  tabs = contentChildren(TabComponent);
-  
-  ngAfterContentInit() {
-    // Work with projected tabs
-    this.tabs()[0]?.activate();
-  }
+export class TreeNode {
+  protected readonly depth = inject(DEPTH);
 }
-```
 
-### 5. **Handle Missing Content**
+interface TreeItem {
+  name: string;
+  children: TreeItem[];
+}
 
-```typescript
-// ✅ Good - Check for projected content
 @Component({
-  selector: 'app-panel',
+  selector: 'app-tree',
+  imports: [NgTemplateOutlet, TreeNode],
   template: `
-    @if (hasContent()) {
-      <div class="panel">
-        <ng-content></ng-content>
-      </div>
-    } @else {
-      <div class="empty-state">
-        No content provided
-      </div>
-    }
-  `
+    <ng-template #node let-items>
+      @for (item of items; track item.name) {
+        <app-tree-node>
+          {{ item.name }}
+          <ng-container
+            *ngTemplateOutlet="node; context: { $implicit: item.children }; injector: 'outlet'"
+          />
+        </app-tree-node>
+      }
+    </ng-template>
+
+    <ng-container *ngTemplateOutlet="node; context: { $implicit: data() }" />
+  `,
 })
-export class PanelComponent {
-  content = contentChild(TemplateRef);
-  
-  hasContent = computed(() => !!this.content());
+export class Tree {
+  readonly data = input.required<TreeItem[]>();
 }
 ```
 
-## 🎯 Common Use Cases
+Each nested `<app-tree-node>` gets `DEPTH` from the node it's rendered in, so the indentation grows by level.
 
-- **Layout Components** - Headers, footers, sidebars
-- **Card/Panel Components** - Flexible content containers
-- **Dialog/Modal Components** - Customizable dialogs
-- **Tab/Accordion Components** - Dynamic content sections
-- **List Components** - Custom item templates
-- **Form Components** - Custom form layouts
-- **Alert/Notification Components** - Flexible messaging
-- **Wrapper Components** - Add behavior to projected content
+### Passing an element's injector (v22.2+)
 
-## 🎓 Learning Checklist
+Since v22.2 you can read an element's `Injector` with a view or content query (`read: Injector`) and pass it to the outlet. Projected templates can then inject what a third-party component provides:
 
-- [ ] Understand single-slot projection with `<ng-content>`
-- [ ] Use multi-slot projection with `select` attribute
-- [ ] Project content using CSS selectors
-- [ ] Access projected content with `contentChild()`
-- [ ] Work with multiple projections using `contentChildren()`
-- [ ] Provide default content for empty slots
-- [ ] Use `NgTemplateOutlet` for dynamic templates
-- [ ] Handle conditional projection
+```ts
+@Component({
+  selector: 'app-custom-table',
+  imports: [NgTemplateOutlet, ThirdPartyTable],
+  template: `
+    <app-third-party-table #inner>
+      <ng-container [ngTemplateOutlet]="columns() ?? null" [ngTemplateOutletInjector]="innerInjector()" />
+    </app-third-party-table>
+  `,
+})
+export class CustomTable {
+  readonly columns = contentChild(TemplateRef);
+  protected readonly innerInjector = viewChild('inner', { read: Injector });
+}
+```
 
-## 🚀 Next Steps
+## Common mistakes
 
-1. **[Advanced DI Patterns](/advanced/dependency-injection/)** - Master dependency injection
-2. **[Dynamic Components](/advanced/dynamic-components/)** - Load components dynamically
-3. **[Custom Directives](/advanced/custom-directives/)** - Add behavior to elements
+- **Wrapping `<ng-content>` in `@if` to make it lazy.** It isn't lazy. Use `<ng-template>` plus `ngTemplateOutlet`.
+- **Using two `<ng-content>` slots without `select`.** Only one default slot works. The others stay empty.
+- **Expecting `viewProviders` to reach projected content.** Use `providers` if projected children need the service.
+- **Binding `ngProjectAs`.** It only accepts a static selector.
+- **Untyped templates.** Without `ngTemplateContextGuard`, `let-` variables are `any`. Add a marker directive with a guard.
+- **Projecting into library components that manage their children** (menus, lists). They may rely on content queries and break when items come from another view. Check the library docs first.
 
----
+## Best practices
 
-**Pro Tip**: Content projection is perfect for creating reusable UI components! Use it to build flexible layouts, dialogs, cards, and any component that needs customizable content. Keep projection slots well-documented and provide sensible defaults! 📤
+- Use `<ng-content>` for static "frame" content and `<ng-template>` for lazy, repeated or data-driven content.
+- Give slots semantic attribute selectors (`[panel-title]`, `[card-footer]`) and provide fallback content.
+- Query projected children with `contentChild()` / `contentChildren()` signals, and derive state with `computed()`.
+- Type every template context with a marker directive and `ngTemplateContextGuard`.
+
+## Key takeaways
+
+- `<ng-content select>` places parent content into named slots. Fallback content fills empty slots.
+- Projected content is created, checked and injected from the **parent's** perspective.
+- `<ng-template>` + `ngTemplateOutlet` gives full control: lazy, conditional, repeated, with context.
+- `ngTemplateOutletInjector` accepts a custom injector or `'outlet'`, and since v22.2 queries can read an element's `Injector`.
+
+## Next steps
+
+- [Custom Directives](/advanced/custom-directives/): structural directives and template guards
+- [Dynamic Components](/advanced/dynamic-components/): pass projected nodes to dynamically created components
+- [Advanced DI Patterns](/advanced/dependency-injection/): `providers` vs `viewProviders` in depth
+- [Component Communication](/intermediate/component-communication/)

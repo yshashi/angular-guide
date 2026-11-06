@@ -1,623 +1,291 @@
 ---
 title: Custom Decorators 🏷️
-description: Create custom decorators in Angular - method, property, class, and parameter decorators
+description: How decorators work in Angular 22, which built-in decorators are replaced by functions, and how to write safe custom method and class decorators.
 sidebar:
   order: 5
 ---
 
-Decorators are a TypeScript feature that allows you to add metadata and modify classes, methods, properties, and parameters. Learn to create custom decorators for cleaner, more maintainable Angular code.
+Decorators are the `@Something()` annotations you see all over Angular code: `@Component`, `@Directive`, `@Service`. They're a TypeScript feature, and you can write your own. But in modern Angular you should reach for them **less often** than you might think. This page explains how decorators really work in an Angular project, what Angular has replaced with plain functions, and the few custom decorator patterns that are safe and useful.
 
-## 🎯 What are Decorators?
+## What you'll learn
 
-Decorators are **special functions that can modify or annotate** classes, methods, properties, or parameters. They use the `@` symbol and are executed at runtime.
+- What a decorator is and when it runs
+- How Angular's own decorators are handled by the compiler
+- Which member decorators are replaced by functions (`input()`, `inject()`, ...)
+- How to write safe **method** and **class** decorators (log, measure, memoize, debounce, registry)
+- The pitfalls: property decorators, injection, change detection and class replacement
 
-**Common Angular Decorators:**
-- `@Component()` - Define components
-- `@Injectable()` - Mark services for DI
-- `@Input()` / `@Output()` - Component communication (modern alternative: `input()` / `output()` signal functions)
-- `@ViewChild()` - Query DOM elements (modern alternative: `viewChild()` signal query)
+## What is a decorator?
 
-**Benefits:**
-- **🎨 Clean Code** - Reduce boilerplate
-- **🔄 Reusability** - Share logic across classes
-- **📝 Metadata** - Add information to classes
-- **🛡️ Validation** - Enforce rules automatically
+A decorator is a **function** that TypeScript calls **once, when the class is defined** (not when an instance is created). It receives the class, or a member of the class, and can annotate it or wrap it.
 
-## 🚀 Decorator Types
-
-### 1. **Class Decorators**
-
-```typescript
-function Component(config: any) {
-  return function(target: any) {
-    // Modify or annotate the class
-    target.prototype.componentConfig = config;
+```ts
+function Sealed(): ClassDecorator {
+  return (target) => {
+    Object.seal(target);
+    Object.seal(target.prototype);
   };
 }
 
-@Component({ selector: 'app-example' })
-class ExampleComponent {}
+@Sealed() // runs once, while the module is loading
+class Point {}
 ```
 
-### 2. **Method Decorators**
+Angular CLI projects compile with `"experimentalDecorators": true` in `tsconfig.json`. Leave it on. Your custom decorators therefore use TypeScript's **experimental (legacy) decorator signatures**: `ClassDecorator`, `MethodDecorator`, `PropertyDecorator` and `ParameterDecorator`. They don't use the newer TC39 standard `(value, context)` form.
 
-```typescript
-function Log(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-  const originalMethod = descriptor.value;
-  
-  descriptor.value = function(...args: any[]) {
-    console.log(`Calling ${propertyKey} with`, args);
-    return originalMethod.apply(this, args);
-  };
-}
+## How Angular uses decorators
 
-class MyClass {
-  @Log
-  myMethod(value: string) {
-    return value;
-  }
-}
-```
+Angular's decorators (`@Component`, `@Directive`, `@Pipe`, `@Service`, `@Injectable`, `@NgModule`, ...) are **not** ordinary runtime decorators. The Angular compiler reads them at **build time** and turns them into static definitions on the class. That's why their metadata must be statically analyzable:
 
-### 3. **Property Decorators**
-
-```typescript
-function ReadOnly(target: any, propertyKey: string) {
-  Object.defineProperty(target, propertyKey, {
-    writable: false
-  });
-}
-
-class MyClass {
-  @ReadOnly
-  name = 'Angular';
-}
-```
-
-### 4. **Parameter Decorators**
-
-```typescript
-function Required(target: any, propertyKey: string, parameterIndex: number) {
-  // Store metadata about required parameters
-  const requiredParams = Reflect.getMetadata('required', target, propertyKey) || [];
-  requiredParams.push(parameterIndex);
-  Reflect.defineMetadata('required', requiredParams, target, propertyKey);
-}
-```
-
-## 🎨 Real-World Examples
-
-<blockquote>
-<p><strong>Note:</strong> Custom decorators work with both modern and legacy Angular patterns.</p>
-</blockquote>
-
-### 1. **@Debounce Decorator**
-
-Let's create a debounce decorator for method calls.
-
-```typescript
-export function Debounce(delay: number = 300) {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
-    let timeoutId: any;
-
-    descriptor.value = function(...args: any[]) {
-      clearTimeout(timeoutId);
-      
-      timeoutId = setTimeout(() => {
-        originalMethod.apply(this, args);
-      }, delay);
-    };
-
-    return descriptor;
-  };
-}
-```
-
-**Usage:**
-
-```typescript
+```ts
 @Component({
-  selector: 'app-search',
-  template: `
-    <input (input)="onSearch($event)" placeholder="Search...">
-  `
+  selector: 'app-hello',
+  template: `<p>Hello {{ name() }}</p>`, // the compiler turns this into code at build time
 })
-export class SearchComponent {
-  @Debounce(500)
-  onSearch(event: Event) {
-    const value = (event.target as HTMLInputElement).value;
-    console.log('Searching for:', value);
-    // API call here
-  }
+export class Hello {
+  readonly name = input('world');
 }
 ```
 
-### 2. **@Memoize Decorator**
+### Member decorators you no longer need
 
-Let's create a memoization decorator for expensive computations.
+Modern Angular replaced most **member** decorators with functions. They're easier to type, work with signals and need no special compiler magic:
 
-```typescript
-export function Memoize() {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
-    const cache = new Map<string, any>();
+| Older decorator | Modern replacement |
+| --- | --- |
+| `@Input()` | `input()`, `input.required()`, `model()` |
+| `@Output()` + `EventEmitter` | `output()` |
+| `@ViewChild` / `@ViewChildren` | `viewChild()` / `viewChildren()` |
+| `@ContentChild` / `@ContentChildren` | `contentChild()` / `contentChildren()` |
+| `@HostBinding` / `@HostListener` | `host: { ... }` in the decorator |
+| `@Inject(TOKEN)` / `@Optional()` / `@Self()` / `@SkipSelf()` / `@Host()` in constructors | `inject(TOKEN, { optional, self, skipSelf, host })` |
+| `@Injectable({ providedIn: 'root' })` | `@Service()` (v22) |
 
-    descriptor.value = function(...args: any[]) {
-      const key = JSON.stringify(args);
-      
-      if (cache.has(key)) {
-        console.log('Returning cached result');
-        return cache.get(key);
-      }
+The old decorators still work, but new code shouldn't use them. Automatic migrations exist for inputs, outputs, queries and `inject()`. See [Migrating to Signals](/migration/signals/).
 
-      const result = originalMethod.apply(this, args);
-      cache.set(key, result);
+## Before writing a custom decorator, try a function
+
+Most things people build with custom decorators have a simpler, type-safe Angular-native solution:
+
+| Goal | Better tool |
+| --- | --- |
+| Share logic that needs services | An `injectX()` helper function ([example](/advanced/dependency-injection/#writing-your-own-injectx-helpers)) |
+| Reusable host behaviour | A directive or [`hostDirectives`](/advanced/custom-directives/#composing-behaviour-with-hostdirectives) |
+| Derived or cached values | `computed()` |
+| Debounce user input | `debounced()` (experimental), RxJS `debounceTime`, or the Signal Forms `debounce()` rule |
+| Log or modify HTTP calls | An HTTP interceptor function |
+| Persist state to `localStorage` | An `effect()` that writes the signal |
+| Format values in templates | A pure pipe |
+
+Custom decorators are still handy for **cross-cutting, framework-independent** concerns on methods: logging, timing, memoizing a pure calculation, or registering classes in a registry. Those are the patterns below.
+
+## Method decorators
+
+A method decorator receives the prototype, the method name and its **property descriptor**. Replace `descriptor.value` with a wrapper function, and always call the original with the right `this`.
+
+### `@Log()`: trace calls
+
+```ts title="decorators.ts"
+export function Log(label?: string): MethodDecorator {
+  return (_target, key, descriptor: PropertyDescriptor) => {
+    const original = descriptor.value as (...args: unknown[]) => unknown;
+    const name = label ?? String(key);
+
+    descriptor.value = function (this: unknown, ...args: unknown[]) {
+      console.log(`→ ${name}`, args);
+      const result = original.apply(this, args);
+      console.log(`← ${name}`, result);
       return result;
     };
-
-    return descriptor;
   };
 }
 ```
 
-**Usage:**
+### `@Measure()`: time a method
 
-```typescript
-@Component({
-  selector: 'app-calculator',
-})
-export class CalculatorComponent {
-  @Memoize()
-  fibonacci(n: number): number {
-    if (n <= 1) return n;
-    return this.fibonacci(n - 1) + this.fibonacci(n - 2);
-  }
-  
-  calculate() {
-    console.log(this.fibonacci(40)); // Cached after first call
-  }
-}
-```
+```ts
+export function Measure(): MethodDecorator {
+  return (_target, key, descriptor: PropertyDescriptor) => {
+    const original = descriptor.value as (...args: unknown[]) => unknown;
 
-### 3. **@Loading Decorator**
-
-Let's create a loading state decorator for async methods.
-
-```typescript
-export function Loading(loadingProperty: string = 'isLoading') {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
-
-    descriptor.value = async function(...args: any[]) {
-      this[loadingProperty] = true;
-      
+    descriptor.value = function (this: unknown, ...args: unknown[]) {
+      const start = performance.now();
       try {
-        const result = await originalMethod.apply(this, args);
-        return result;
+        return original.apply(this, args);
       } finally {
-        this[loadingProperty] = false;
+        console.log(`${String(key)} took ${(performance.now() - start).toFixed(1)} ms`);
       }
     };
-
-    return descriptor;
   };
 }
 ```
 
-**Usage:**
+### `@Memoize()`: cache a pure, single-argument method
 
-```typescript
+The decorator runs once per **class**, so per-instance state must be keyed by `this`. A `WeakMap` does that without leaking memory: the cache disappears with the instance.
+
+```ts
+export function Memoize(): MethodDecorator {
+  return (_target, _key, descriptor: PropertyDescriptor) => {
+    const original = descriptor.value as (arg: unknown) => unknown;
+    const caches = new WeakMap<object, Map<unknown, unknown>>();
+
+    descriptor.value = function (this: object, arg: unknown) {
+      let cache = caches.get(this);
+      if (!cache) {
+        cache = new Map();
+        caches.set(this, cache);
+      }
+      if (!cache.has(arg)) {
+        cache.set(arg, original.call(this, arg));
+      }
+      return cache.get(arg);
+    };
+  };
+}
+```
+
+### `@Debounce(ms)`: wait until calls stop
+
+```ts
+export function Debounce(ms: number): MethodDecorator {
+  return (_target, _key, descriptor: PropertyDescriptor) => {
+    const original = descriptor.value as (...args: unknown[]) => void;
+    const timers = new WeakMap<object, ReturnType<typeof setTimeout>>();
+
+    descriptor.value = function (this: object, ...args: unknown[]) {
+      clearTimeout(timers.get(this));
+      timers.set(this, setTimeout(() => original.apply(this, args), ms));
+    };
+  };
+}
+```
+
+### Using them in a component
+
+```ts title="product-search.ts"
+import { Component, Service, inject, signal } from '@angular/core';
+import { Debounce, Log, Measure, Memoize } from './decorators';
+
+@Service()
+export class ProductApi {
+  search(term: string) {
+    return Promise.resolve([`${term} 1`, `${term} 2`]);
+  }
+}
+
 @Component({
-  selector: 'app-data-loader',
+  selector: 'app-product-search',
   template: `
-    @if (isLoading) {
-      <div>Loading...</div>
-    } @else {
-      <div>{{ data() }}</div>
+    <input #q (input)="onInput(q.value)" placeholder="Search" />
+    @for (r of results(); track r) {
+      <p>{{ r }} – {{ priceLabel(r.length) }}</p>
     }
-    <button (click)="loadData()">Load Data</button>
-  `
+  `,
 })
-export class DataLoaderComponent {
-  isLoading = false;
-  data = signal<any>(null);
-  
-  @Loading('isLoading')
-  async loadData() {
-    const response = await fetch('/api/data');
-    const result = await response.json();
-    this.data.set(result);
+export class ProductSearch {
+  private readonly api = inject(ProductApi); // inject in a field, not in the decorator
+  protected readonly results = signal<string[]>([]);
+
+  @Debounce(300)
+  protected onInput(term: string) {
+    this.load(term);
+  }
+
+  @Log('load products')
+  private async load(term: string) {
+    this.results.set(await this.api.search(term)); // a signal update tells Angular to re-render
+  }
+
+  @Memoize()
+  protected priceLabel(cents: number) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+  }
+
+  @Measure()
+  sortResults() {
+    this.results.update((r) => [...r].sort());
   }
 }
 ```
 
-### 4. **@Retry Decorator**
+:::caution[Change detection after a delayed call]
+Angular apps are zoneless by default (since v21) and components are OnPush by default (since v22). Angular doesn't notice changes made inside a `setTimeout` by itself. A debounced method must update a **signal** (as above), or the view won't refresh.
+:::
 
-Let's create a retry decorator for failed operations.
+## Class decorators
 
-```typescript
-export function Retry(maxAttempts: number = 3, delay: number = 1000) {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
+A class decorator receives the constructor. The safe pattern is to **annotate or register** the class and return nothing:
 
-    descriptor.value = async function(...args: any[]) {
-      let lastError: any;
-      
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          return await originalMethod.apply(this, args);
-        } catch (error) {
-          lastError = error;
-          console.log(`Attempt ${attempt} failed, retrying...`);
-          
-          if (attempt < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-        }
-      }
-      
-      throw lastError;
-    };
+```ts title="widget-registry.ts"
+import { Type } from '@angular/core';
 
-    return descriptor;
+export const WIDGET_REGISTRY = new Map<string, Type<unknown>>();
+
+export function Widget(name: string): ClassDecorator {
+  return (target) => {
+    WIDGET_REGISTRY.set(name, target as unknown as Type<unknown>);
   };
 }
 ```
 
-**Usage:**
+```ts
+@Widget('product-search')
+@Component({ selector: 'app-product-search', template: `...` })
+export class ProductSearch {}
+```
 
-```typescript
-@Injectable({ providedIn: 'root' })
-export class ApiService {
-  private http = inject(HttpClient);
-  
-  @Retry(3, 2000)
-  async fetchData(url: string) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch');
-    return response.json();
+The registry can then feed [dynamic components](/advanced/dynamic-components/): `vcr.createComponent(WIDGET_REGISTRY.get('product-search')!)`.
+
+Keep in mind that the decorator only runs if the file is **imported**. A class that nobody imports is never registered (and tree shaking removes it anyway). For lazy loading, a map of `() => import(...)` loaders is usually the better registry.
+
+:::danger[Never replace an Angular class]
+A class decorator *can* return a new class (for example `return class extends target {...}`). **Don't do this** for components, directives, pipes or services. The Angular compiler attaches its generated definitions to the class you wrote and doesn't know about the replacement. To add behaviour, use `hostDirectives`, composition or `inject()` helpers.
+:::
+
+## Property and parameter decorators: avoid them
+
+**Property decorators** that install a getter/setter on the prototype (for example a `@LocalStorage()` decorator) silently stop working with modern class fields. New Angular projects target ES2022, where class fields are defined directly on the instance, so the field **shadows** the accessor on the prototype:
+
+```ts
+class Settings {
+  @LocalStorage('theme') theme = 'light'; // ❌ the field wins, so the decorator's getter/setter is never called
+}
+```
+
+They also don't mix with signal fields such as `input()`, `model()` or `signal()`. Use a signal plus an `effect()` instead:
+
+```ts
+@Service()
+export class Settings {
+  readonly theme = signal(localStorage.getItem('theme') ?? 'light');
+
+  constructor() {
+    effect(() => localStorage.setItem('theme', this.theme()));
   }
 }
 ```
 
-### 5. **@Validate Decorator**
+**Parameter decorators** only make sense for constructor injection (`@Inject`, `@Optional`). With `inject()` you don't need them.
 
-Let's create a validation decorator for method parameters.
+## Rules for custom decorators in Angular
 
-```typescript
-export function Validate(validator: (value: any) => boolean, message: string) {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
+1. **No `inject()` inside a decorator.** The decorator body runs at class-definition time, and the wrapped method runs later, during an event. Neither is an injection context. Inject dependencies in a field and use them through `this`.
+2. **Preserve `this` and the return value.** Use `function (this: ...)` (not an arrow function) and `original.apply(this, args)`.
+3. **Store per-instance state in a `WeakMap` keyed by `this`.** Closure variables are shared by all instances.
+4. **Update signals** so the UI re-renders in zoneless/OnPush apps.
+5. **Order matters.** With experimental decorators, the decorator closest to the member runs first (bottom-up).
+6. **Keep them pure TypeScript.** Decorators that don't depend on Angular are easy to unit-test and reuse.
 
-    descriptor.value = function(...args: any[]) {
-      for (const arg of args) {
-        if (!validator(arg)) {
-          throw new Error(`Validation failed: ${message}`);
-        }
-      }
-      
-      return originalMethod.apply(this, args);
-    };
+## Key takeaways
 
-    return descriptor;
-  };
-}
-```
+- Angular's built-in decorators are compiled away at build time. Most member decorators are now replaced by functions like `input()`, `output()`, `viewChild()` and `inject()`.
+- Angular projects use TypeScript's experimental decorators. Write custom ones with the `MethodDecorator` / `ClassDecorator` signatures.
+- Safe uses: wrapping methods (log, measure, memoize, debounce) and registering classes.
+- Avoid property decorators, class replacement and `inject()` inside decorators. Prefer signals, directives and `injectX()` helpers.
 
-**Usage:**
+## Next steps
 
-```typescript
-@Component({
-  selector: 'app-user-form',
-})
-export class UserFormComponent {
-  @Validate(
-    (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
-    'Invalid email format'
-  )
-  saveEmail(email: string) {
-    console.log('Saving email:', email);
-  }
-  
-  submitForm(email: string) {
-    try {
-      this.saveEmail(email);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-}
-```
-
-### 6. **@Throttle Decorator**
-
-Let's create a throttle decorator to limit function execution frequency.
-
-```typescript
-export function Throttle(limit: number = 1000) {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
-    let lastRun = 0;
-    let timeout: any;
-
-    descriptor.value = function(...args: any[]) {
-      const now = Date.now();
-      
-      if (now - lastRun >= limit) {
-        originalMethod.apply(this, args);
-        lastRun = now;
-      } else {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => {
-          originalMethod.apply(this, args);
-          lastRun = Date.now();
-        }, limit - (now - lastRun));
-      }
-    };
-
-    return descriptor;
-  };
-}
-```
-
-**Usage:**
-
-```typescript
-@Component({
-  selector: 'app-scroll-handler',
-  template: `<div (scroll)="onScroll()">Scroll me</div>`
-})
-export class ScrollHandlerComponent {
-  @Throttle(200)
-  onScroll() {
-    console.log('Scroll event handled');
-  }
-}
-```
-
-### 7. **@Deprecated Decorator**
-
-Let's create a deprecation warning decorator.
-
-```typescript
-export function Deprecated(message?: string) {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
-
-    descriptor.value = function(...args: any[]) {
-      console.warn(
-        `⚠️ ${propertyKey} is deprecated. ${message || 'Use alternative method.'}`
-      );
-      return originalMethod.apply(this, args);
-    };
-
-    return descriptor;
-  };
-}
-```
-
-**Usage:**
-
-```typescript
-@Component({
-  selector: 'app-legacy',
-})
-export class LegacyComponent {
-  @Deprecated('Use newMethod() instead')
-  oldMethod() {
-    console.log('Old method called');
-  }
-  
-  newMethod() {
-    console.log('New method called');
-  }
-}
-```
-
-## 🔧 Advanced Patterns
-
-### Property Decorator with Metadata
-
-```typescript
-export function MinLength(length: number) {
-  return function(target: any, propertyKey: string) {
-    let value: string;
-
-    const getter = () => value;
-    const setter = (newValue: string) => {
-      if (newValue.length < length) {
-        throw new Error(`${propertyKey} must be at least ${length} characters`);
-      }
-      value = newValue;
-    };
-
-    Object.defineProperty(target, propertyKey, {
-      get: getter,
-      set: setter,
-      enumerable: true,
-      configurable: true
-    });
-  };
-}
-```
-
-**Usage:**
-
-```typescript
-class User {
-  @MinLength(3)
-  username!: string;
-  
-  @MinLength(8)
-  password!: string;
-}
-
-const user = new User();
-user.username = 'ab'; // Throws error
-user.username = 'john'; // OK
-```
-
-### Class Decorator Factory
-
-```typescript
-export function Singleton() {
-  return function<T extends { new(...args: any[]): {} }>(constructor: T) {
-    let instance: any;
-
-    return class extends constructor {
-      constructor(...args: any[]) {
-        if (instance) {
-          return instance;
-        }
-        super(...args);
-        instance = this;
-      }
-    };
-  };
-}
-```
-
-**Usage:**
-
-```typescript
-@Singleton()
-@Injectable({ providedIn: 'root' })
-export class ConfigService {
-  private config = { apiUrl: 'https://api.example.com' };
-  
-  getConfig() {
-    return this.config;
-  }
-}
-```
-
-## ✅ Best Practices
-
-### 1. **Use Decorator Factories**
-
-```typescript
-// ✅ Good - Configurable decorator
-export function Cache(ttl: number = 60000) {
-  return function(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-    // Implementation
-  };
-}
-
-// ❌ Avoid - Fixed behavior
-export function Cache(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-  // Implementation
-}
-```
-
-### 2. **Preserve Method Context**
-
-```typescript
-// ✅ Good - Preserve 'this' context
-descriptor.value = function(...args: any[]) {
-  return originalMethod.apply(this, args);
-};
-
-// ❌ Avoid - Loses 'this' context
-descriptor.value = (...args: any[]) => {
-  return originalMethod(...args);
-};
-```
-
-### 3. **Return Descriptor**
-
-```typescript
-// ✅ Good - Return modified descriptor
-export function MyDecorator() {
-  return function(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-    // Modify descriptor
-    return descriptor;
-  };
-}
-```
-
-### 4. **Handle Async Methods**
-
-```typescript
-// ✅ Good - Handle promises properly
-descriptor.value = async function(...args: any[]) {
-  try {
-    return await originalMethod.apply(this, args);
-  } catch (error) {
-    // Handle error
-    throw error;
-  }
-};
-```
-
-### 5. **Clean Up Resources**
-
-```typescript
-// ✅ Good - Clean up timers/subscriptions
-descriptor.value = function(...args: any[]) {
-  clearTimeout(timeoutId);
-  timeoutId = setTimeout(() => {
-    originalMethod.apply(this, args);
-  }, delay);
-};
-```
-
-## 🎯 Common Use Cases
-
-- **Performance** - Memoization, debouncing, throttling
-- **Logging** - Method call tracking, debugging
-- **Validation** - Input validation, type checking
-- **Error Handling** - Retry logic, error boundaries
-- **State Management** - Loading states, caching
-- **Security** - Authorization checks, rate limiting
-- **Deprecation** - Warning messages for old APIs
-- **Monitoring** - Performance metrics, analytics
-
-## 🎓 Learning Checklist
-
-- [ ] Understand decorator types (class, method, property, parameter)
-- [ ] Create method decorators for cross-cutting concerns
-- [ ] Implement decorator factories for configuration
-- [ ] Preserve method context with apply()
-- [ ] Handle async methods in decorators
-- [ ] Use metadata for advanced patterns
-- [ ] Clean up resources in decorators
-- [ ] Combine multiple decorators effectively
-
-## 🚀 Next Steps
-
-1. **[Angular Elements](/advanced/elements/)** - Create web components
-2. **[Micro Frontends](/advanced/micro-frontends/)** - Build micro frontend architectures
-3. **[Performance Optimization](/advanced/performance/)** - Optimize your applications
-
----
-
-**Pro Tip**: Decorators are powerful for reducing boilerplate and adding cross-cutting concerns! Use them for logging, caching, validation, and performance optimization. Keep decorators focused on a single responsibility! 🏷️
+- [Advanced DI Patterns](/advanced/dependency-injection/): `injectX()` helpers instead of decorators
+- [Custom Directives](/advanced/custom-directives/): reusable behaviour with `hostDirectives`
+- [Signals](/modern/signals/): state that keeps the UI in sync

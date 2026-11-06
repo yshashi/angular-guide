@@ -10,26 +10,31 @@ Learn proven RxJS patterns that make your Angular code cleaner, more maintainabl
 ## 🎯 Why Patterns Matter
 
 **Good RxJS patterns:**
-- Make code predictable and easy to understand
-- Prevent memory leaks
-- Improve performance
-- Make testing easier
-- Reduce bugs
+- Make asynchronous streams predictable and easy to compose
+- Prevent memory leaks and race conditions
+- Bridge cleanly with **Angular Signals** (`toSignal()`, `toObservable()`, `rxResource()`)
+- Improve performance and testability
+
+:::tip[Signals + RxJS in Angular 22]
+In modern Angular 22 apps, use **`signal()` and `computed()`** for synchronous state, and **RxJS** for event streams, debouncing, cancellation (`switchMap`), WebSockets and complex async coordination. Connect the two with `toSignal()`, `toObservable()` and `rxResource()` from `@angular/core/rxjs-interop`.
+:::
 
 **This guide shows you:**
 - ✅ What to do (good patterns)
 - ❌ What to avoid (anti-patterns)
 - 🎨 Real-world examples
 
-## 🎨 Pattern 1: Service with State
+## 🎨 Pattern 1: Service with State (RxJS + Signal Interop)
 
-**Problem:** You need to share state across multiple components.
+**Problem:** You need to share reactive state or event streams across multiple components.
 
-**Solution:** Use BehaviorSubject in a service.
+**Solution:** Use a `BehaviorSubject` (or signals) in a `@Service()` and expose read-only streams/signals.
 
 ```typescript
-import { Injectable, signal } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { Service, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { AsyncPipe, CurrencyPipe } from '@angular/common';
+import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 interface CartItem {
@@ -39,7 +44,7 @@ interface CartItem {
   quantity: number;
 }
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class CartService {
   // Private state
   private cartSubject = new BehaviorSubject<CartItem[]>([]);
@@ -60,14 +65,21 @@ export class CartService {
     ))
   );
 
+  // Signal views for templates that prefer signals over AsyncPipe
+  readonly total = toSignal(this.total$, { initialValue: 0 });
+  readonly itemCount = toSignal(this.itemCount$, { initialValue: 0 });
+
   // Actions
   addItem(item: CartItem) {
     const currentCart = this.cartSubject.value;
     const existingItem = currentCart.find(i => i.id === item.id);
     
     if (existingItem) {
-      existingItem.quantity += item.quantity;
-      this.cartSubject.next([...currentCart]);
+      this.cartSubject.next(
+        currentCart.map(i =>
+          i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
+        )
+      );
     } else {
       this.cartSubject.next([...currentCart, item]);
     }
