@@ -1,580 +1,485 @@
 ---
 title: Templates & Data Binding 🎨
-description: Master Angular templates and data binding - the foundation of dynamic user interfaces
+description: Learn Angular template syntax - interpolation, property, attribute, class, style and event binding, two-way binding, @let, pipes and control flow.
 sidebar:
   order: 5
 ---
 
-Angular templates are HTML files with Angular-specific markup that define how your component's view should be rendered. Combined with data binding, they create dynamic, interactive user interfaces.
+A template is the HTML that a component renders. Angular extends normal HTML with a small set of extra syntax so that your template can **show data**, **react to the user** and **render conditionally**. This page is a tour of everything you can write inside a template.
 
-## 🎯 What are Templates?
+## What you'll learn
 
-Templates are HTML files that tell Angular how to render a component. They combine regular HTML with Angular markup such as:
+- Interpolation `{{ }}` and what you can (and can't) write in a template expression
+- Property, attribute, class and style bindings with `[ ]`
+- Event binding with `( )` and two-way binding with `[( )]`
+- Template reference variables (`#ref`) and local variables (`@let`)
+- A first look at pipes and control flow (`@if`, `@for`, `@switch`)
 
-- **Interpolation** - Display component data
-- **Property binding** - Set element properties  
-- **Event binding** - Listen to user actions
-- **Two-way binding** - Combine property and event binding
-- **Directives** - Add behavior to elements
+## Quick reference
 
-## 🔗 Interpolation
+| Syntax | Name | Direction | Example |
+|---|---|---|---|
+| `{{ value }}` | Interpolation | class → view | `<h1>{{ title() }}</h1>` |
+| `[property]="expr"` | Property binding | class → view | `<img [src]="url()" />` |
+| `[attr.name]="expr"` | Attribute binding | class → view | `<td [attr.colspan]="span()">` |
+| `[class.name]="expr"` | Class binding | class → view | `<li [class.done]="todo.done">` |
+| `[style.prop]="expr"` | Style binding | class → view | `<div [style.width.px]="w()">` |
+| `(event)="statement"` | Event binding | view → class | `<button (click)="save()">` |
+| `[(prop)]="signal"` | Two-way binding | both | `<input [(ngModel)]="name" />` |
+| `#ref` | Template reference | — | `<input #box />` |
+| `@let x = expr;` | Local variable | — | `@let total = price() * qty();` |
+| `value \| pipe` | Pipe | — | `{{ today \| date }}` |
 
-Display component data in templates using double curly braces:
+## Interpolation
 
-```html
-<h1>Welcome, {{userName}}!</h1>
-<p>You have {{messageCount}} new messages</p>
-<div>Current time: {{getCurrentTime()}}</div>
-```
+Use double curly braces to render a value as text. Signals are read by **calling** them:
 
-```typescript
-export class User {
-  userName = 'John Doe';
-  messageCount = 5;
-  
-  getCurrentTime(): string {
-    return new Date().toLocaleTimeString();
-  }
-}
-```
-
-### Expressions in Interpolation
-```html
-<!-- Simple expressions -->
-<p>Total: {{price + tax}}</p>
-<p>Full name: {{firstName + ' ' + lastName}}</p>
-<p>Is admin: {{user.role === 'admin'}}</p>
-
-<!-- Method calls -->
-<p>Formatted price: {{formatPrice(price)}}</p>
-
-<!-- Conditional expressions -->
-<p>Status: {{isOnline ? 'Online' : 'Offline'}}</p>
-```
-
-## ⬇️ Property Binding
-
-Bind component properties to element attributes using square brackets:
-
-```html
-<!-- Bind to element properties -->
-<img [src]="imageUrl" [alt]="imageDescription">
-<button [disabled]="isLoading">Submit</button>
-<div [class]="cssClass" [style.color]="textColor">Content</div>
-
-<!-- Bind to component properties -->
-<app-user-card [user]="selectedUser" [showDetails]="true"></app-user-card>
-```
-
-```typescript
-export class Product {
-  imageUrl = 'https://example.com/product.jpg';
-  imageDescription = 'Product image';
-  isLoading = false;
-  cssClass = 'highlight';
-  textColor = 'blue';
-  selectedUser = { name: 'Jane', email: 'jane@example.com' };
-}
-```
-
-### Class and Style Binding
-```html
-<!-- Class binding -->
-<div [class.active]="isActive">Toggle class</div>
-<div [class]="'btn btn-' + buttonType">Dynamic classes</div>
-<div [class.active]="isActive" [class.disabled]="isDisabled">Multiple classes</div>
-
-<!-- Style binding -->
-<div [style.color]="textColor">Colored text</div>
-<div [style.font-size.px]="fontSize">Sized text</div>
-<div [style.color]="textColor" [style.font-size.px]="fontSize">Multiple styles</div>
-```
-
-## ⬆️ Event Binding
-
-Listen to DOM events using parentheses:
-
-```html
-<!-- Basic event binding -->
-<button (click)="handleClick()">Click me</button>
-<input (keyup)="onKeyUp($event)" (blur)="onBlur()">
-<form (submit)="onSubmit($event)">
-
-<!-- Pass event data -->
-<button (click)="selectItem(item.id)">Select</button>
-<input (input)="updateValue($event.target.value)">
-```
-
-```typescript
-export class Event {
-  handleClick(): void {
-    console.log('Button clicked!');
-  }
-  
-  onKeyUp(event: KeyboardEvent): void {
-    console.log('Key pressed:', event.key);
-  }
-  
-  selectItem(id: number): void {
-    console.log('Selected item:', id);
-  }
-  
-  updateValue(value: string): void {
-    console.log('Input value:', value);
-  }
-  
-  onSubmit(event: Event): void {
-    event.preventDefault();
-    console.log('Form submitted');
-  }
-}
-```
-
-## 🔄 Two-Way Data Binding
-
-Combine property and event binding with `[(ngModel)]`:
-
-```html
-<!-- Two-way binding with forms -->
-<input [(ngModel)]="username" placeholder="Enter username">
-<textarea [(ngModel)]="description"></textarea>
-<select [(ngModel)]="selectedOption">
-  <option value="option1">Option 1</option>
-  <option value="option2">Option 2</option>
-</select>
-
-<!-- Display bound values -->
-<p>Username: {{username}}</p>
-<p>Description: {{description}}</p>
-<p>Selected: {{selectedOption}}</p>
-```
-
-```typescript
-import { FormsModule } from '@angular/forms';
+```ts title="welcome.ts"
+import { Component, signal } from '@angular/core';
 
 @Component({
-  imports: [FormsModule],
-  // ... template
+  selector: 'app-welcome',
+  template: `
+    <h1>Welcome, {{ userName() }}!</h1>
+    <p>You have {{ messages() }} new {{ messages() === 1 ? 'message' : 'messages' }}.</p>
+  `,
 })
-export class FormComponent {
-  username = '';
-  description = '';
-  selectedOption = 'option1';
+export class Welcome {
+  protected readonly userName = signal('Ada');
+  protected readonly messages = signal(3);
 }
 ```
 
-## 📍 Template Reference Variables
+Angular converts the result to a string and **escapes** it, so `{{ '<b>hi</b>' }}` shows the literal text, not bold text. This protects you from XSS attacks.
 
-Create references to DOM elements or components:
+### Template expressions
+
+Template expressions look like JavaScript, with a few differences:
+
+| ✅ Supported | ❌ Not supported |
+|---|---|
+| Arithmetic, comparison, logical operators: `a + b`, `a > b && c` | `new`, `class`, `function`, `let`/`const` declarations |
+| Ternary and nullish coalescing: `x ? a : b`, `name ?? 'Guest'` | Bitwise operators (`&`, `^`, `~`) |
+| Optional chaining: `user?.address?.city` | Destructuring |
+| Object/array literals and **spread**: `{...opts, open: true}`, `[...a, ...b]` | Globals such as `Math`, `Date`, `console`, `window` |
+| Template literals: `` `Hi ${name()}` `` | Arrow functions with a `{ block }` body |
+| `typeof`, `in`, `instanceof` | Assignments (`=`, `+=`) — allowed only in event bindings |
+| **Arrow functions** with an expression body: `items().filter(i => i.done)` | |
 
 ```html
-<!-- Reference to input element -->
-<input #nameInput type="text" placeholder="Enter name">
-<button (click)="greet(nameInput.value)">Greet</button>
+<!-- Arrow function: count completed tasks -->
+<p>{{ tasks().filter(t => t.done).length }} of {{ tasks().length }} done</p>
 
-<!-- Reference to component -->
-<app-counter #counterRef></app-counter>
-<button (click)="counterRef.reset()">Reset Counter</button>
+<!-- Template literal -->
+<p>{{ `Logged in as ${userName()}` }}</p>
 
-<!-- Use in template -->
-<p>Input length: {{nameInput.value.length}}</p>
+<!-- Spread: pass a modified copy of an object to a child input -->
+<app-chart [options]="{ ...defaultOptions, title: 'Sales' }" />
 ```
 
-```typescript
-export class TemplateRefComponent {
-  greet(name: string): void {
-    alert(`Hello, ${name}!`);
-  }
-}
-```
-
-## 🔧 Pipes
-
-Transform displayed data without changing the original:
-
-```html
-<!-- Built-in pipes -->
-<p>{{message | uppercase}}</p>
-<p>{{price | currency:'USD':'symbol':'1.2-2'}}</p>
-<p>{{today | date:'fullDate'}}</p>
-<p>{{users | json}}</p>
-
-<!-- Chaining pipes -->
-<p>{{message | lowercase | titlecase}}</p>
-
-<!-- Pipe with parameters -->
-<p>{{longText | slice:0:50}}...</p>
-```
-
-```typescript
-export class PipeComponent {
-  message = 'Hello World';
-  price = 99.99;
-  today = new Date();
-  users = [{name: 'John'}, {name: 'Jane'}];
-  longText = 'This is a very long text that needs to be truncated...';
-}
-```
-
-### Common Built-in Pipes
-- `uppercase` / `lowercase` - Text case
-- `currency` - Format currency
-- `date` - Format dates
-- `json` - Display object as JSON
-- `slice` - Extract portion of array/string
-- `async` - Handle observables/promises
-
-## 🎨 Conditional Rendering
-
-Show/hide elements based on conditions using the control flow syntax:
-
-```html
-<!-- @if syntax -->
-@if (isLoggedIn) {
-  <div>Welcome back!</div>
-} @else {
-  <div>Please log in</div>
-}
-
-<!-- @if with else if -->
-@if (isLoading) {
-  <div>Loading...</div>
-} @else if (hasError) {
-  <div>Error occurred!</div>
-} @else {
-  <div>Content loaded!</div>
-}
-
-<!-- Simple conditional -->
-@if (hasData) {
-  <p>Data available</p>
-}
-```
-
-:::caution[Legacy Syntax]
-In older Angular versions (pre-v17), this was done with:
-```html
-<div *ngIf="isLoggedIn">Welcome back!</div>
-<div *ngIf="!isLoggedIn">Please log in</div>
-
-<div *ngIf="isLoading; else content">Loading...</div>
-<ng-template #content>
-  <p>Content loaded!</p>
-</ng-template>
-```
-This syntax is still supported but not recommended for new projects.
+:::tip
+If an expression gets long, move it into a `computed()` signal in the class. Templates stay readable and the value is cached.
 :::
 
-## 🔁 Lists and Loops
+To use a global like `Math` or `Date`, expose it from the class:
 
-Repeat elements using the @for syntax:
-
-```html
-<!-- @for syntax -->
-<ul>
-  @for (item of items; track item.id) {
-    <li>{{item.name}}</li>
-  }
-</ul>
-
-<!-- @for with index -->
-<div>
-  @for (user of users; track $index) {
-    <div>{{$index + 1}}. {{user.name}}</div>
-  }
-</div>
-
-<!-- @for with empty state -->
-@for (product of products; track product.id) {
-  <div>{{product.name}} - ${{product.price}}</div>
-} @empty {
-  <div>No products available</div>
-}
-
-<!-- @for with multiple variables -->
-@for (item of items; track item.id; let isFirst = $first, isLast = $last) {
-  <div [class.first]="isFirst" [class.last]="isLast">
-    {{item.name}}
-  </div>
-}
+```ts
+protected readonly year = new Date().getFullYear();
 ```
 
-:::caution[Legacy Syntax]
-In older Angular versions (pre-v17), this was done with:
-```html
-<ul>
-  <li *ngFor="let item of items; trackBy: trackByItemId">{{item.name}}</li>
-</ul>
-
-<div *ngFor="let user of users; let i = index">
-  {{i + 1}}. {{user.name}}
-</div>
-```
-This syntax is still supported but not recommended for new projects.
+:::note[Optional chaining changed in Angular 22]
+`user?.name` now returns `undefined` (just like JavaScript) when `user` is `null`/`undefined`. Before v22 it returned `null`. `ng update` wraps existing expressions in `$safeNavigationMigration(...)` to keep the old behaviour; you can remove the wrapper once your code doesn't depend on `null` vs `undefined`.
 :::
 
-```typescript
-export class List {
-  items = [
-    { id: 1, name: 'Item 1' },
-    { id: 2, name: 'Item 2' },
-    { id: 3, name: 'Item 3' }
-  ];
-  
-  users = [
-    { name: 'John Doe' },
-    { name: 'Jane Smith' }
-  ];
-  
-  products = [
-    { id: 1, name: 'Laptop', price: 999 },
-    { id: 2, name: 'Phone', price: 599 }
-  ];
+### Which class members can a template use?
+
+Templates can read `public` and `protected` members. Mark template-only members as **`protected`** — it tells readers "used by the template, not by other code". (Since v22.2 templates can also read TypeScript `private` members, but `protected` works on every version and is the recommended convention. JavaScript `#private` fields are never accessible.)
+
+## Property binding `[ ]`
+
+Square brackets set a **DOM property** (or a component input) to the result of an expression:
+
+```ts title="product-image.ts"
+import { Component, signal } from '@angular/core';
+
+@Component({
+  selector: 'app-product-image',
+  template: `
+    <img [src]="imageUrl()" [alt]="description()" width="200" />
+    <button type="button" [disabled]="isSaving()">Save</button>
+    <input [value]="description()" readonly />
+  `,
+})
+export class ProductImage {
+  protected readonly imageUrl = signal('https://picsum.photos/200');
+  protected readonly description = signal('Random photo');
+  protected readonly isSaving = signal(false);
 }
 ```
 
-## 🎯 Practical Example: User Profile Form
+- Without brackets the value is a **plain string**: `alt="description()"` sets the literal text `description()`.
+- You can also interpolate inside an attribute value: `alt="Photo of {{ name() }}"` — handy for building strings.
+- Binding to a child component's input uses the same syntax: `<app-user-card [user]="selectedUser()" />`.
+
+### Attribute binding `[attr.x]`
+
+Some HTML attributes have no matching DOM property (`colspan`, `role`, `data-*`, most SVG attributes). Use the `attr.` prefix:
 
 ```html
-<div class="profile-form">
-  <h2>User Profile</h2>
-  
-  <!-- Profile picture -->
-  <div class="profile-pic">
-    <img [src]="user.avatar || defaultAvatar" [alt]="user.name + ' avatar'">
-    <button (click)="uploadAvatar()" [disabled]="isUploading">
-      {{isUploading ? 'Uploading...' : 'Change Photo'}}
-    </button>
-  </div>
-  
-  <!-- Form fields -->
-  <form (submit)="saveProfile($event)">
-    <div class="form-group">
-      <label for="name">Name:</label>
-      <input 
-        #nameInput
-        id="name"
-        [(ngModel)]="user.name" 
-        [class.error]="!isValidName(user.name)"
-        (blur)="validateName()">
-      @if (!isValidName(user.name)) {
-        <span class="error-msg">
-          Name is required
-        </span>
+<td [attr.colspan]="columns()">Total</td>
+<div [attr.data-testid]="testId()" [attr.role]="isDialog() ? 'dialog' : null"></div>
+<button type="button" [aria-label]="closeLabel()">✕</button>
+```
+
+Binding `null` or `undefined` **removes** the attribute. ARIA attributes such as `aria-label` can be bound directly (`[aria-label]`), or with `[attr.aria-label]` — both work.
+
+## Class and style bindings
+
+```html
+<!-- Toggle one class -->
+<li [class.done]="task.done">{{ task.title }}</li>
+
+<!-- Several classes from a string, array or object -->
+<div [class]="'card ' + theme()"></div>
+<div [class]="['card', size()]"></div>
+<div [class]="{ active: isActive(), disabled: isDisabled() }"></div>
+
+<!-- One style property, optionally with a unit -->
+<p [style.color]="textColor()">Coloured text</p>
+<div [style.width.px]="width()"></div>
+<div [style.--accent]="accentColor()"></div>  <!-- CSS custom property -->
+
+<!-- Several styles from an object -->
+<div [style]="{ 'font-size': '1.25rem', color: textColor() }"></div>
+```
+
+Static `class="..."` attributes and `[class...]` bindings are **merged** together, so `<div class="card" [class.active]="isActive()">` keeps `card`.
+
+:::tip[Use bindings, not ngClass/ngStyle]
+`[class]` and `[style]` bindings replace the `NgClass` and `NgStyle` directives in almost all cases — no import needed. When you bind an object or array, give Angular a **new** object (e.g. from `computed()`); mutating the same object won't be noticed.
+:::
+
+## Event binding `( )`
+
+Parentheses listen to DOM events (or component outputs) and run a **statement** when they fire:
+
+```ts title="click-counter.ts"
+import { Component, signal } from '@angular/core';
+
+@Component({
+  selector: 'app-click-counter',
+  template: `
+    <button type="button" (click)="increment()">Clicked {{ count() }} times</button>
+
+    <!-- $event is the native event object -->
+    <div (mousemove)="trackMouse($event)">Move over me: {{ x() }}, {{ y() }}</div>
+
+    <!-- Key modifiers: only fire on Enter, or Shift+Enter -->
+    <input #box (keyup.enter)="add(box.value); box.value = ''" (keyup.shift.enter)="clear()" />
+
+    <ul>
+      @for (item of items(); track $index) {
+        <li>{{ item }}</li>
       }
-    </div>
-    
-    <div class="form-group">
-      <label for="email">Email:</label>
-      <input 
-        id="email"
-        type="email"
-        [(ngModel)]="user.email"
-        [disabled]="!canEditEmail">
-    </div>
-    
-    <div class="form-group">
-      <label for="role">Role:</label>
-      <select [(ngModel)]="user.role">
-        @for (role of availableRoles; track role.value) {
-          <option [value]="role.value">{{role.label}}</option>
-        }
-      </select>
-    </div>
-    
-    <!-- Skills -->
-    <div class="form-group">
-      <label>Skills:</label>
-      <div class="skills">
-        @for (skill of user.skills; track $index) {
-          <span 
-            class="skill-tag"
-            (click)="removeSkill($index)">
-            {{skill}} ×
-          </span>
-        }
-        <input 
-          #skillInput
-          placeholder="Add skill"
-          (keyup.enter)="addSkill(skillInput.value); skillInput.value = ''">
-      </div>
-    </div>
-    
-    <!-- Actions -->
-    <div class="form-actions">
-      <button 
-        type="submit"
-        [disabled]="!isFormValid()"
-        [class.loading]="isSaving">
-        {{isSaving ? 'Saving...' : 'Save Profile'}}
-      </button>
-      <button type="button" (click)="resetForm()">Reset</button>
-    </div>
-  </form>
-  
-  <!-- Status messages -->
-  @if (saveMessage) {
-    <div 
-      [class.success]="saveSuccess"
-      [class.error]="!saveSuccess"
-      class="message">
-      {{saveMessage}}
-    </div>
+    </ul>
+  `,
+})
+export class ClickCounter {
+  protected readonly count = signal(0);
+  protected readonly x = signal(0);
+  protected readonly y = signal(0);
+  protected readonly items = signal<string[]>([]);
+
+  protected increment() {
+    this.count.update((c) => c + 1);
   }
-</div>
+
+  protected trackMouse(event: MouseEvent) {
+    this.x.set(event.offsetX);
+    this.y.set(event.offsetY);
+  }
+
+  protected add(value: string) {
+    if (value.trim()) {
+      this.items.update((list) => [...list, value.trim()]);
+    }
+  }
+
+  protected clear() {
+    this.items.set([]);
+  }
+}
 ```
 
-```typescript
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+- Statements **can** assign values and call several methods separated by `;`.
+- Key modifiers: `keyup.enter`, `keydown.escape`, `keydown.control.s`, `keyup.shift.enter` (modifiers: `alt`, `control`, `meta`, `shift`).
+- To stop a link or form from doing its default action, call `event.preventDefault()` in your handler.
+- `$event.target.value` doesn't type-check (the target could be any element). Use a template reference variable (`#box` above) or cast in the class: `(event.target as HTMLInputElement).value`.
+
+## Two-way binding `[( )]`
+
+Two-way binding keeps a class value and a view value in sync. It's shorthand for a property binding **plus** an event binding:
+
+```html
+<!-- These two lines do the same thing -->
+<app-star-rating [(rating)]="score" />
+<app-star-rating [rating]="score()" (ratingChange)="score.set($event)" />
+```
+
+You can bind a **writable signal** directly — Angular reads and writes it for you.
+
+**With form inputs** use `ngModel` from `FormsModule`:
+
+```ts title="name-editor.ts"
+import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 @Component({
-  selector: 'app-user-profile',
-  imports: [CommonModule, FormsModule],
-  templateUrl: './user-profile.html',
-  styleUrls: ['./user-profile.css']
+  selector: 'app-name-editor',
+  imports: [FormsModule],
+  template: `
+    <label>Name: <input [(ngModel)]="name" /></label>
+    <label>
+      Plan:
+      <select [(ngModel)]="plan">
+        <option value="free">Free</option>
+        <option value="pro">Pro</option>
+      </select>
+    </label>
+    <p>Hello {{ name() || 'stranger' }} — you picked {{ plan() }}.</p>
+  `,
 })
-export class UserProfile {
-  defaultAvatar = '/assets/default-avatar.png';
-  isUploading = false;
-  canEditEmail = false;
-  isSaving = false;
-  saveMessage = '';
-  saveSuccess = false;
-  
-  user = {
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'developer',
-    avatar: '',
-    skills: ['Angular', 'TypeScript', 'JavaScript']
-  };
-  
-  availableRoles = [
-    { value: 'developer', label: 'Developer' },
-    { value: 'designer', label: 'Designer' },
-    { value: 'manager', label: 'Manager' }
-  ];
-  
-  isValidName(name: string): boolean {
-    return name && name.trim().length > 0;
+export class NameEditor {
+  protected readonly name = signal('');
+  protected readonly plan = signal('free');
+}
+```
+
+**With your own components** declare a `model()` in the child (see [Components](/beginner/components/#two-way-binding-with-model)).
+
+:::note
+For real forms with validation, use **Signal Forms** and `[formField]` — see [Forms](/beginner/forms/).
+:::
+
+## Template reference variables `#ref`
+
+`#name` gives a name to an element (or component) so you can use it elsewhere in the same template:
+
+```html
+<input #email type="email" placeholder="you@example.com" />
+<button type="button" (click)="subscribe(email.value)">Subscribe</button>
+<p>{{ email.value.length }} characters</p>
+
+<!-- Reference a child component and call its public methods -->
+<app-video-player #player />
+<button type="button" (click)="player.play()">▶ Play</button>
+```
+
+On a plain element, `#ref` points to the DOM element (e.g. `HTMLInputElement`). On a component, it points to the component instance. To access a reference from the **class**, use a signal query such as `viewChild('email')` — see [Advanced Components](/intermediate/advanced-components/).
+
+:::caution
+`{{ email.value.length }}` only refreshes when Angular checks the component (e.g. after an event). For live values, store them in a signal instead.
+:::
+
+## Local variables with `@let`
+
+`@let` declares a read-only variable inside the template. It's great for avoiding repetition and for naming a value you read many times:
+
+```html
+@let user = currentUser();
+@let fullName = user.firstName + ' ' + user.lastName;
+@let total = price() * quantity();
+
+<h2>{{ fullName }}</h2>
+<p>Total: {{ total }}</p>
+
+@if (user.isAdmin) {
+  <a href="/admin">Admin panel for {{ fullName }}</a>
+}
+```
+
+- A `@let` is visible to the rest of the template **after** its declaration (and inside nested blocks).
+- You can't reassign it; it recalculates automatically when its inputs change.
+- Keep business logic in the class (`computed()`); use `@let` for small, template-only conveniences.
+
+## Pipes — formatting values
+
+A **pipe** transforms a value for display without changing the original. Use the `|` operator and pass arguments after `:`.
+
+```ts title="order-summary.ts"
+import { Component, signal } from '@angular/core';
+import { CurrencyPipe, DatePipe, JsonPipe, TitleCasePipe, UpperCasePipe } from '@angular/common';
+
+@Component({
+  selector: 'app-order-summary',
+  imports: [CurrencyPipe, DatePipe, JsonPipe, TitleCasePipe, UpperCasePipe],
+  template: `
+    <h2>{{ customer() | titlecase }}</h2>
+    <p>Order placed: {{ placedAt() | date: 'medium' }}</p>
+    <p>Total: {{ total() | currency: 'EUR' }}</p>
+    <p>Status: {{ status() | uppercase }}</p>
+    <pre>{{ items() | json }}</pre>
+  `,
+})
+export class OrderSummary {
+  protected readonly customer = signal('ada lovelace');
+  protected readonly placedAt = signal(new Date());
+  protected readonly total = signal(42.5);
+  protected readonly status = signal('shipped');
+  protected readonly items = signal([{ sku: 'A1', qty: 2 }]);
+}
+```
+
+| Pipe | Example | Output |
+|---|---|---|
+| `uppercase` / `lowercase` / `titlecase` | `{{ 'hello world' \| titlecase }}` | Hello World |
+| `date` | `{{ today \| date: 'shortDate' }}` | 11/6/26 |
+| `currency` | `{{ 9.5 \| currency: 'USD' }}` | $9.50 |
+| `number` / `percent` | `{{ 0.256 \| percent: '1.0-1' }}` | 25.6% |
+| `slice` | `{{ list \| slice: 0 : 3 }}` | first 3 items |
+| `json` | `{{ obj \| json }}` | pretty-printed JSON (debugging) |
+| `async` | `{{ data$ \| async }}` | latest value of an Observable/Promise |
+| `keyvalue` | `@for (e of obj \| keyvalue; track e.key)` | iterate an object |
+
+Pipes are standalone: import each pipe class you use (`DatePipe`, `CurrencyPipe`, ...) into the component's `imports`. Pipes can be chained: `{{ name() | lowercase | titlecase }}`. Learn to build your own in [Pipes](/intermediate/pipes/).
+
+## Control flow — a first look
+
+Built-in blocks decide **what** to render. No imports are needed.
+
+```html
+<!-- Conditionals -->
+@if (user(); as u) {
+  <p>Welcome back, {{ u.name }}!</p>
+} @else if (isLoading()) {
+  <p>Loading…</p>
+} @else {
+  <button type="button" (click)="login()">Log in</button>
+}
+
+<!-- Loops: track tells Angular how to identify each item -->
+<ul>
+  @for (task of tasks(); track task.id; let i = $index, last = $last) {
+    <li [class.last]="last">{{ i + 1 }}. {{ task.title }}</li>
+  } @empty {
+    <li>Nothing to do 🎉</li>
   }
-  
-  validateName(): void {
-    if (!this.isValidName(this.user.name)) {
-      console.log('Name validation failed');
+</ul>
+
+<!-- Switch -->
+@switch (status()) {
+  @case ('loading') { <app-spinner /> }
+  @case ('error') { <p>Something went wrong.</p> }
+  @default { <app-results /> }
+}
+```
+
+- `@for` **requires** `track`. Use a unique id (`track task.id`); use `track $index` only for static lists of primitives.
+- Loop variables: `$index`, `$first`, `$last`, `$even`, `$odd`, `$count`.
+- `@defer` lazy-loads part of a template; `@switch` can also do exhaustive type checks. See [Control Flow](/modern/control-flow/).
+
+:::note[Legacy syntax]
+`*ngIf`, `*ngFor` and `*ngSwitch` are **deprecated**. Run `ng generate @angular/core:control-flow` to migrate old templates automatically.
+:::
+
+## Putting it together: a shopping list
+
+```ts title="shopping-list.ts"
+import { Component, computed, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+
+interface Item {
+  id: number;
+  name: string;
+  price: number;
+  bought: boolean;
+}
+
+@Component({
+  selector: 'app-shopping-list',
+  imports: [CurrencyPipe],
+  template: `
+    <h2>Shopping list ({{ remaining() }} left)</h2>
+
+    <form (submit)="$event.preventDefault(); add(name.value, +price.value); name.value = ''">
+      <input #name placeholder="Item" required />
+      <input #price type="number" min="0" step="0.01" placeholder="Price" />
+      <button type="submit">Add</button>
+    </form>
+
+    @let list = items();
+    <ul>
+      @for (item of list; track item.id) {
+        <li [class.bought]="item.bought">
+          <label>
+            <input type="checkbox" [checked]="item.bought" (change)="toggle(item.id)" />
+            {{ item.name }} — {{ item.price | currency }}
+          </label>
+        </li>
+      } @empty {
+        <li>Your list is empty.</li>
+      }
+    </ul>
+
+    @if (list.length > 0) {
+      <p [style.font-weight]="remaining() === 0 ? 'bold' : 'normal'">
+        Total: {{ total() | currency }}
+      </p>
     }
+  `,
+  styles: `.bought { text-decoration: line-through; opacity: 0.6; }`,
+})
+export class ShoppingList {
+  protected readonly items = signal<Item[]>([
+    { id: 1, name: 'Milk', price: 1.2, bought: false },
+    { id: 2, name: 'Bread', price: 2.5, bought: true },
+  ]);
+  protected readonly remaining = computed(() => this.items().filter((i) => !i.bought).length);
+  protected readonly total = computed(() => this.items().reduce((sum, i) => sum + i.price, 0));
+  private nextId = 3;
+
+  protected add(name: string, price: number) {
+    if (!name.trim()) return;
+    this.items.update((list) => [...list, { id: this.nextId++, name: name.trim(), price: price || 0, bought: false }]);
   }
-  
-  addSkill(skill: string): void {
-    if (skill.trim() && !this.user.skills.includes(skill.trim())) {
-      this.user.skills.push(skill.trim());
-    }
-  }
-  
-  removeSkill(index: number): void {
-    this.user.skills.splice(index, 1);
-  }
-  
-  isFormValid(): boolean {
-    return this.isValidName(this.user.name) && this.user.email.length > 0;
-  }
-  
-  uploadAvatar(): void {
-    this.isUploading = true;
-    // Simulate upload
-    setTimeout(() => {
-      this.user.avatar = '/assets/new-avatar.png';
-      this.isUploading = false;
-    }, 2000);
-  }
-  
-  saveProfile(event: Event): void {
-    event.preventDefault();
-    if (!this.isFormValid()) return;
-    
-    this.isSaving = true;
-    // Simulate save
-    setTimeout(() => {
-      this.isSaving = false;
-      this.saveSuccess = true;
-      this.saveMessage = 'Profile saved successfully!';
-      setTimeout(() => this.saveMessage = '', 3000);
-    }, 1500);
-  }
-  
-  resetForm(): void {
-    this.user = {
-      name: '',
-      email: '',
-      role: 'developer',
-      avatar: '',
-      skills: []
-    };
+
+  protected toggle(id: number) {
+    this.items.update((list) => list.map((i) => (i.id === id ? { ...i, bought: !i.bought } : i)));
   }
 }
 ```
 
-## ✅ Best Practices
+This one component uses interpolation, property, class and style bindings, event binding, template references, `@let`, a pipe, `@if` and `@for`.
 
-### 1. **Keep Templates Simple**
-Move complex logic to component methods:
+## Common mistakes
 
-```html
-<!-- ❌ Avoid complex expressions in templates -->
-@if (user && user.permissions && user.permissions.includes('admin') && user.isActive) {
-  <div>Admin content</div>
-}
+| Mistake | Fix |
+|---|---|
+| `{{ count }}` shows `[Signal: 0]` or a function | Call the signal: `{{ count() }}`. |
+| `src="imageUrl()"` shows a broken image | Use brackets: `[src]="imageUrl()"`. |
+| `@for` without `track` | `track` is required — use a unique id. |
+| `$event.target.value` type error | Use `#ref.value` or cast in the class. |
+| Pipe "not found" error | Import the pipe class (e.g. `DatePipe`) into `imports`. |
+| Mutating an object bound with `[class]="obj"` | Produce a new object (e.g. with `computed()`). |
 
-<!-- ✅ Use computed properties -->
-@if (isUserAdmin()) {
-  <div>Admin content</div>
-}
-```
+## Best practices
 
-### 2. **Use TrackBy for Performance**
-```typescript
-// Helps Angular track list changes efficiently
-trackByUserId(index: number, user: any): number {
-  return user.id;
-}
-```
+- Keep templates **declarative**: move non-trivial logic into `computed()` signals.
+- Prefer `[class.x]` / `[style.x]` over `ngClass` / `ngStyle`.
+- Always `track` by a stable unique id in `@for`.
+- Mark template-only members `protected`.
+- Prefer built-in control flow over the deprecated `*ngIf` / `*ngFor`.
 
-### 3. **Avoid Function Calls in Templates**
-```html
-<!-- ❌ Function called on every change detection -->
-<p>{{formatDate(today)}}</p>
+## Key takeaways
 
-<!-- ✅ Use pipes or computed properties -->
-<p>{{today | date:'short'}}</p>
-```
+- `{{ }}` renders text, `[ ]` sets properties/attributes/classes/styles, `( )` listens to events, `[( )]` does both.
+- Template expressions are JavaScript-like and now support arrow functions, spread and template literals — but keep them short.
+- `#ref` names an element; `@let` names a value.
+- Pipes format values; control flow blocks (`@if`, `@for`, `@switch`) decide what renders.
 
-### 4. **Use Safe Navigation**
-```html
-<!-- Prevent errors when data might be null -->
-<p>{{user?.profile?.address?.city}}</p>
-```
+## Next steps
 
-## 🎯 Quick Checklist
-
-- [ ] Understand interpolation with `{{}}`
-- [ ] Use property binding with `[]`
-- [ ] Handle events with `()`
-- [ ] Implement two-way binding with `[(ngModel)]`
-- [ ] Create template reference variables with `#`
-- [ ] Transform data with pipes
-- [ ] Show/hide content with `@if`
-- [ ] Loop through lists with `@for`
-- [ ] Apply conditional styling with `[class]` and `[style]`
-- [ ] Use `@empty` with `@for` for empty states
-
-## 🚀 Next Steps
-
-1. **[Directives](/beginner/directives/)** - Learn built-in and custom directives
-2. **[Services & DI](/beginner/services/)** - Share data between components
-3. **[Forms](/beginner/forms/)** - Handle user input and validation
-
----
-
-**Remember**: Templates are where your data comes to life. Master data binding, and you'll create dynamic, interactive user interfaces! 🎨
+1. [Directives](/beginner/directives/) — add reusable behaviour to elements
+2. [Control Flow](/modern/control-flow/) — `@if`, `@for`, `@switch` and `@defer` in depth
+3. [Template Syntax](/modern/template-syntax/) — more modern template features
+4. [Forms](/beginner/forms/) — collect and validate user input

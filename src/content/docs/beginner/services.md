@@ -1,610 +1,461 @@
 ---
 title: Services & Dependency Injection 🔧
-description: Master Angular services and dependency injection patterns
+description: Learn Angular services and dependency injection - @Service(), inject(), sharing state, component-level providers and InjectionToken.
 sidebar:
   order: 7
 ---
 
-Services are classes that handle business logic, data access, and shared functionality. Dependency Injection (DI) is Angular's way of providing services to components automatically.
+A **service** is a plain TypeScript class that holds logic or data that several parts of your app need — talking to a server, storing the shopping cart, logging, formatting. **Dependency injection (DI)** is how Angular creates those services and hands them to the components (and other services) that ask for them.
 
-## 🎯 What are Services?
+## What you'll learn
 
-Services are **singleton classes** that:
-- Handle business logic
-- Manage data and state
-- Communicate with APIs
-- Share functionality between components
-- Keep components focused on presentation
+- Why we move logic out of components into services
+- How to create a service with `@Service()` and use it with `inject()`
+- How DI decides which instance you get (singletons vs. per-component instances)
+- When you still need `@Injectable()`
+- How to inject configuration values with `InjectionToken`
 
-```typescript
-import { Injectable } from '@angular/core';
+## Why services?
 
-@Injectable({
-  providedIn: 'root'
-})
-export class UserService {
-  private users = [
-    { id: 1, name: 'John Doe', email: 'john@example.com' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
-  ];
+| Put it in a **component** | Put it in a **service** |
+|---|---|
+| What the user sees and clicks | Data shared by several components |
+| Template-only state (is this panel open?) | Talking to APIs (`HttpClient`) |
+| Wiring inputs and outputs | Business rules, validation, calculations |
+| | Cross-cutting concerns (logging, auth, analytics) |
 
-  getUsers() {
-    return this.users;
-  }
+Components stay small and easy to test, and the same logic is reused everywhere.
 
-  getUserById(id: number) {
-    return this.users.find(user => user.id === id);
-  }
+## Creating a service
 
-  addUser(user: any) {
-    const newUser = { ...user, id: Date.now() };
-    this.users.push(newUser);
-    return newUser;
-  }
-}
-```
-
-## 🏗️ Creating Services
-
-### Using Angular CLI (Recommended)
 ```bash
-# Generate a new service
-ng generate service user
-ng generate service services/data
-
-# Short form
-ng g s user
-ng g s services/data
+ng generate service cart-store
+# short form
+ng g s cart-store
 ```
 
-### Manual Creation
-```typescript
-// user.service.ts
-import { Injectable } from '@angular/core';
+The CLI creates `cart-store.ts` (and a `cart-store.spec.ts` test):
 
-@Injectable({
-  providedIn: 'root'  // Available app-wide
-})
-export class UserService {
-  // Service logic here
+```ts title="cart-store.ts"
+import { Service } from '@angular/core';
+
+@Service()
+export class CartStore {}
+```
+
+`@Service()` marks the class as a service **and** makes it available everywhere in the app as a **single shared instance** (a singleton). You don't have to register it anywhere. If nobody uses it, the build tools drop it from the bundle (it is *tree-shakable*).
+
+:::note[Angular 21 and earlier]
+`@Service()` is new in Angular 22. In earlier versions (and in lots of existing code) the same thing is written as:
+
+```ts
+@Injectable({ providedIn: 'root' })
+export class CartStore {}
+```
+
+Both still work in v22. Run `ng generate @angular/core:service` to convert eligible `@Injectable` classes to `@Service`.
+:::
+
+## Using a service with `inject()`
+
+Let's give the cart some state. Signals work great inside services:
+
+```ts title="cart-store.ts"
+import { Service, computed, signal } from '@angular/core';
+
+export interface CartItem {
+  id: number;
+  name: string;
+  price: number;
+}
+
+@Service()
+export class CartStore {
+  private readonly _items = signal<CartItem[]>([]);
+
+  readonly items = this._items.asReadonly();               // read-only view for consumers
+  readonly count = computed(() => this._items().length);
+  readonly total = computed(() => this._items().reduce((sum, i) => sum + i.price, 0));
+
+  add(item: CartItem) {
+    this._items.update((items) => [...items, item]);
+  }
+
+  remove(id: number) {
+    this._items.update((items) => items.filter((i) => i.id !== id));
+  }
+
+  clear() {
+    this._items.set([]);
+  }
 }
 ```
 
-## 🔧 Dependency Injection Basics
+Ask for the service with `inject()`:
 
-### Injecting Services into Components
-```typescript
+```ts title="product-list.ts"
 import { Component, inject } from '@angular/core';
-import { UserService } from './user.service';
+import { CartStore } from './cart-store';
 
 @Component({
-  selector: 'app-user-list',
+  selector: 'app-product-list',
   template: `
-    <div>
-      @for (user of users; track user.id) {
-        <div class="user-card">
-          <h3>{{user.name}}</h3>
-          <p>{{user.email}}</p>
-        </div>
-      }
-    </div>
-  `
+    @for (product of products; track product.id) {
+      <p>
+        {{ product.name }} — {{ product.price }} €
+        <button type="button" (click)="cart.add(product)">Add</button>
+      </p>
+    }
+  `,
 })
-export class UserList {
-  private userService = inject(UserService);
-  
-  users = this.userService.getUsers();
-  
-  // Alternative: Constructor injection (still supported)
-  // constructor(private userService: UserService) {
-  //   this.users = this.userService.getUsers();
-  // }
-}
-```
-
-## 📊 Service Patterns
-
-### 1. Data Service
-```typescript
-@Injectable({
-  providedIn: 'root'
-})
-export class ProductService {
-  private products = [
-    { id: 1, name: 'Laptop', price: 999, category: 'Electronics' },
-    { id: 2, name: 'Book', price: 29, category: 'Education' }
+export class ProductList {
+  protected readonly cart = inject(CartStore);
+  protected readonly products = [
+    { id: 1, name: 'Coffee', price: 4 },
+    { id: 2, name: 'Bagel', price: 3 },
   ];
-
-  getAllProducts() {
-    return [...this.products]; // Return copy to prevent mutation
-  }
-
-  getProductsByCategory(category: string) {
-    return this.products.filter(p => p.category === category);
-  }
-
-  addProduct(product: Omit<Product, 'id'>) {
-    const newProduct = { ...product, id: this.generateId() };
-    this.products.push(newProduct);
-    return newProduct;
-  }
-
-  updateProduct(id: number, updates: Partial<Product>) {
-    const index = this.products.findIndex(p => p.id === id);
-    if (index !== -1) {
-      this.products[index] = { ...this.products[index], ...updates };
-      return this.products[index];
-    }
-    return null;
-  }
-
-  deleteProduct(id: number) {
-    const index = this.products.findIndex(p => p.id === id);
-    if (index !== -1) {
-      return this.products.splice(index, 1)[0];
-    }
-    return null;
-  }
-
-  private generateId(): number {
-    return Math.max(...this.products.map(p => p.id), 0) + 1;
-  }
-}
-
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  category: string;
 }
 ```
 
-### 2. State Management Service with Signals
-**Note:** This pattern uses Signals for reactive state. We'll cover signals in more depth in the modern Angular section.
-```typescript
-import { Injectable, signal, computed } from '@angular/core';
+```ts title="cart-badge.ts"
+import { Component, inject } from '@angular/core';
+import { CartStore } from './cart-store';
 
-@Injectable({
-  providedIn: 'root'
-})
-export class CartService {
-  // Using signals for reactive state
-  private cartItems = signal<CartItem[]>([]);
-  
-  // Computed values
-  items = this.cartItems.asReadonly();
-  totalItems = computed(() => 
-    this.cartItems().reduce((sum, item) => sum + item.quantity, 0)
-  );
-  totalPrice = computed(() => 
-    this.cartItems().reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  );
-
-  addToCart(product: Product, quantity = 1) {
-    const existingItem = this.cartItems().find(item => item.id === product.id);
-    
-    if (existingItem) {
-      this.updateQuantity(product.id, existingItem.quantity + quantity);
-    } else {
-      this.cartItems.update(items => [...items, {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity
-      }]);
-    }
-  }
-
-  removeFromCart(productId: number) {
-    this.cartItems.update(items => items.filter(item => item.id !== productId));
-  }
-
-  updateQuantity(productId: number, quantity: number) {
-    if (quantity <= 0) {
-      this.removeFromCart(productId);
-      return;
-    }
-
-    this.cartItems.update(items =>
-      items.map(item =>
-        item.id === productId ? { ...item, quantity } : item
-      )
-    );
-  }
-
-  clearCart() {
-    this.cartItems.set([]);
-  }
-}
-
-interface CartItem {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-}
-```
-
-### 3. Utility Service
-```typescript
-@Injectable({
-  providedIn: 'root'
-})
-export class UtilityService {
-  formatCurrency(amount: number, currency = 'USD'): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency
-    }).format(amount);
-  }
-
-  formatDate(date: Date | string, format = 'short'): string {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return new Intl.DateTimeFormat('en-US', {
-      dateStyle: format as any
-    }).format(dateObj);
-  }
-
-  generateId(): string {
-    return Math.random().toString(36).substring(2) + Date.now().toString(36);
-  }
-
-  debounce<T extends (...args: any[]) => any>(
-    func: T,
-    delay: number
-  ): (...args: Parameters<T>) => void {
-    let timeoutId: ReturnType<typeof setTimeout>;
-    return (...args: Parameters<T>) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func.apply(this, args), delay);
-    };
-  }
-
-  deepClone<T>(obj: T): T {
-    return JSON.parse(JSON.stringify(obj));
-  }
-}
-```
-
-## 🎯 Provider Scopes
-
-### 1. Root Level (App-wide Singleton)
-```typescript
-@Injectable({
-  providedIn: 'root'  // Single instance for entire app
-})
-export class GlobalService { }
-```
-
-### 2. Component Level
-```typescript
 @Component({
-  selector: 'app-feature',
-  providers: [FeatureService],  // New instance per component
-  template: `...`
+  selector: 'app-cart-badge',
+  template: `🛒 {{ cart.count() }} items · {{ cart.total() }} €`,
 })
-export class FeatureComponent {
-  private featureService = inject(FeatureService);
+export class CartBadge {
+  protected readonly cart = inject(CartStore);
 }
 ```
 
-### 3. Module Level (Legacy)
-```typescript
-@NgModule({
-  providers: [ModuleService]  // Single instance per module
-})
-export class FeatureModule { }
-```
+`ProductList` and `CartBadge` receive the **same** `CartStore` instance, so adding a product instantly updates the badge — even though the two components know nothing about each other.
 
-## 🔄 Service Communication
+:::tip
+Expose state as **read-only** signals (`asReadonly()` or `computed()`) and change it only through methods like `add()`. Then every change to your state goes through one place, which makes bugs much easier to find.
+:::
 
-### 1. Parent-Child via Service
-```typescript
-@Injectable({
-  providedIn: 'root'
-})
-export class MessageService {
-  private messageSubject = new BehaviorSubject<string>('');
-  message$ = this.messageSubject.asObservable();
+### Services can use other services
 
-  sendMessage(message: string) {
-    this.messageSubject.next(message);
+```ts title="logger.ts"
+import { Service } from '@angular/core';
+
+@Service()
+export class Logger {
+  log(message: string) {
+    console.log(`[${new Date().toISOString()}] ${message}`);
   }
-
-  clearMessage() {
-    this.messageSubject.next('');
-  }
-}
-
-// Component A
-export class ComponentA {
-  private messageService = inject(MessageService);
-
-  sendMessage() {
-    this.messageService.sendMessage('Hello from Component A!');
-  }
-}
-
-// Component B
-export class ComponentB {
-  private messageService = inject(MessageService);
-  message$ = this.messageService.message$;
 }
 ```
 
-### 2. Event Bus Pattern
-```typescript
-@Injectable({
-  providedIn: 'root'
+```ts title="checkout.ts"
+import { Service, inject } from '@angular/core';
+import { CartStore } from './cart-store';
+import { Logger } from './logger';
+
+@Service()
+export class Checkout {
+  private readonly cart = inject(CartStore);
+  private readonly logger = inject(Logger);
+
+  placeOrder() {
+    this.logger.log(`Ordering ${this.cart.count()} items for ${this.cart.total()} €`);
+    this.cart.clear();
+  }
+}
+```
+
+### Where can I call `inject()`?
+
+`inject()` works only while Angular is **creating** something — this is called the *injection context*:
+
+- ✅ class field initializers (`private readonly http = inject(HttpClient);`)
+- ✅ the constructor
+- ✅ functions Angular runs for you: route guards, resolvers, interceptors, `provideAppInitializer()`, factory functions
+- ❌ event handlers, `setTimeout`, `ngOnInit` or other lifecycle hooks
+
+Calling it in the wrong place throws error **NG0203** (*"inject() must be called from an injection context"*). Fix it by moving the `inject()` call to a field.
+
+## How dependency injection works
+
+1. A class asks for a dependency: `inject(CartStore)`.
+2. Angular looks for a **provider** of `CartStore` in an **injector**, starting from the current component and walking up to the application root.
+3. The first injector that has a provider creates the instance (once) and returns it.
+
+```text
+Root (application) injector   ← @Service() classes, providers in app.config.ts
+ └─ AppComponent injector
+     └─ ProductList injector  ← providers: [...] in @Component
+         └─ child components
+```
+
+Most services live in the **root injector** (that's what `@Service()` does), so the whole app shares one instance.
+
+## One instance per component: component-level providers
+
+Sometimes each component instance needs its **own** copy of a service — for example, every chat window or every wizard keeps separate state. List the service in the component's `providers`:
+
+```ts title="counter-store.ts"
+import { Service, signal } from '@angular/core';
+
+@Service({ autoProvided: false }) // not global: must be provided explicitly
+export class CounterStore {
+  readonly value = signal(0);
+  increment() {
+    this.value.update((v) => v + 1);
+  }
+}
+```
+
+```ts title="counter-widget.ts"
+import { Component, inject } from '@angular/core';
+import { CounterStore } from './counter-store';
+
+@Component({
+  selector: 'app-counter-widget',
+  providers: [CounterStore],       // a new CounterStore for each <app-counter-widget>
+  template: `<button type="button" (click)="store.increment()">{{ store.value() }}</button>`,
 })
-export class EventBusService {
-  private eventSubject = new Subject<AppEvent>();
-  events$ = this.eventSubject.asObservable();
+export class CounterWidget {
+  protected readonly store = inject(CounterStore);
+}
+```
 
-  emit(event: AppEvent) {
-    this.eventSubject.next(event);
-  }
+```html
+<!-- Two independent counters -->
+<app-counter-widget />
+<app-counter-widget />
+```
 
-  on(eventType: string) {
-    return this.events$.pipe(
-      filter(event => event.type === eventType)
-    );
-  }
+The instance is shared by the component **and all its children**, and it is destroyed together with the component. `autoProvided: false` makes sure nobody accidentally injects a global copy — injecting it without a provider throws a clear error.
+
+You can also scope a service to a group of routes with `providers` on a route — see [Advanced Routing](/intermediate/advanced-routing/).
+
+## Configuration values with `InjectionToken`
+
+DI isn't just for classes. To inject a string, number, object or function, create an **`InjectionToken`**:
+
+```ts title="app.tokens.ts"
+import { InjectionToken } from '@angular/core';
+
+export interface AppConfig {
+  apiUrl: string;
+  pageSize: number;
 }
 
-interface AppEvent {
-  type: string;
-  data?: any;
+// Token that must be provided by the app
+export const APP_CONFIG = new InjectionToken<AppConfig>('APP_CONFIG');
+
+// Token with a default value (no provider needed)
+export const PAGE_TITLE_PREFIX = new InjectionToken<string>('PAGE_TITLE_PREFIX', {
+  providedIn: 'root',
+  factory: () => 'My Shop',
+});
+```
+
+Provide the value in `app.config.ts`:
+
+```ts title="app.config.ts"
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { routes } from './app.routes';
+import { APP_CONFIG } from './app.tokens';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes),
+    { provide: APP_CONFIG, useValue: { apiUrl: 'https://api.example.com', pageSize: 20 } },
+  ],
+};
+```
+
+And inject it like a service:
+
+```ts title="product-api.ts"
+import { Service, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { APP_CONFIG } from './app.tokens';
+
+export interface Product {
+  id: number;
+  name: string;
 }
 
-// Usage
-export class SomeComponent {
-  private eventBus = inject(EventBusService);
+@Service()
+export class ProductApi {
+  private readonly http = inject(HttpClient);
+  private readonly config = inject(APP_CONFIG);
 
-  ngOnInit() {
-    this.eventBus.on('user-login').subscribe(event => {
-      console.log('User logged in:', event.data);
+  list(page = 1) {
+    return this.http.get<Product[]>(`${this.config.apiUrl}/products`, {
+      params: { page, size: this.config.pageSize },
     });
   }
-
-  login() {
-    this.eventBus.emit({
-      type: 'user-login',
-      data: { userId: 123, name: 'John' }
-    });
-  }
 }
 ```
 
-## 🎨 Practical Example: Todo Service
+### Provider recipes
 
-```typescript
-import { Injectable, signal, computed } from '@angular/core';
+A provider tells an injector **how** to create the value for a token:
+
+| Provider | Meaning | Example |
+|---|---|---|
+| `SomeClass` | Create an instance of this class | `providers: [CounterStore]` |
+| `useValue` | Use this exact value | `{ provide: APP_CONFIG, useValue: config }` |
+| `useClass` | Create a different class for this token | `{ provide: Logger, useClass: SilentLogger }` |
+| `useFactory` | Call a function (it can `inject()` other things) | `{ provide: API_URL, useFactory: () => inject(APP_CONFIG).apiUrl }` |
+| `useExisting` | Alias another token | `{ provide: OldLogger, useExisting: Logger }` |
+
+`useClass` is very useful in tests: swap the real service for a fake one.
+
+### Optional dependencies
+
+If a dependency might not be provided, ask for it optionally — you get `null` instead of an error:
+
+```ts
+private readonly analytics = inject(Analytics, { optional: true });
+
+track(event: string) {
+  this.analytics?.track(event);
+}
+```
+
+## When to use `@Injectable()` instead of `@Service()`
+
+`@Service()` covers most app code. Keep using `@Injectable()` when you need:
+
+| Need | Use |
+|---|---|
+| Constructor parameter injection (`constructor(private http: HttpClient)`) | `@Injectable()` — `@Service()` supports only `inject()` |
+| Advanced root providers (`useClass`, `useValue`, `useExisting`, `useFactory` in the decorator) | `@Injectable({ providedIn: 'root', useClass: ... })` |
+| Non-root scopes such as `providedIn: 'platform'` | `@Injectable({ providedIn: 'platform' })` |
+| A library that must also work with Angular 21 or older | `@Injectable({ providedIn: 'root' })` |
+
+To pick a different implementation at creation time, `@Service` has a `factory` option: `@Service({ factory: () => new ConsoleLogger() })`. The factory can call `inject()`.
+
+:::tip[Lazy-loading a heavy service]
+If a service pulls in a large library you rarely need (PDF export, charts), `injectAsync(() => import('./pdf-export').then(m => m.PdfExport))` loads its code only when you first use it. See [Dependency Injection](/advanced/dependency-injection/).
+:::
+
+## Practical example: a todo store
+
+```ts title="todo-store.ts"
+import { Service, computed, signal } from '@angular/core';
 
 export interface Todo {
   id: number;
-  text: string;
-  completed: boolean;
-  createdAt: Date;
+  title: string;
+  done: boolean;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
-export class TodoService {
-  private todos = signal<Todo[]>([
-    { id: 1, text: 'Learn Angular Services', completed: false, createdAt: new Date() },
-    { id: 2, text: 'Build Todo App', completed: false, createdAt: new Date() }
-  ]);
+export type Filter = 'all' | 'active' | 'done';
 
-  // Computed properties
-  allTodos = this.todos.asReadonly();
-  activeTodos = computed(() => this.todos().filter(todo => !todo.completed));
-  completedTodos = computed(() => this.todos().filter(todo => todo.completed));
-  totalCount = computed(() => this.todos().length);
-  activeCount = computed(() => this.activeTodos().length);
-  completedCount = computed(() => this.completedTodos().length);
+@Service()
+export class TodoStore {
+  private readonly todos = signal<Todo[]>([]);
+  private nextId = 1;
 
-  addTodo(text: string) {
-    if (!text.trim()) return;
-
-    const newTodo: Todo = {
-      id: this.generateId(),
-      text: text.trim(),
-      completed: false,
-      createdAt: new Date()
-    };
-
-    this.todos.update(todos => [...todos, newTodo]);
-  }
-
-  toggleTodo(id: number) {
-    this.todos.update(todos =>
-      todos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
-    );
-  }
-
-  updateTodo(id: number, text: string) {
-    if (!text.trim()) return;
-
-    this.todos.update(todos =>
-      todos.map(todo =>
-        todo.id === id ? { ...todo, text: text.trim() } : todo
-      )
-    );
-  }
-
-  deleteTodo(id: number) {
-    this.todos.update(todos => todos.filter(todo => todo.id !== id));
-  }
-
-  clearCompleted() {
-    this.todos.update(todos => todos.filter(todo => !todo.completed));
-  }
-
-  toggleAll() {
-    const allCompleted = this.todos().every(todo => todo.completed);
-    this.todos.update(todos =>
-      todos.map(todo => ({ ...todo, completed: !allCompleted }))
-    );
-  }
-
-  private generateId(): number {
-    const ids = this.todos().map(todo => todo.id);
-    return ids.length > 0 ? Math.max(...ids) + 1 : 1;
-  }
-}
-```
-
-### Using the Todo Service
-```typescript
-import { Component, inject } from '@angular/core';
-import { TodoService } from './todo.service';
-import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
-
-@Component({
-  selector: 'app-todo-list',
-  imports: [CommonModule, FormsModule],
-  template: `
-    <div class="todo-app">
-      <h1>Todo App</h1>
-      
-      <!-- Add todo -->
-      <div class="add-todo">
-        <input 
-          [(ngModel)]="newTodoText"
-          (keyup.enter)="addTodo()"
-          placeholder="What needs to be done?">
-        <button (click)="addTodo()">Add</button>
-      </div>
-
-      <!-- Stats -->
-      <div class="stats">
-        <span>Total: {{todoService.totalCount()}}</span>
-        <span>Active: {{todoService.activeCount()}}</span>
-        <span>Completed: {{todoService.completedCount()}}</span>
-      </div>
-
-      <!-- Todo list -->
-      <div class="todo-list">
-        @for (todo of filteredTodos(); track todo.id) {
-          <div class="todo-item" [class.completed]="todo.completed">
-            <input 
-              type="checkbox" 
-              [checked]="todo.completed"
-              (change)="todoService.toggleTodo(todo.id)">
-            <span class="todo-text">{{todo.text}}</span>
-            <button (click)="todoService.deleteTodo(todo.id)">Delete</button>
-          </div>
-        }
-      </div>
-
-      <!-- Actions -->
-      <div class="actions">
-        <button (click)="todoService.toggleAll()">Toggle All</button>
-        <button (click)="todoService.clearCompleted()">Clear Completed</button>
-      </div>
-    </div>
-  `
-})
-export class TodoList {
-  todoService = inject(TodoService);
-  newTodoText = '';
-  filter: 'all' | 'active' | 'completed' = 'all';
-
-  filteredTodos = computed(() => {
-    switch (this.filter) {
+  readonly filter = signal<Filter>('all');
+  readonly remaining = computed(() => this.todos().filter((t) => !t.done).length);
+  readonly visible = computed(() => {
+    const todos = this.todos();
+    switch (this.filter()) {
       case 'active':
-        return this.todoService.activeTodos();
-      case 'completed':
-        return this.todoService.completedTodos();
+        return todos.filter((t) => !t.done);
+      case 'done':
+        return todos.filter((t) => t.done);
       default:
-        return this.todoService.allTodos();
+        return todos;
     }
   });
 
-  addTodo() {
-    if (this.newTodoText.trim()) {
-      this.todoService.addTodo(this.newTodoText);
-      this.newTodoText = '';
+  add(title: string) {
+    const trimmed = title.trim();
+    if (trimmed) {
+      this.todos.update((list) => [...list, { id: this.nextId++, title: trimmed, done: false }]);
     }
+  }
+
+  toggle(id: number) {
+    this.todos.update((list) => list.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  }
+
+  remove(id: number) {
+    this.todos.update((list) => list.filter((t) => t.id !== id));
   }
 }
 ```
 
-## ✅ Best Practices
+```ts title="todo-page.ts"
+import { Component, inject } from '@angular/core';
+import { Filter, TodoStore } from './todo-store';
 
-### 1. **Single Responsibility**
-Each service should have one clear purpose.
+@Component({
+  selector: 'app-todo-page',
+  template: `
+    <input #title placeholder="What needs doing?" (keyup.enter)="store.add(title.value); title.value = ''" />
 
-### 2. **Use inject() Function**
-```typescript
-// ✅ Modern approach
-private userService = inject(UserService);
+    <nav>
+      @for (f of filters; track f) {
+        <button type="button" [class.active]="store.filter() === f" (click)="store.filter.set(f)">{{ f }}</button>
+      }
+    </nav>
 
-// ❌ Legacy (still works)
-constructor(private userService: UserService) {}
-```
+    <ul>
+      @for (todo of store.visible(); track todo.id) {
+        <li>
+          <label [class.done]="todo.done">
+            <input type="checkbox" [checked]="todo.done" (change)="store.toggle(todo.id)" />
+            {{ todo.title }}
+          </label>
+          <button type="button" (click)="store.remove(todo.id)" aria-label="Delete">✕</button>
+        </li>
+      } @empty {
+        <li>Nothing here 🎉</li>
+      }
+    </ul>
 
-### 3. **Provide at Root Level**
-```typescript
-@Injectable({
-  providedIn: 'root'  // Preferred for most services
+    <p>{{ store.remaining() }} item(s) left</p>
+  `,
+  styles: `.done { text-decoration: line-through; } .active { font-weight: bold; }`,
 })
-```
-
-### 4. **Use Signals for State**
-```typescript
-// ✅ Reactive with signals
-private state = signal(initialState);
-
-// ❌ Manual change detection
-private state = initialState;
-```
-
-### 5. **Return Copies, Not References**
-```typescript
-// ✅ Prevent external mutation
-getUsers() {
-  return [...this.users];
-}
-
-// ❌ Exposes internal state
-getUsers() {
-  return this.users;
+export class TodoPage {
+  protected readonly store = inject(TodoStore);
+  protected readonly filters: Filter[] = ['all', 'active', 'done'];
 }
 ```
 
-### 6. **Use TypeScript Interfaces**
-```typescript
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-```
+## Common mistakes
 
-## 🎯 Quick Checklist
+| Mistake | Fix |
+|---|---|
+| `new CartStore()` in a component | Always use `inject(CartStore)` — otherwise each component gets its own unrelated copy and DI can't provide its dependencies. |
+| NG0203 "inject() must be called from an injection context" | Call `inject()` in a field initializer or constructor, not in a method or callback. |
+| A component-level `providers: [X]` when you wanted shared state | Remove it: each `providers` entry creates a **new** instance for that subtree. |
+| NG0201 "No provider found for X" (`NullInjectorError` in older versions) | Provide it (`providers: [X]` or in `app.config.ts`), or use `@Service()` / `providedIn: 'root'`. |
+| Exposing writable signals publicly | Expose `asReadonly()` / `computed()` and change state through methods. |
 
-- [ ] Understand what services are and their purpose
-- [ ] Know how to create services with `@Injectable()`
-- [ ] Use `inject()` function for modern DI
-- [ ] Implement different service patterns (data, state, utility)
-- [ ] Understand provider scopes (root, component, module)
-- [ ] Use signals for reactive state management
-- [ ] Follow single responsibility principle
-- [ ] Return copies to prevent mutation
-- [ ] Use TypeScript for type safety
+## Best practices
 
-## 🚀 Next Steps
+- Use `@Service()` for app-wide singletons and `inject()` everywhere.
+- Name services by what they do: `CartStore`, `ProductApi`, `Logger` (no `Service` suffix needed).
+- Keep each service focused on one responsibility.
+- Store service state in signals; expose read-only signals.
+- Use `InjectionToken` for configuration rather than hard-coding values.
 
-1. **[Routing Basics](/beginner/routing/)** - Navigate between components
-2. **[Forms Introduction](/beginner/forms/)** - Handle user input
-3. **[HTTP Client](/beginner/http/)** - Communicate with APIs
+## Key takeaways
 
----
+- Services hold shared logic and data; DI creates them and hands them out.
+- `@Service()` = singleton available everywhere (the v22 shorthand for `@Injectable({ providedIn: 'root' })`).
+- `inject(Token)` gets a dependency — only inside an injection context.
+- `providers: [X]` on a component gives that component (and its children) its own instance.
+- `InjectionToken` lets you inject non-class values such as configuration.
 
-**Remember**: Services are the backbone of Angular applications. They keep your components clean and enable powerful patterns like dependency injection and reactive programming! 🔧
+## Next steps
+
+1. [Routing](/beginner/routing/) — navigate between pages
+2. [HTTP Client](/beginner/http/) — use a service to load data from a server
+3. [Dependency Injection (advanced)](/advanced/dependency-injection/) — hierarchical injectors, `injectAsync`, multi providers
+4. [State Management](/intermediate/state-management/) — patterns for larger apps

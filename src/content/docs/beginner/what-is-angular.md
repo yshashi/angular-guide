@@ -1,219 +1,292 @@
 ---
 title: What is Angular? 🅰️
-description: Introduction to Angular framework - what it is, why use it, and how it compares to other frameworks
+description: What Angular is, what it includes, how it works, how it compares to React and Vue, its release cycle and when to choose it — explained for beginners.
 sidebar:
   order: 1
 ---
 
-Angular is a powerful, open-source web application framework developed and maintained by Google. It's designed to build dynamic, scalable, and maintainable single-page applications (SPAs) and progressive web apps (PWAs).
+Angular is a free, open-source **web framework** for building fast, reliable web applications. It is
+written in TypeScript and maintained by a dedicated team at Google, together with a large open-source
+community. You can use it for anything from a small personal project to apps with hundreds of
+screens and developers.
 
-## 🎯 Angular in Simple Terms
+## What you'll learn
 
-Think of Angular as a **complete toolkit** for building modern web applications. Just like a carpenter has a toolbox with different tools for different tasks, Angular provides you with everything you need to build web applications:
+- What Angular is and what it includes "in the box"
+- What Angular code looks like
+- How an Angular app works at a high level
+- How Angular compares to React and Vue
+- How Angular versions and support work
+- When Angular is (and isn't) a good fit
 
-- **Components** - The building blocks of your app
-- **Services** - For handling data and business logic
-- **Router** - For navigation between pages
-- **Forms** - For user input and validation
-- **HTTP Client** - For communicating with servers
-- **Testing Tools** - For ensuring your app works correctly
+## Angular in simple terms
 
-## 🌟 Why Choose Angular?
+Think of Angular as a **complete workshop** rather than a single tool. Some libraries give you only
+a hammer (for example, a way to render UI) and you pick the rest yourself. Angular gives you a
+well-organised workshop where every tool is designed to work with the others:
 
-### 1. **Complete Framework**
-Unlike libraries that focus on one aspect, Angular is a full framework that provides:
-- Component architecture
-- Dependency injection
-- Routing system
-- Form handling
-- HTTP client
-- Testing utilities
-- Build tools
+| Tool in the workshop | What it does |
+| --- | --- |
+| **Components** | Reusable pieces of UI (a header, a product card, a whole page) |
+| **Templates** | HTML with extra syntax to show data, react to events and loop over lists |
+| **Signals** | Reactive values — when one changes, Angular updates exactly what depends on it |
+| **Services & dependency injection** | Share logic and data (API calls, a shopping cart) across components |
+| **Router** | Navigate between pages, lazy-load code, protect routes with guards |
+| **Forms** | Collect and validate user input (Signal Forms, Reactive Forms, template-driven) |
+| **HttpClient / `httpResource`** | Talk to backend APIs |
+| **Angular CLI** | Create, run, test, build and update projects with one command |
+| **SSR & hydration** | Render pages on the server for faster loads and better SEO |
+| **Testing tools** | `TestBed`, component harnesses, Vitest integration |
 
-### 2. **TypeScript by Default**
-Angular is built with TypeScript, which provides:
-- Static type checking
-- Better IDE support
-- Improved code quality
-- Enhanced refactoring capabilities
-- Better documentation through types
+## A first look at Angular code
 
-### 3. **Enterprise-Ready**
-Angular is designed for large-scale applications:
-- Modular architecture
-- Consistent code structure
-- Powerful CLI tools
-- Comprehensive testing support
-- Long-term support (LTS) versions
+Here is a small but complete component. It shows a counter and a button:
 
-### 4. **Strong Ecosystem**
-- **Angular Material** - UI component library
-- **Angular CDK** - Component development kit
-- **Built-in SSR** - Server-side rendering (formerly Angular Universal)
-- **Ionic** - Mobile app development
-- **NativeScript** - Native mobile apps
+```ts title="counter.ts"
+import { Component, computed, signal } from '@angular/core';
 
-## 🏗️ Angular Architecture Overview
+@Component({
+  selector: 'app-counter',
+  template: `
+    <p>You clicked {{ count() }} times (double: {{ double() }})</p>
+    <button type="button" (click)="increment()">Click me</button>
+  `,
+  styles: `
+    button {
+      padding: 0.5rem 1rem;
+    }
+  `,
+})
+export class Counter {
+  protected readonly count = signal(0);
+  protected readonly double = computed(() => this.count() * 2);
 
-<!-- Show svg image from public folder -->
-<img src="/public/ng-arch.svg" alt="Angular Architecture">
+  protected increment() {
+    this.count.update((value) => value + 1);
+  }
+}
+```
 
-### Core Building Blocks
+Reading it line by line:
 
-1. **Components** - Control parts of the screen (views)
-2. **Services** - Provide functionality that isn't directly related to views
-3. **Modules** - Organize the application into cohesive blocks
-4. **Templates** - Define the component's view with HTML
-5. **Directives** - Add behavior to elements in templates
-6. **Pipes** - Transform displayed data
+- `@Component({...})` tells Angular "this class is a component".
+- `selector: 'app-counter'` means you use it in HTML as `<app-counter />`.
+- `template` is the HTML. `{{ count() }}` shows a value; `(click)="increment()"` listens to an event.
+- `styles` are scoped to this component — they won't leak to the rest of the page.
+- `signal(0)` creates a reactive value; `computed()` derives a new value from it.
+- Calling `count.update(...)` changes the value, and Angular re-renders only what reads it.
 
-## 🆚 Angular vs Other Frameworks
+Components can use **services** to share logic. Angular hands them a service through
+**dependency injection** with `inject()`:
 
-### Angular vs React
+```ts title="greeting.ts"
+import { Component, Service, inject, input } from '@angular/core';
 
-| Feature | Angular | React |
-|---------|---------|-------|
-| **Type** | Full Framework | Library |
-| **Language** | TypeScript (default) | JavaScript (TypeScript optional) |
-| **Learning Curve** | Steeper | Gentler |
-| **Architecture** | Opinionated | Flexible |
-| **Data Binding** | Two-way | One-way (default) |
-| **Mobile** | Ionic, NativeScript | React Native |
-| **Best For** | Enterprise apps | Flexible projects |
+@Service()
+export class Greeter {
+  greet(name: string) {
+    return `Hello, ${name}! 👋`;
+  }
+}
 
-### Angular vs Vue.js
+@Component({
+  selector: 'app-greeting',
+  template: `<h2>{{ greeter.greet(name()) }}</h2>`,
+})
+export class Greeting {
+  readonly name = input('Angular');
+  protected readonly greeter = inject(Greeter);
+}
+```
 
-| Feature | Angular | Vue.js |
-|---------|---------|--------|
-| **Complexity** | More complex | Simpler |
-| **Performance** | Excellent | Excellent |
-| **Ecosystem** | Comprehensive | Growing |
-| **Corporate Support** | Google | Independent |
-| **TypeScript** | Built-in | Good support |
-| **Best For** | Large applications | Quick prototypes |
+`<app-greeting name="Sam" />` renders "Hello, Sam! 👋". You'll learn all of this step by step in the
+next pages.
 
-## 📈 Angular Evolution
+## How an Angular app works
 
-### Version History
-- **AngularJS (1.x)** - The original (2010-2021)
-- **Angular 2** - Complete rewrite (2016)
-- **Angular 4-16** - Regular updates every 6 months
-- **Angular 17** - New brand, control flow, SSR improvements
-- **Angular 18** - Material 3, control flow stable, experimental esbuild
-- **Angular 19** - Linked signals, incremental hydration, @let syntax
-- **Angular 20** - Zoneless change detection stable
-- **Angular 21** - Signal Forms stable, linkedSignal stable, resource API
+```text
+index.html  ──►  <app-root>            The browser loads one HTML page
+                     │
+main.ts  ──►  bootstrapApplication(App, appConfig)
+                     │
+                 App (root component)
+                 ├── Header
+                 ├── <router-outlet>  ──►  ProductList page   (chosen by the router)
+                 │                          ├── ProductCard
+                 │                          └── ProductCard
+                 └── Footer
+                     ▲
+     Services (CartStore, ProductApi, …) are injected wherever they're needed
+```
 
-**Angular Can I Use Explorer:**
-https://www.dolmen.tools/en/angular/caniuse/explorer
+1. **One page, many views.** An Angular app is usually a **single-page application (SPA)**: the
+   browser loads `index.html` once, and Angular swaps views as you navigate — no full page reloads.
+2. **A tree of components.** The root component (`App`) contains other components, which contain
+   others, and so on.
+3. **Compiled ahead of time.** The Angular compiler turns your templates into efficient JavaScript
+   at build time, and type-checks them, so many mistakes are caught before the app runs.
+4. **Reactive updates.** When a signal changes, an event fires, or an input changes, Angular updates
+   only the affected components. Since Angular 21, new apps don't need `zone.js` for this
+   ("zoneless").
+5. **Optional server rendering.** With SSR, the first HTML is rendered on the server, then
+   **hydrated** in the browser so it becomes interactive.
 
-### Latest Features (Angular 19-21)
-- **Signals** - Reactivity model (stable since Angular 16, now with linkedSignal and resource API)
-- **Standalone Components** - Default since Angular 19
-- **Control Flow** - @if, @for, @switch syntax (standard)
-- **Zoneless Change Detection** - Better performance
-- **Incremental Hydration** - Faster SSR
-- **Signal Forms** - Reactive forms powered by signals
-- **Material 3** - Latest design system
+## Why choose Angular?
 
-## 🎯 When to Use Angular
+**1. Batteries included.** Routing, forms, HTTP, testing, SSR, animations, i18n and accessibility
+primitives are all official and designed together. You spend less time choosing and wiring up
+libraries.
 
-### ✅ Perfect for:
-- **Large-scale enterprise applications**
-- **Complex business logic**
-- **Long-term projects** (5+ years)
-- **Teams that prefer structure**
-- **TypeScript-first development**
-- **Applications requiring extensive testing**
+**2. TypeScript and strict type checking.** Your components, services **and templates** are
+type-checked. Typos like `{{ user.nmae }}` fail the build instead of failing in production.
 
-### ❌ Consider alternatives for:
-- **Simple websites** (use vanilla HTML/CSS/JS)
-- **Quick prototypes** (Vue.js might be faster)
-- **Small teams** preferring flexibility (React)
-- **Projects with tight deadlines** and simple requirements
+**3. Modern, fine-grained reactivity.** Signals, `computed()`, `linkedSignal()`, `resource()`
+and `httpResource()` make state easy to reason about. Components use `OnPush` change detection
+by default (since v22), so Angular skips work it doesn't need to do.
 
-## 🏢 Who Uses Angular?
+**4. Great tooling.**
 
-### Major Companies
-- **Google** - Gmail, Google Cloud Console
-- **Microsoft** - Office 365, Xbox
-- **Samsung** - SmartThings
-- **Deutsche Bank** - Banking applications
-- **Nike** - E-commerce platform
-- **Upwork** - Freelancing platform
-- **PayPal** - Payment processing
+- The **Angular CLI** creates projects, generates code and builds with esbuild and Vite.
+- **`ng update`** upgrades your app and runs automatic code migrations for breaking changes.
+- The **Angular Language Service** brings autocomplete and errors into templates in your editor.
+- **Angular DevTools** lets you inspect components, signals, injectors and performance.
+- The **Angular CLI MCP server** gives AI assistants accurate, up-to-date Angular knowledge.
 
-### Industries
-- **Banking & Finance** - Complex business rules
-- **Healthcare** - Regulatory compliance
-- **E-commerce** - Large product catalogs
-- **Enterprise Software** - Internal tools
-- **Government** - Public services
+**5. Stability you can plan around.** Angular follows semantic versioning, publishes a release
+schedule, deprecates APIs before removing them, and gives every major version long-term support.
 
-## 🚀 What You'll Build
+**6. Secure by default.** Angular automatically sanitises values you bind into the DOM to help
+prevent cross-site scripting (XSS), and supports Trusted Types.
 
-Throughout this guide, you'll create:
+**7. Scales with your team.** A consistent project structure, a shared style guide and dependency
+injection make large codebases easier to navigate.
 
-### 🏪 **E-commerce Application**
-- Product catalog with search
-- Shopping cart with signals
-- User authentication
-- Payment integration
-- Admin dashboard
+## Angular vs React vs Vue
 
-### 💬 **Real-time Chat App**
-- WebSocket integration
-- User presence
-- File sharing
-- Message history
+All three are excellent choices. They differ mainly in **how much they decide for you**.
 
-### 📊 **Analytics Dashboard**
-- Data visualization
-- Real-time updates
-- Interactive charts
-- Export functionality
+| | Angular | React | Vue |
+| --- | --- | --- | --- |
+| **Type** | Full framework | UI library | Progressive framework |
+| **Language** | TypeScript (built-in) | JavaScript or TypeScript | JavaScript or TypeScript |
+| **Templates** | HTML templates with `@if` / `@for` | JSX | HTML templates (or JSX) |
+| **Reactivity** | Signals | Hooks (`useState`, …) | Refs / reactive proxies |
+| **Routing, forms, HTTP** | Official, built in | Third-party libraries | Official router and state library; others third-party |
+| **Dependency injection** | Built in, hierarchical | No (uses context) | `provide` / `inject` |
+| **CLI & build** | Angular CLI (esbuild + Vite) | Vite, Next.js, etc. | Vite, Nuxt, etc. |
+| **Opinionated?** | Yes — one recommended way | No — you choose | Somewhat |
 
-### Typical Development Process
-1. **Plan** - Define requirements and architecture
-2. **Generate** - Use Angular CLI to create components/services
-3. **Develop** - Write TypeScript code and templates
-4. **Test** - Unit tests, integration tests, e2e tests
-5. **Build** - Compile and optimize for production
-6. **Deploy** - Deploy to hosting platform
-7. **Monitor** - Track performance and errors
+**In short:** if you want one consistent, well-integrated toolkit with strong typing, Angular is a
+great fit. If you prefer to assemble your own stack piece by piece, React may suit you. Vue sits in
+between.
 
-## 🎓 Learning Prerequisites
+:::note[Angular is not AngularJS]
+**AngularJS** (version 1.x, first released in 2010) is a different, older framework. Its long-term
+support ended on December 31, 2021. "Angular" (version 2 and later, first released in 2016) is a
+complete rewrite. Tutorials that mention `$scope` or `ng-controller` are about AngularJS.
+:::
 
-### Required Knowledge
-- **HTML** - Structure and semantics
-- **CSS** - Styling and layouts
-- **JavaScript** - ES6+ features, promises, async/await
-- **TypeScript** - Basic types and interfaces (we'll cover this)
+## Versions and support
 
-### Helpful Experience
-- **Git** - Version control
-- **Node.js** - JavaScript runtime
-- **Command line** - Basic terminal commands
-- **Web APIs** - Fetch, localStorage, etc.
+Angular uses **semantic versioning**: `major.minor.patch` (for example `22.2.4`).
 
-## 🎯 Learning Outcomes
+- **Major** versions (22, 23, …) can contain breaking changes — `ng update` migrates most of them
+  for you.
+- **Minor** versions add features and are backward-compatible.
+- **Patch** versions fix bugs and are released almost every week.
 
-After completing this section, you'll understand:
-- [ ] What Angular is and its core philosophy
-- [ ] Why Angular is chosen for enterprise applications
-- [ ] How Angular compares to other frameworks
-- [ ] The evolution of Angular and latest features
-- [ ] When to use Angular vs alternatives
-- [ ] The typical Angular development workflow
+Starting with **Angular 22**, a new major version is planned **every 12 months** (before v22 it was
+every 6 months), with 4–6 minor releases in between. Each major version is supported for about
+**24 months**: 12 months of active support, then 12 months of long-term support (LTS) with critical
+and security fixes only.
 
-## 🚀 Ready to Start?
+| Version | Status (Nov 2026) | Released | Active support ends | LTS ends |
+| --- | --- | --- | --- | --- |
+| **22** | Active | 2026-06-03 | ~2027-06 | ~2028-06 |
+| 21 | LTS | 2025-11-19 | 2026-06-03 | ~2027-06 |
+| 20 | LTS | 2025-05-28 | 2025-11-19 | 2026-11-28 |
 
-Now that you understand what Angular is, let's dive into its architecture and start building!
+Versions 2 to 19 are no longer supported. Check your project's version with `ng version`.
 
-**Next Steps:**
-1. **[Angular Architecture](/beginner/architecture/)** - Understand how Angular works
-2. **[Your First App](/beginner/first-app/)** - Build your first Angular application
+### How Angular got here
 
----
+| Version | Highlights |
+| --- | --- |
+| 2 (2016) | The new Angular: TypeScript, components, dependency injection |
+| 14–15 | Standalone components (no `NgModule` needed); typed reactive forms |
+| 16 | Signals introduced; required inputs |
+| 17 | New look and [angular.dev](https://angular.dev); built-in control flow (`@if`, `@for`) and `@defer`; esbuild/Vite build system by default |
+| 18 | Control flow and `@defer` stable; experimental zoneless; `@let` (18.1) |
+| 19 | Standalone is the default; `linkedSignal` and `resource` introduced; incremental hydration preview |
+| 20 | `effect`, `linkedSignal`, `toSignal` and incremental hydration stable; zoneless stable (20.2); new short file names (`app.ts`) |
+| 21 | Zoneless by default; Vitest by default; Signal Forms (experimental) and Angular Aria (preview); CLI MCP server |
+| **22** | `OnPush` by default; `@Service()`; `injectAsync()`; **Signal Forms**, `resource`/`httpResource` and **Angular Aria** stable; fetch-based `HttpClient` by default; TypeScript 6 |
 
-**Fun Fact**: Angular powers over 1.5 million websites worldwide and is one of the most popular frameworks for enterprise development! 🌟
+## The Angular ecosystem
+
+| Project | What it's for |
+| --- | --- |
+| **Angular Material** (`@angular/material`) | Ready-made Material Design components |
+| **Angular CDK** (`@angular/cdk`) | Behaviour primitives: overlays, drag & drop, virtual scrolling, a11y |
+| **Angular Aria** (`@angular/aria`) | Headless, accessible patterns (tabs, menu, combobox, listbox, tree…) that you style yourself |
+| **`@angular/ssr`** | Server-side rendering, prerendering and hydration |
+| **`@angular/service-worker`** | Offline support and PWAs |
+| **NgRx** (community) | State management, including the signal-based `@ngrx/signals` store |
+| **angular-eslint** (community) | Linting rules for Angular code and templates |
+| **Ionic + Capacitor**, **NativeScript** (community) | Mobile apps using Angular |
+
+## When to use Angular
+
+### ✅ A great fit for
+
+- Medium to large applications with many screens: dashboards, admin panels, internal tools,
+  e-commerce, banking and SaaS products
+- Teams that value consistency, strong typing and clear conventions
+- Long-lived projects that need predictable upgrades
+- Apps that need SSR, i18n, accessibility and testing without assembling many libraries
+
+### 🤔 Maybe something else
+
+- A mostly static site or blog with little interactivity — a static site generator may be simpler
+  (although Angular's prerendering handles this too)
+- A tiny widget on an existing page — plain JavaScript or web components may be enough
+
+## Who uses Angular?
+
+Angular is used inside Google for large products such as **Google Cloud Console** and
+**Google Fonts**, and by many companies worldwide for enterprise software, finance, healthcare,
+e-commerce and government services.
+
+## A typical development workflow
+
+1. **Create** a project: `ng new my-app`
+2. **Generate** building blocks: `ng generate component product-card`
+3. **Develop** with live reload: `ng serve`
+4. **Test**: `ng test` (Vitest)
+5. **Build** for production: `ng build`
+6. **Deploy** the `dist/` folder (or a Node.js server for SSR)
+7. **Update** to the next version: `ng update @angular/core @angular/cli`
+
+## Common misconceptions
+
+- **"Angular needs NgModules."** Not any more — standalone components are the default.
+- **"Angular is slow / heavy."** Modern Angular is zoneless, uses `OnPush` by default, and only
+  ships the code you use (tree-shaking, lazy loading, `@defer`).
+- **"Angular is hard to learn."** There is more built in, so there is more to discover — but you only
+  need components, templates, signals and services to build your first app.
+- **"Angular is the same as AngularJS."** No — see the note above.
+
+## Key takeaways
+
+- Angular is a complete, TypeScript-first framework for building web apps, maintained by Google.
+- Apps are trees of **components**; **signals** drive updates; **services** share logic via
+  **dependency injection**.
+- Angular 22 is the current version: standalone, zoneless, `OnPush` by default, with stable Signal
+  Forms and resource APIs.
+- New majors arrive every 12 months, and each is supported for about 24 months.
+
+## Next steps
+
+1. **[Angular Architecture](/beginner/architecture/)** — see how the pieces fit together
+2. **[Your First App](/beginner/first-app/)** — build a working task manager
+3. **[Components Basics](/beginner/components/)** — dive into components

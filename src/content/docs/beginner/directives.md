@@ -1,501 +1,342 @@
 ---
 title: Directives 🎯
-description: Learn about Angular directives - built-in and custom directives
+description: Learn Angular directives - built-in attribute directives, class and style bindings, control flow instead of NgIf/NgFor, and your first custom directive.
 sidebar:
   order: 6
 ---
 
-Directives are classes that add behavior to elements in Angular templates. They extend HTML with custom functionality and can manipulate the DOM, handle events, and modify element appearance.
+A **directive** is a class that adds behaviour to an element in a template. Components are actually directives *with* a template; plain directives have **no template of their own** — they enhance an element that already exists (change its look, listen to its events, add attributes).
 
-## 🎯 What are Directives?
+## What you'll learn
 
-Directives are **instructions in the DOM** that tell Angular how to transform elements. There are three types:
+- The kinds of directives in Angular and where control flow fits in
+- Built-in directives you'll meet every day (and which ones you no longer need)
+- Why `[class]` / `[style]` bindings replace `NgClass` / `NgStyle`
+- Why `@if` / `@for` / `@switch` replace `*ngIf` / `*ngFor` / `*ngSwitch`
+- How to write your own attribute directive with `input()`, `output()` and `host`
 
-1. **Component Directives** - Components with templates
-2. **Structural Directives** - Change DOM layout (standard: `@if`, `@for`, `@switch`)
-3. **Attribute Directives** - Change element appearance or behavior
+## Kinds of directives
 
-## 🏗️ Built-in Structural Directives
+| Kind | What it does | Examples |
+|---|---|---|
+| **Components** | Directives with their own template | `<app-user-card />` |
+| **Attribute directives** | Change the appearance or behaviour of an existing element | `routerLink`, `ngModel`, your own `appHighlight` |
+| **Structural directives** | Add or remove elements by rendering an `<ng-template>` (written with a `*`) | `*ngTemplateOutlet`, legacy `*ngIf` / `*ngFor` |
 
-### Control Flow
+For conditionals and loops you no longer need structural directives: Angular has **built-in control flow blocks** (`@if`, `@for`, `@switch`) that are part of the template language itself.
 
-#### @if
-```html
-<!-- Simple condition -->
-@if (isVisible) {
-  <div>This is visible</div>
-}
+## Built-in directives you'll use
 
-<!-- With else -->
-@if (user) {
-  <div>Hello {{user.name}}</div>
-} @else {
-  <p>Please log in</p>
+Every directive is standalone — import the ones you use into the component's `imports`:
+
+| Directive | Import from | Used for |
+|---|---|---|
+| `RouterLink`, `RouterLinkActive` | `@angular/router` | Navigation links and active-link styling ([Routing](/beginner/routing/)) |
+| `FormField` (`[formField]`) | `@angular/forms/signals` | Signal Forms ([Forms](/beginner/forms/)) |
+| `NgModel` via `FormsModule` | `@angular/forms` | Template-driven forms, `[(ngModel)]` |
+| `NgOptimizedImage` (`ngSrc`) | `@angular/common` | Fast, best-practice image loading |
+| `NgTemplateOutlet` | `@angular/common` | Render an `<ng-template>` somewhere else |
+| `NgComponentOutlet` | `@angular/common` | Render a component chosen at runtime |
+| `NgClass`, `NgStyle` | `@angular/common` | Still available, but `[class]` / `[style]` bindings are preferred |
+
+Here is a quick taste of `NgOptimizedImage` and `NgTemplateOutlet`:
+
+```ts title="profile-header.ts"
+import { Component, input } from '@angular/core';
+import { NgOptimizedImage, NgTemplateOutlet } from '@angular/common';
+
+@Component({
+  selector: 'app-profile-header',
+  imports: [NgOptimizedImage, NgTemplateOutlet],
+  template: `
+    <!-- ngSrc requires width/height (or fill) and adds lazy loading & warnings for you -->
+    <img [ngSrc]="avatarUrl()" width="64" height="64" alt="Avatar" />
+
+    <ng-template #badge let-label>
+      <span class="badge">{{ label }}</span>
+    </ng-template>
+
+    <h2>{{ name() }}</h2>
+    <ng-container *ngTemplateOutlet="badge; context: { $implicit: 'PRO' }" />
+    <ng-container *ngTemplateOutlet="badge; context: { $implicit: 'Verified' }" />
+  `,
+})
+export class ProfileHeader {
+  readonly name = input.required<string>();
+  readonly avatarUrl = input.required<string>();
 }
 ```
 
-#### @for
-```html
-@for (item of items; track item.id; let i = $index) {
-  <li>{{i}}: {{item.name}}</li>
-}
+## Class and style bindings instead of `NgClass` / `NgStyle`
+
+`NgClass` and `NgStyle` were the classic attribute directives. Today, Angular's built-in bindings do the same job with **no import** and better performance:
+
+```html del={2,6} ins={3,7}
+<!-- Classes -->
+<div [ngClass]="{ active: isActive(), disabled: isDisabled() }">…</div>
+<div [class]="{ active: isActive(), disabled: isDisabled() }">…</div>
+
+<!-- Styles -->
+<div [ngStyle]="{ 'font-size.px': size(), color: color() }">…</div>
+<div [style.font-size.px]="size()" [style.color]="color()">…</div>
 ```
 
-#### @switch
+More forms of the bindings:
+
 ```html
-@switch (status) {
-  @case ('loading') {
-    <div>Loading...</div>
-  }
-  @case ('error') {
-    <div>Error occurred</div>
-  }
-  @default {
-    <div>Content</div>
-  }
-}
+<li [class.selected]="isSelected()">One class</li>
+<div [class]="['card', theme()]">Array of classes</div>
+<div [class]="'card ' + theme()">String of classes</div>
+<p [style.width.%]="progress()">Style with a unit</p>
+<div [style]="{ color: color(), 'background-color': bg() }">Style object</div>
 ```
 
-:::caution[Legacy Syntax]
-In older Angular versions (pre-v17), this was done with:
-```html
-<div *ngIf="isVisible">This is visible</div>
-<li *ngFor="let item of items; index as i; trackBy: trackByFn">{{i}}: {{item.name}}</li>
-<div [ngSwitch]="status">
-  <div *ngSwitchCase="'loading'">Loading...</div>
-  <div *ngSwitchDefault>Content</div>
-</div>
-```
-This syntax is still supported but not recommended for new projects.
+:::tip[Automatic migration]
+`ng generate @angular/core:ngclass-to-class` and `ng generate @angular/core:ngstyle-to-style` rewrite most `ngClass` / `ngStyle` usages for you.
 :::
 
-## 🎨 Built-in Attribute Directives
+`NgClass` is still handy in one niche case: an object key that contains **several space-separated classes** (`{ 'btn btn-primary': isPrimary() }`), which `[class]` doesn't support.
 
-### Class and Style Binding (Recommended)
+## Control flow instead of `*ngIf` / `*ngFor` / `*ngSwitch`
+
+The structural directives `NgIf`, `NgForOf` and `NgSwitch` are **deprecated**. Use the built-in blocks — they need no imports, type-check better and are faster.
+
+| Deprecated directive | Built-in replacement |
+|---|---|
+| `<p *ngIf="user">…</p>` | `@if (user) { <p>…</p> }` |
+| `*ngIf="user; else loading"` | `@if (user) { … } @else { … }` |
+| `*ngIf="user$ \| async as user"` | `@if (user$ \| async; as user) { … }` |
+| `<li *ngFor="let item of items; trackBy: trackById">` | `@for (item of items; track item.id) { <li>…</li> }` |
+| `let i = index` | `let i = $index` (also `$first`, `$last`, `$even`, `$odd`, `$count`) |
+| `[ngSwitch]` + `*ngSwitchCase` + `*ngSwitchDefault` | `@switch (x) { @case (a) {…} @default {…} }` |
+
 ```html
-<!-- Individual class binding -->
-<div [class.active]="isActive" [class.disabled]="isDisabled">Content</div>
-
-<!-- Individual style binding -->
-<div [style.color]="textColor" [style.font-size.px]="fontSize">Text</div>
-
-<!-- Multiple styles -->
-<div 
-  [style.color]="textColor"
-  [style.background-color]="bgColor"
-  [style.padding.px]="padding">
-  Styled content
-</div>
-```
-
-:::caution[Legacy Syntax]
-In older Angular versions, `ngClass` and `ngStyle` directives were used:
-```html
-<div [ngClass]="{'active': isActive, 'disabled': isDisabled}">Content</div>
-<div [ngStyle]="{'color': textColor, 'font-size': fontSize + 'px'}">Text</div>
-```
-This syntax is still supported but direct class/style bindings are recommended for new projects.
-:::
-
-### Modern Control Flow
-
-#### @if Directive
-```html
-<!-- Simple condition -->
-@if (isLoggedIn) {
-  <div>Welcome back!</div>
-}
-
-<!-- With else -->
-@if (user.isAdmin) {
-  <div>Admin Panel</div>
+@if (orders().length > 0) {
+  <ul>
+    @for (order of orders(); track order.id; let odd = $odd) {
+      <li [class.striped]="odd">#{{ order.id }} — {{ order.status }}</li>
+    }
+  </ul>
 } @else {
-  <div>User Dashboard</div>
+  <p>No orders yet.</p>
 }
 
-<!-- Multiple conditions -->
-@if (loading) {
-  <div>Loading...</div>
-} @else if (error) {
-  <div>Error: {{error}}</div>
-} @else {
-  <div>Content loaded!</div>
+@switch (role()) {
+  @case ('admin') { <app-admin-panel /> }
+  @case ('editor') { <app-editor-tools /> }
+  @default { <p>Read-only access</p> }
 }
 ```
 
-#### @for Directive
-```html
-<!-- Basic loop -->
-@for (item of items; track item.id) {
-  <div>{{item.name}}</div>
-}
+Migrate an existing project with `ng generate @angular/core:control-flow`. Full details: [Control Flow](/modern/control-flow/).
 
-<!-- With empty state -->
-@for (product of products; track product.id) {
-  <div class="product">{{product.name}}</div>
-} @empty {
-  <div>No products available</div>
-}
+## Your first custom attribute directive
 
-<!-- With index and variables -->
-@for (user of users; track user.id; let i = $index, first = $first, last = $last) {
-  <div [class.first]="first" [class.last]="last">
-    {{i + 1}}. {{user.name}}
-  </div>
-}
+Generate a directive with the CLI:
+
+```bash
+ng generate directive highlight
+# creates highlight.ts (class Highlight, selector [appHighlight]) and highlight.spec.ts
 ```
 
-#### @switch Directive
-```html
-@switch (userRole) {
-  @case ('admin') {
-    <div>Admin Controls</div>
-  }
-  @case ('user') {
-    <div>User Dashboard</div>
-  }
-  @case ('guest') {
-    <div>Guest View</div>
-  }
-  @default {
-    <div>Unknown Role</div>
-  }
-}
-```
+### Step 1: style the host element
 
-## 🔧 Creating Custom Attribute Directives
+The element a directive sits on is its **host**. Use the `host` property to bind to it — no `ElementRef` or `Renderer2` needed:
 
-### Basic Attribute Directive
-```typescript
-import { Directive, ElementRef, inject, input, Renderer2 } from '@angular/core';
+```ts title="highlight.ts"
+import { Directive, input } from '@angular/core';
 
 @Directive({
-  selector: '[appHighlight]'
+  selector: '[appHighlight]',
+  host: {
+    '[style.backgroundColor]': 'appHighlight()',
+  },
 })
-export class HighlightDirective {
-  appHighlight = input('yellow');
-  defaultColor = input('transparent');
-
-  private el = inject(ElementRef);
-  private renderer = inject(Renderer2);
-
-  ngOnInit() {
-    this.highlight(this.appHighlight() || this.defaultColor());
-  }
-
-  private highlight(color: string) {
-    this.renderer.setStyle(this.el.nativeElement, 'backgroundColor', color);
-  }
+export class Highlight {
+  // The input has the same name as the selector, so one attribute does both jobs.
+  readonly appHighlight = input('yellow');
 }
 ```
 
-### Usage
-```html
-<!-- Basic usage -->
-<p appHighlight>Highlighted with default yellow</p>
+```ts title="app.ts"
+import { Component } from '@angular/core';
+import { Highlight } from './highlight';
 
-<!-- With custom color -->
-<p [appHighlight]="'lightblue'">Blue highlighted text</p>
-
-<!-- With default color -->
-<p appHighlight defaultColor="lightgreen">Green highlighted text</p>
+@Component({
+  selector: 'app-root',
+  imports: [Highlight],
+  template: `
+    <p appHighlight>Default yellow</p>
+    <p appHighlight="lightblue">Light blue</p>
+    <p [appHighlight]="favouriteColor">Bound colour</p>
+  `,
+})
+export class App {
+  protected favouriteColor = 'pink';
+}
 ```
 
-### Interactive Directive with Events
-```typescript
-import { Directive, ElementRef, inject, input, Renderer2 } from '@angular/core';
+### Step 2: react to events with signals
+
+Let's highlight only while the mouse is over the element:
+
+```ts title="hover-highlight.ts"
+import { Directive, input, signal } from '@angular/core';
 
 @Directive({
   selector: '[appHoverHighlight]',
   host: {
-    '(mouseenter)': 'onMouseEnter()',
-    '(mouseleave)': 'onMouseLeave()',
-  }
+    '(mouseenter)': 'hovering.set(true)',
+    '(mouseleave)': 'hovering.set(false)',
+    '[style.backgroundColor]': 'hovering() ? appHoverHighlight() : null',
+    '[style.transition]': '"background-color 150ms"',
+  },
 })
-export class HoverHighlightDirective {
-  hoverColor = input('lightblue');
-  defaultColor = input('transparent');
-
-  private el = inject(ElementRef);
-  private renderer = inject(Renderer2);
-
-  onMouseEnter() {
-    this.highlight(this.hoverColor());
-  }
-
-  onMouseLeave() {
-    this.highlight(this.defaultColor());
-  }
-
-  private highlight(color: string) {
-    this.renderer.setStyle(this.el.nativeElement, 'backgroundColor', color);
-  }
+export class HoverHighlight {
+  readonly appHoverHighlight = input('lightyellow');
+  protected readonly hovering = signal(false);
 }
 ```
 
-### Advanced Directive with Multiple Features
-```typescript
-import { Directive, ElementRef, inject, input, output, Renderer2 } from '@angular/core';
+```html
+<li appHoverHighlight>Hover me</li>
+<li appHoverHighlight="lightgreen">Hover me (green)</li>
+```
+
+### Step 3: emit events with `output()`
+
+Directives can talk back to the parent template. This one tells you when the user clicks **outside** the host element — perfect for closing dropdowns:
+
+```ts title="click-outside.ts"
+import { Directive, ElementRef, inject, output } from '@angular/core';
 
 @Directive({
-  selector: '[appClickTracker]',
+  selector: '[appClickOutside]',
   host: {
-    '(click)': 'onClick($event)',
-  }
+    '(document:click)': 'onDocumentClick($event)',
+  },
 })
-export class ClickTrackerDirective {
-  trackingId = input('');
-  highlightOnClick = input(true);
-  clicked = output<{id: string, timestamp: Date}>();
+export class ClickOutside {
+  readonly appClickOutside = output<void>();
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  private clickCount = 0;
-  private el = inject(ElementRef);
-  private renderer = inject(Renderer2);
-
-  onClick(event: Event) {
-    this.clickCount++;
-    
-    // Emit tracking data
-    this.clicked.emit({
-      id: this.trackingId(),
-      timestamp: new Date()
-    });
-
-    // Visual feedback
-    if (this.highlightOnClick()) {
-      this.flashHighlight();
-    }
-
-    // Add click count attribute
-    this.renderer.setAttribute(
-      this.el.nativeElement, 
-      'data-click-count', 
-      this.clickCount.toString()
-    );
-  }
-
-  private flashHighlight() {
-    const originalBg = this.el.nativeElement.style.backgroundColor;
-    this.renderer.setStyle(this.el.nativeElement, 'backgroundColor', 'yellow');
-    
-    setTimeout(() => {
-      this.renderer.setStyle(this.el.nativeElement, 'backgroundColor', originalBg);
-    }, 200);
-  }
-}
-```
-
-### Usage
-```html
-<button 
-  appClickTracker 
-  trackingId="header-cta"
-  (clicked)="onButtonClicked($event)">
-  Track My Clicks
-</button>
-```
-
-## 🎯 Practical Example: Form Validation Directive
-
-```typescript
-import { Directive, ElementRef, inject, input, Renderer2, OnInit } from '@angular/core';
-import { NgControl } from '@angular/forms';
-
-@Directive({
-  selector: '[appValidationStyle]'
-})
-export class ValidationStyleDirective implements OnInit {
-  errorClass = input('error');
-  successClass = input('success');
-
-  private el = inject(ElementRef);
-  private renderer = inject(Renderer2);
-  private control = inject(NgControl);
-
-  ngOnInit() {
-    if (this.control) {
-      this.control.statusChanges?.subscribe(status => {
-        this.updateStyles(status);
-      });
-    }
-  }
-
-  private updateStyles(status: string) {
-    // Remove existing classes
-    this.renderer.removeClass(this.el.nativeElement, this.errorClass());
-    this.renderer.removeClass(this.el.nativeElement, this.successClass());
-
-    // Add appropriate class
-    if (status === 'INVALID' && this.control.touched) {
-      this.renderer.addClass(this.el.nativeElement, this.errorClass());
-    } else if (status === 'VALID' && this.control.touched) {
-      this.renderer.addClass(this.el.nativeElement, this.successClass());
+  protected onDocumentClick(event: MouseEvent) {
+    if (!this.host.nativeElement.contains(event.target as Node)) {
+      this.appClickOutside.emit();
     }
   }
 }
 ```
 
-### Usage
-```html
-<form>
-  <input 
-    type="email" 
-    [(ngModel)]="email" 
-    required 
-    email
-    appValidationStyle
-    errorClass="input-error"
-    successClass="input-success">
-</form>
+```ts title="dropdown.ts"
+import { Component, signal } from '@angular/core';
+import { ClickOutside } from './click-outside';
+
+@Component({
+  selector: 'app-dropdown',
+  imports: [ClickOutside],
+  template: `
+    <div class="dropdown" (appClickOutside)="open.set(false)">
+      <button type="button" (click)="open.update(o => !o)" [attr.aria-expanded]="open()">
+        Menu ▾
+      </button>
+      @if (open()) {
+        <ul role="menu">
+          <li role="menuitem">Profile</li>
+          <li role="menuitem">Settings</li>
+        </ul>
+      }
+    </div>
+  `,
+})
+export class Dropdown {
+  protected readonly open = signal(false);
+}
 ```
 
-## 🏗️ Creating Custom Structural Directives
+`(document:click)` (and `window:` / `body:`) listens on a **global** target instead of the host element.
 
-### Simple Structural Directive
-```typescript
-import { Directive, effect, inject, input, TemplateRef, ViewContainerRef } from '@angular/core';
+### Step 4: touch the DOM safely
 
-@Directive({
-  selector: '[appUnless]'
-})
-export class UnlessDirective {
-  private hasView = false;
-  private templateRef = inject(TemplateRef<any>);
-  private viewContainer = inject(ViewContainerRef);
+When you really need the native element (focus, measure, third-party library), inject `ElementRef` and wait for the element to be rendered with `afterNextRender`:
 
-  appUnless = input.required<boolean>();
+```ts title="autofocus.ts"
+import { Directive, ElementRef, afterNextRender, inject } from '@angular/core';
+
+@Directive({ selector: '[appAutofocus]' })
+export class Autofocus {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  constructor() {
+    afterNextRender(() => this.host.nativeElement.focus());
+  }
+}
+```
+
+```html
+<input appAutofocus placeholder="I get focus when the page loads" />
+```
+
+`afterNextRender` only runs in the browser, so this is also safe with server-side rendering.
+
+## A peek at custom structural directives
+
+A structural directive receives an `<ng-template>` and decides when (and how often) to render it. The `*` is shorthand for wrapping the element in an `<ng-template>`:
+
+```ts title="if-role.ts"
+import { Directive, TemplateRef, ViewContainerRef, effect, inject, input } from '@angular/core';
+
+@Directive({ selector: '[appIfRole]' })
+export class IfRole {
+  readonly appIfRole = input.required<string>();     // required role
+  readonly appIfRoleUser = input.required<string>(); // current user's role ("user:" in the microsyntax)
+
+  private readonly template = inject(TemplateRef<unknown>);
+  private readonly container = inject(ViewContainerRef);
 
   constructor() {
     effect(() => {
-      const condition = this.appUnless();
-      if (!condition && !this.hasView) {
-        this.viewContainer.createEmbeddedView(this.templateRef);
-        this.hasView = true;
-      } else if (condition && this.hasView) {
-        this.viewContainer.clear();
-        this.hasView = false;
+      this.container.clear();
+      if (this.appIfRole() === this.appIfRoleUser()) {
+        this.container.createEmbeddedView(this.template);
       }
     });
   }
 }
 ```
 
-### Usage
 ```html
-<!-- Shows content when condition is false -->
-<div *appUnless="isLoggedIn">
-  <p>Please log in to continue</p>
-</div>
+<button *appIfRole="'admin'; user: currentRole()">Delete everything</button>
 ```
 
-### Advanced Structural Directive with Context
-```typescript
-import { Directive, effect, inject, input, TemplateRef, ViewContainerRef } from '@angular/core';
+For everyday conditions and loops, prefer `@if` and `@for`. Write structural directives only for reusable rendering logic — see [Custom Directives](/advanced/custom-directives/).
 
-@Directive({
-  selector: '[appRepeat]'
-})
-export class RepeatDirective {
-  private templateRef = inject(TemplateRef<any>);
-  private viewContainer = inject(ViewContainerRef);
+## Common mistakes
 
-  appRepeat = input.required<number>();
+| Mistake | Fix |
+|---|---|
+| Directive has no effect | Import it into the component's `imports`. |
+| Using `@HostBinding` / `@HostListener` | Use the `host: {}` property instead. |
+| Manipulating the DOM with `document.querySelector` | Use `host` bindings, or `ElementRef` + `afterNextRender`. |
+| Two `*` directives on one element (`*ngIf` + `*ngFor`) | Not allowed — and unnecessary with `@if`/`@for` blocks. |
+| Reaching for `ngClass` / `ngStyle` by habit | Use `[class.x]`, `[class]`, `[style.x]`, `[style]`. |
 
-  constructor() {
-    effect(() => {
-      const count = this.appRepeat();
-      this.viewContainer.clear();
-      
-      for (let i = 0; i < count; i++) {
-        this.viewContainer.createEmbeddedView(this.templateRef, {
-          $implicit: i,
-          index: i,
-          first: i === 0,
-          last: i === count - 1,
-          even: i % 2 === 0,
-          odd: i % 2 === 1
-        });
-      }
-    });
-  }
-}
-```
+## Best practices
 
-### Usage
-```html
-<div *appRepeat="3; let i = index; let isFirst = first">
-  <p>Item {{i}} {{isFirst ? '(First)' : ''}}</p>
-</div>
-```
+- Name the selector in camelCase with your prefix: `[appHighlight]`; name the class without a suffix: `Highlight`.
+- Give the main input the **same name as the selector** so one attribute both applies and configures the directive.
+- Prefer `host` bindings over `ElementRef`/`Renderer2` for styles, classes, attributes and events.
+- Keep directives small and single-purpose — combine several on one element if needed (or with `hostDirectives`, see [Custom Directives](/advanced/custom-directives/)).
 
-## ✅ Best Practices
+## Key takeaways
 
-### 1. **Use Modern Control Flow**
-```html
-<!-- ✅ Modern -->
-@if (condition) {
-  <div>Content</div>
-}
+- Directives add behaviour to existing elements; components are directives with templates.
+- Use `[class]` / `[style]` bindings instead of `NgClass` / `NgStyle`.
+- `*ngIf`, `*ngFor` and `*ngSwitch` are deprecated — use `@if`, `@for` and `@switch`.
+- A custom attribute directive = `@Directive` + `selector` + `input()` / `output()` + `host` bindings.
 
-<!-- ❌ Legacy (still works) -->
-<div *ngIf="condition">Content</div>
-```
+## Next steps
 
-### 2. **Prefer Individual Bindings**
-```html
-<!-- ✅ Better performance -->
-<div [class.active]="isActive" [style.color]="textColor">
-
-<!-- ❌ Less efficient -->
-<div [ngClass]="{'active': isActive}" [ngStyle]="{'color': textColor}">
-```
-
-### 3. **Use Renderer2 for DOM Manipulation**
-```typescript
-// ✅ Safe and universal
-this.renderer.setStyle(element, 'color', 'red');
-
-// ❌ Direct DOM access
-element.style.color = 'red';
-```
-
-### 4. **Always Use TrackBy with Loops**
-```html
-@for (item of items; track item.id) {
-  <div>{{item.name}}</div>
-}
-```
-
-### 5. **Handle Cleanup in Directives**
-```typescript
-export class MyDirective implements OnDestroy {
-  private subscription?: Subscription;
-
-  ngOnDestroy() {
-    this.subscription?.unsubscribe();
-  }
-}
-```
-
-## 🎯 Quick Checklist
-
-- [ ] Understand the three types of directives
-- [ ] Use modern control flow (`@if`, `@for`, `@switch`)
-- [ ] Know built-in class/style bindings
-- [ ] Prefer individual class/style bindings
-- [ ] Create custom attribute directives with `@Directive`
-- [ ] Use `host` property for event handling
-- [ ] Use `Renderer2` for safe DOM manipulation
-- [ ] Understand structural directive creation
-- [ ] Always use `track` with loops
-- [ ] Handle cleanup properly
-
-## 🚀 Next Steps
-
-1. **[Services & DI](/beginner/services/)** - Share data between components
-2. **[Forms Introduction](/beginner/forms/)** - Handle user input and validation
-3. **[Routing Basics](/beginner/routing/)** - Navigate between components
-
----
-
-**Remember**: Directives are powerful tools for extending HTML functionality. Use built-in directives efficiently and create custom ones when you need reusable DOM manipulation! 🎯
+1. [Services & DI](/beginner/services/) — share logic and data across components
+2. [Custom Directives](/advanced/custom-directives/) — structural directives, `hostDirectives` and more
+3. [Control Flow](/modern/control-flow/) — master `@if`, `@for`, `@switch` and `@defer`
