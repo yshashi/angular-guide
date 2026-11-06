@@ -51,6 +51,13 @@ The widget stays hidden unless the build environment defines `PUBLIC_ASK_AI_ENDP
 
 **Never place an LLM API key in `PUBLIC_` variables or browser code.** Set `LLM_API_KEY` only in the backend's environment or secret manager.
 
+## Deploy the complete project
+
+Use the root Dockerfile and Docker Compose configuration to run the static site and
+private chat backend together. Follow the [Coolify deployment guide](./deployment/README.md)
+for runtime secrets, domains, HTTPS, verification, and the alternative of keeping the
+frontend on Vercel.
+
 ## Angular version baseline
 
 Content targets Angular 22.2 and includes short notes for older versions when behavior differs. Angular's release cadence and APIs change; version-specific claims should be rechecked against official release notes before future updates.

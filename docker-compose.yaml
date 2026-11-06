@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY:?}
+      LLM_MODEL: ${LLM_MODEL:?}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?}
+      RATE_LIMIT_PER_10_MIN: ${RATE_LIMIT_PER_10_MIN:-20}
+    expose:
+      - "8787"
+    init: true
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - "8080"
+    init: true
+    restart: unless-stopped

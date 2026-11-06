@@ -82,15 +82,11 @@ On failure the stream ends with `{"type":"error","message":"..."}`.
 
 ## Deploy
 
-Any Node 22+ host works (Render, Fly.io, Railway, a VM or a container). Example Dockerfile:
+For the complete site and backend, use the repository's Dockerfile and Compose stack.
+The [Coolify deployment guide](../deployment/README.md) covers every step, including
+keeping the frontend on Vercel and pointing it at the Coolify-hosted API.
 
-```dockerfile
-FROM node:24-alpine
-WORKDIR /app
-COPY server.mjs package.json ./
-ENV PORT=8080
-EXPOSE 8080
-CMD ["node", "server.mjs"]
-```
-
-Put it behind HTTPS. If you run behind a proxy, make sure `X-Forwarded-For` is set so rate limiting works per client.
+For another Node 22+ host, start `node ai-backend/server.mjs` from the repository root
+with runtime environment variables supplied by the host. The npm `ai:server` command
+is intended for local development and expects `ai-backend/.env`.
+Put the service behind HTTPS and a trusted proxy that normalizes `X-Forwarded-For`.
