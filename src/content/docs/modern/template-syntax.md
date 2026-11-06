@@ -1,325 +1,121 @@
 ---
-title: New Template Syntax (@let) 📝
-description: Explore the new @let template syntax in Angular
+title: Template Syntax and @let 📝
+description: Use Angular template expressions, bindings, event handlers and @let local variables clearly and safely.
 sidebar:
   order: 9
 ---
 
-The new `@let` template syntax is like having a smart notepad in your templates - you can create temporary variables, store complex calculations, and make your templates cleaner and more readable. Think of it as giving your templates the power to remember things locally.
+Angular templates use HTML with a concise expression language for reading component state, binding properties, listening to events and rendering dynamic content. This guide focuses on `@let`, a way to name a template expression locally.
 
-## 🎯 What is @let?
+## Declare a template variable with `@let`
 
-**The `@let` directive allows you to create local template variables** that can store values, expressions, or complex calculations. It's like having local variables in your templates, making them more powerful and expressive.
+Use `@let` when a template repeats a value or expression:
 
-### 🔥 **The Case FOR @let**
+```html
+@let currentUser = user();
 
-**Key Benefits:**
-- **Cleaner Templates** - Avoid repeating complex expressions
-- **Better Performance** - Calculate once, use multiple times
-- **Solves Falsy Value Issues** - No more problems with `0`, `""`, `null`, `undefined`
-- **Improved Readability** - Give meaningful names to complex logic
-- **Local Scope** - Variables are scoped to their template block
-
-**The Falsy Value Problem (SOLVED):**
-```typescript
-// ✅ New way - works with all values including 0, "", null
-<div>
-  @let userName = (userName$ | async) ?? 'Guest';
-  <h1>Welcome, {{ userName }}</h1>
-</div>
-```
-
-:::note[Legacy: *ngIf with `as`]
-The old `*ngIf` directive failed with falsy values like `0`, `""`, `null`:
-```typescript
-<div *ngIf="userName$ | async as userName">
-  <h1>Welcome, {{ userName }}</h1>
-</div>
-```
-The `@let` syntax with nullish coalescing resolves this cleanly.
-:::
-
-### ❄️ **The Case AGAINST @let**
-
-**Potential Concerns:**
-- **Increased Cognitive Load** - Another concept for developers to learn
-- **Risk of Misuse** - Can lead to overly complex templates if overused
-- **Existing Solutions Work** - Signals and computed values handle most cases
-- **Template Complexity** - Nested `@let` blocks can reduce readability
-
-**Example of Potential Complexity:**
-```typescript
-// ⚠️ This can get hard to read quickly
-<div>
-  @let firstName = user?.firstName;
-  @let lastName = user?.lastName;
-  @let fullName = `${firstName} ${lastName}`;
-  <p>{{ fullName }}</p>
-  @if (user?.address) {
-    @let street = user.address.street;
-    @let city = user.address.city;
-    <p>{{ street }}, {{ city }}</p>
-  }
-</div>
-```
-
-## 🎯 When to Use @let (Best Practices)
-
-**✅ Good Use Cases:**
-- Avoiding repeated complex expressions
-- Handling falsy values gracefully
-- Creating readable variable names for complex logic
-- One-time calculations used multiple times
-
-**❌ Avoid When:**
-- Simple expressions that are only used once
-- Logic that belongs in the component class
-- Creating deeply nested variable chains
-- Replacing proper computed signals
-
-## 📝 Real-World Example: Dynamic Table
-
-**A practical comparison showing @let in action:**
-
-### ✅ With @let (Cleaner)
-
-```typescript
-<table mat-table [dataSource]="dataSource">
-  @for (columnDef of columnDefs; track columnDef.name) {
-    @let property = columnDef.propertyName;
-    
-    <ng-container [matColumnDef]="columnDef.name">
-      <th mat-header-cell *matHeaderCellDef>{{ columnDef.header }}</th>
-      <td mat-cell *matCellDef="let element">
-        @let cellValue = element[property];
-        
-        @if (columnDef.cellType === 'link') {
-          <a [routerLink]="cellValue?.routerLink">{{ cellValue?.value }}</a>
-        } @else {
-          {{ cellValue }}
-        }
-      </td>
-    </ng-container>
-  }
-</table>
-```
-
-:::note[Legacy: Without @let (Repetitive)]
-Before `@let`, you had to repeat complex expressions:
-```typescript
-<table mat-table [dataSource]="dataSource">
-  <ng-container *ngFor="let columnDef of columnDefs">
-    <ng-container [matColumnDef]="columnDef.name">
-      <th mat-header-cell *matHeaderCellDef>{{ columnDef.header }}</th>
-      <td mat-cell *matCellDef="let element">
-        @if (columnDef.cellType === 'link') {
-          <a [routerLink]="element[columnDef.propertyName]?.routerLink">
-            {{ element[columnDef.propertyName]?.value }}
-          </a>
-        } @else {
-          {{ element[columnDef.propertyName] }}
-        }
-      </td>
-    </ng-container>
-  </ng-container>
-</table>
-```
-Notice how `element[columnDef.propertyName]` is repeated multiple times!
-:::
-
-## 📝 Basic @let Usage
-
-### Simple Variable Assignment
-
-**Think of @let like creating a sticky note** - you write something down once and refer to it multiple times.
-
-```typescript
-@Component({
-  selector: 'app-user-profile',
-  template: `
-    <div class="user-profile">
-      <!-- Create local variables with @let -->
-      @let userName = user()?.name || 'Anonymous';
-      @let userEmail = user()?.email || 'No email provided';
-      @let isAdmin = user()?.role === 'admin';
-      @let profileComplete = user()?.name && user()?.email && user()?.bio;
-
-      <div class="profile-header">
-        <h3>Welcome, {{ userName }}!</h3>
-        
-        @if (isAdmin) {
-          <span class="admin-badge">👑 Administrator</span>
-        }
-      </div>
-
-      <div class="profile-details">
-        <div class="detail-row">
-          <label>Email:</label>
-          <span>{{ userEmail }}</span>
-        </div>
-
-        <div class="detail-row">
-          <label>Profile Status:</label>
-          <span [class]="profileComplete ? 'complete' : 'incomplete'">
-            {{ profileComplete ? '✅ Complete' : '⚠️ Incomplete' }}
-          </span>
-        </div>
-
-        @if (!profileComplete) {
-          <div class="profile-warning">
-            <h4>Complete Your Profile</h4>
-            <p>Hello {{ userName }}, please complete your profile to unlock all features.</p>
-          </div>
-        }
-      </div>
-
-      <!-- Use variables in event handlers -->
-      <div class="profile-actions">
-        <button (click)="editProfile(userName)">
-          Edit Profile
-        </button>
-        
-        @if (isAdmin) {
-          <button (click)="openAdminPanel()">
-            Admin Panel
-          </button>
-        }
-      </div>
-    </div>
-  `
-})
-export class UserProfileComponent {
-  user = signal<User | null>({
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'admin',
-    bio: 'Software developer'
-  });
-
-  editProfile(userName: string) {
-    console.log(`Editing profile for ${userName}`);
-  }
-
-  openAdminPanel() {
-    console.log('Opening admin panel');
-  }
+@if (currentUser) {
+  <h1>Welcome, {{ currentUser.name }}</h1>
+  <p>Signed in as {{ currentUser.email }}</p>
+} @else {
+  <p>Please sign in.</p>
 }
 ```
 
-## 🧮 Simple Calculations with @let
+Template variables are read-only and remain connected to their expressions: when a signal read by the expression changes, Angular updates uses of the variable. Use component `computed()` for derived state that is needed by multiple templates or belongs to the component's domain logic.
 
-**Calculate once, use multiple times:**
+## Scope and syntax
 
-```typescript
-@Component({
-  template: `
-    <div class="shopping-cart">
-      @let itemCount = cartItems().length;
-      @let subtotal = cartItems().reduce((sum, item) => sum + item.price, 0);
-      @let total = subtotal * 1.08; <!-- Add tax -->
-      
-      <h3>Cart ({{ itemCount }} items)</h3>
-      <p>Subtotal: ${{ subtotal.toFixed(2) }}</p>
-      <p>Total: ${{ total.toFixed(2) }}</p>
-      
-      @for (item of cartItems(); track item.id) {
-        @let itemTotal = item.price * item.quantity;
-        <div class="cart-item">
-          <span>{{ item.name }}</span>
-          <span>${{ itemTotal.toFixed(2) }}</span>
-        </div>
-      }
-    </div>
-  `
-})
-export class ShoppingCartComponent {
-  cartItems = signal([/* cart items */]);
+A variable is available after its declaration in the current view and its descendant views. It is not available before its declaration or outside its scope.
+
+```html
+@let subtotal = cartTotal();
+@let tax = subtotal * taxRate();
+
+<p>Subtotal: {{ subtotal | currency }}</p>
+<p>Tax: {{ tax | currency }}</p>
+<p>Total: {{ subtotal + tax | currency }}</p>
+```
+
+Each declaration ends with a semicolon. You cannot assign a new value to a template variable:
+
+```html
+@let label = 'Products';
+<!-- label = 'Orders' is not allowed -->
+```
+
+Avoid long chains of `@let` declarations or moving important business rules into a template. A short descriptive alias improves readability; complicated transformations belong in the component.
+
+## Bindings and events
+
+Use interpolation for text, property binding for element or component properties, and event binding for user actions:
+
+```html
+<h1>{{ pageTitle() }}</h1>
+<button [disabled]="isSaving()" (click)="save()">Save</button>
+<img [src]="product().imageUrl" [alt]="product().name" />
+```
+
+Use class and style bindings for conditional presentation:
+
+```html
+<p [class.warning]="isLowStock()" [style.opacity]="isArchived() ? 0.6 : 1">
+  {{ product().name }}
+</p>
+```
+
+For two-way binding, use the binding supported by the control or component. Do not mix direct DOM manipulation with Angular bindings for the same property.
+
+## Safe template expressions
+
+Templates support common expressions, including property access, function calls, arithmetic, comparison, logical operators, nullish coalescing and ternaries. Keep expressions simple and side-effect free. Angular does not allow arbitrary JavaScript statements or declarations in interpolation.
+
+Use null-safe access and explicit fallbacks when data may not be available:
+
+```html
+@let displayName = user()?.name ?? 'Guest';
+<p>Hello, {{ displayName }}</p>
+```
+
+### Modern JavaScript expressions in templates
+
+Recent Angular releases expanded what you can write directly inside template expressions:
+
+```html
+<!-- Template literals -->
+<p>{{ `Hello, ${name()}!` }}</p>
+
+<!-- Arrow functions (Angular 21.2+) — great for quick array lookups -->
+<p>Featured: {{ items().find((item) => item.featured)?.name ?? 'None' }}</p>
+
+<!-- Spread syntax (Angular 21.1+) -->
+<p>{{ sum(...scores()) }}</p>
+
+<!-- typeof, in, instanceof (Angular 21.2+) and regex literals -->
+@if (typeof value() === 'string') {
+  <p>Code valid: {{ /^\d{6}$/.test(code()) }}</p>
 }
+
+<!-- Compound assignment in event listeners -->
+<button type="button" (click)="clicks += 1">Clicked {{ clicks }}</button>
 ```
 
-## 🎨 Async Data with @let
+Keep inline arrow functions small and free of side effects. In Angular 22+, templates can also read TypeScript `private` members of their component class, though `protected` remains a clear convention for template-facing members.
 
-**Handle async data and falsy values elegantly:**
+Do not use `@let` as an escape hatch for complex logic. Move formatting into a pipe, and reusable or stateful logic into the component or a service.
 
-```typescript
-@Component({
-  template: `
-    <div class="user-profile">
-      @let userName = (userName$ | async) ?? 'Guest';
-      @let userScore = (userScore$ | async) ?? 0;
-      @let isOnline = (userStatus$ | async) ?? false;
-      
-      <h3>Welcome, {{ userName }}!</h3>
-      <p>Score: {{ userScore }}</p>
-      <p>Status: {{ isOnline ? 'Online' : 'Offline' }}</p>
-      
-      @if (userScore > 100) {
-        <div class="achievement">High Scorer! 🏆</div>
-      }
-    </div>
-  `
-})
-export class UserProfileComponent {
-  userName$ = this.userService.getUserName();
-  userScore$ = this.userService.getUserScore();
-  userStatus$ = this.userService.getUserStatus();
-}
-```
+## When to use `@let`
 
-## ✅ Best Practices for @let
+Use it to:
 
-### 1. **Use Meaningful Variable Names**
+- Give a readable name to a repeated expression.
+- Keep a template from calling the same expression repeatedly.
+- Capture an observable value or signal value for a block.
 
-```typescript
-// ✅ Good - Clear, descriptive names
-@let userDisplayName = user()?.firstName + ' ' + user()?.lastName;
-@let isVipUser = user()?.membershipLevel === 'VIP';
-@let totalPrice = items().reduce((sum, item) => sum + item.price, 0);
-```
+Avoid it when:
 
-### 2. **Perfect for Falsy Value Handling**
+- The expression appears only once and is already clear.
+- The value represents domain logic or needs to be shared outside the template.
+- Several aliases make the template harder to understand than the original expression.
 
-```typescript
-// ✅ Handle falsy values elegantly
-@let score = (gameScore$ | async) ?? 0;
-@let playerName = (playerName$ | async) ?? 'Anonymous';
-@let isGameActive = (gameStatus$ | async) ?? false;
-
-<div>
-  <h3>Player: {{ playerName }}</h3>
-  <p>Score: {{ score }}</p>
-  @if (isGameActive) {
-    <button>Continue Game</button>
-  }
-</div>
-```
-
-### 3. **Calculate Once, Use Multiple Times**
-
-```typescript
-// ✅ Avoid repeated calculations
-@let expensiveResult = performComplexCalculation(data());
-<div>Result: {{ expensiveResult }}</div>
-<div>Formatted: {{ expensiveResult | currency }}</div>
-<div>Status: {{ expensiveResult > 100 ? 'High' : 'Low' }}</div>
-```
-
-## 🎯 Quick Checklist
-
-- [ ] Use @let for repeated complex expressions
-- [ ] Handle falsy values with nullish coalescing (??)
-- [ ] Give variables meaningful, descriptive names
-- [ ] Calculate expensive operations once, use multiple times
-- [ ] Combine @let with other control flow directives
-- [ ] Keep @let expressions simple and readable
-- [ ] Test all @let variable scenarios
-
-## 🚀 Next Steps
-
-1. **[Incremental Hydration](/modern/incremental-hydration/)** - SSR optimization
-2. **[HttpResource API](/modern/http-resource-api/)** - Specialized HTTP handling
-3. **[Signal Forms](/modern/signal-forms/)** - Modern form patterns
-
----
-
-**Remember**: The `@let` directive is your template's smart notepad - use it to eliminate repetition, handle falsy values, and make your templates cleaner and more performant! 📝
+See [Template Control Flow](/modern/control-flow/) for `@if`, `@for` and `@switch`.

@@ -1,311 +1,140 @@
 ---
 title: Zoneless Angular ⚡
-description: Learn about zoneless change detection in Angular
+description: Learn how Angular schedules rendering without Zone.js, what notifications trigger updates, how to migrate and how zoneless affects SSR and tests.
 sidebar:
-  order: 8
+  order: 11
 ---
 
-Zoneless Angular is like upgrading from a gas-powered car to an electric vehicle - you get better performance, more efficiency, and a smoother experience. Think of it as removing the middleman (Zone.js) and letting Angular's signals handle change detection directly.
+Angular can schedule rendering without Zone.js. Instead of watching patched browser APIs and checking whether state may have changed, zoneless Angular relies on explicit notifications from Angular APIs and application state.
 
-## 🎯 What is Zoneless Angular?
+Zoneless change detection is stable and is the default for new applications starting with Angular 21. It does not mean that Angular stops updating the UI; it means code must notify Angular through supported mechanisms.
 
-**Zoneless Angular removes the dependency on Zone.js** for change detection, relying instead on signals and modern reactive patterns. Zone.js has been quietly monkey-patching browser APIs like `setTimeout`, `Promise`, and `addEventListener` to track async operations, but this can trigger unnecessary change detection cycles.
+## Why use zoneless Angular?
 
-**Key Benefits:**
-- **Better Performance** - No more unnecessary change detection cycles
-- **Smaller Bundle Size** - No Zone.js means less JavaScript to download
-- **Predictable Behavior** - Explicit change detection triggers
-- **Better Debugging** - Clearer understanding of when updates happen
-- **Future-Ready** - Aligns with modern web development patterns
+Removing Zone.js can reduce runtime overhead, make stack traces easier to read and avoid browser API patching. The actual performance impact depends on the application, so measure before and after a migration rather than assuming a fixed improvement.
 
-## 🔧 What Triggers Change Detection in Zoneless Mode?
+## What schedules change detection?
 
-**Only these specific events trigger change detection:**
-- DOM events bound in templates (e.g., `(click)`)
-- Signal updates
-- The `async` pipe usage
-- Input changes via `ComponentRef.setInput()`
-- Manual `ChangeDetectorRef.markForCheck()` calls
-- Component creation or destruction
+Angular receives notifications such as:
 
-> **Angular 21 Status**: Zoneless is now in **Developer Preview** with improved SSR support, global error handling, and further matured stability. It is on track to become the default change detection strategy in a future Angular release.
+- Updating a signal read by a template
+- A bound template or host event listener running
+- `ChangeDetectorRef.markForCheck()`
+- `ComponentRef.setInput()`
+- Attaching a view that is already marked dirty
+- `AsyncPipe` receiving a new value (it calls `markForCheck()`)
 
-## ⚡ Enabling Zoneless Mode
+Use these notification paths consistently. Direct assignment to an ordinary field from an arbitrary callback does not by itself schedule an update in zoneless mode.
 
-### Basic Setup
+## New projects and existing projects
 
-**Think of enabling zoneless mode like switching to eco-mode** - you're optimizing for efficiency and performance.
+New Angular 21+ projects are zoneless by default; the CLI omits Zone.js. You normally do not need to register `provideZonelessChangeDetection()` yourself.
 
-```typescript
-// main.ts - Angular 21+
-import { bootstrapApplication } from '@angular/platform-browser';
-import { 
-  provideZonelessChangeDetection,
-  provideBrowserGlobalErrorListeners 
-} from '@angular/core';
-import { AppComponent } from './app/app.component';
+In Angular 20, enable it explicitly:
 
-bootstrapApplication(AppComponent, {
-  providers: [
-    // Enable zoneless change detection
-    provideZonelessChangeDetection(),
-    // Handle global errors in zoneless mode
-    provideBrowserGlobalErrorListeners(),
-    // Your other providers...
-  ]
-}).catch(err => console.error(err));
-```
+```ts
+import { provideZonelessChangeDetection } from '@angular/core';
 
-> **Important**: Remove Zone.js polyfill from `angular.json` when using zoneless mode. Angular will warn you in the console if you forget!
-
-## 🔍 Zoneless vs Zone.js: What Works and What Doesn't
-
-**Understanding these scenarios helps you migrate successfully:**
-
-### ✅ What Works in Zoneless Mode
-
-```typescript
-// ✅ Click handlers - work perfectly
-<button (click)="count = count + 1">Update</button>
-
-// ✅ Signal updates - the preferred way
-count = signal(0);
-increment() { this.count.update(c => c + 1); }
-
-// ✅ HTTP with async pipe - still works
-<pre>{{ posts$ | async | json }}</pre>
-
-// ✅ Manual change detection - when needed
-this.data = newValue;
-this.cdRef.markForCheck();
-```
-
-### ❌ What Doesn't Work in Zoneless Mode
-
-```typescript
-// ❌ HTTP with subscribe - no automatic change detection
-this.http.get('/api/posts').subscribe(data => {
-  this.data = data; // Won't trigger UI update
-});
-
-// ❌ Timer-based updates - won't update UI
-setInterval(() => {
-  this.count++; // Won't trigger change detection
-}, 1000);
-
-// ✅ Fix: Use signals instead
-setInterval(() => {
-  this.count.update(c => c + 1); // Works!
-}, 1000);
-```
-
-## 🚀 How to Prepare for Zoneless Mode
-
-### 1. Go All-In on OnPush
-
-**If your app works well with OnPush, you're ready for zoneless!**
-
-```typescript
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  // Your component will work smoothly in zoneless mode
-})
-```
-
-### 2. Use Signals for Everything
-
-**Signals are the cheat code for zoneless Angular:**
-
-```typescript
-// Convert Observables to Signals
-const posts = toSignal(this.postService.getPosts());
-
-// Use signals for all reactive state
-count = signal(0);
-items = signal<Item[]>([]);
-```
-
-### Component Optimization for Zoneless
-
-**Think of this like tuning your car for maximum efficiency** - every component needs to be optimized for the new system.
-
-```typescript
-@Component({
-  selector: 'app-counter',
-  template: `
-    <div class="counter-app">
-      <h3>Zoneless Counter</h3>
-      
-      <!-- Signal-based reactive UI -->
-      <div class="counter-display">
-        <div class="count-value">{{ count() }}</div>
-        <p>Double: {{ doubleCount() }}</p>
-        <p>Is Even: {{ isEven() ? 'Yes' : 'No' }}</p>
-      </div>
-
-      <!-- Controls -->
-      <div class="counter-controls">
-        <button (click)="decrement()" [disabled]="count() <= 0">-</button>
-        <button (click)="increment()">+</button>
-        <button (click)="reset()">Reset</button>
-      </div>
-    </div>
-  `,
-  changeDetection: ChangeDetectionStrategy.OnPush // Important for zoneless
-})
-export class CounterComponent {
-  // Signals for reactive state
-  count = signal(0);
-
-  // Computed signals automatically update
-  doubleCount = computed(() => this.count() * 2);
-  isEven = computed(() => this.count() % 2 === 0);
-
-  increment() {
-    this.count.update(c => c + 1);
-  }
-
-  decrement() {
-    this.count.update(c => Math.max(0, c - 1));
-  }
-
-  reset() {
-    this.count.set(0);
-  }
-}
-```
-
-## ⚡ Hybrid Scheduling (Angular 18+)
-
-**The best of both worlds** - signals work even outside Angular's zone!
-
-```typescript
-// Signal updates outside the zone trigger change detection (Angular 18+)
-ngZone.runOutsideAngular(() => {
-  setInterval(() => {
-    this.count.set(this.count() + 1); // Signal updates trigger change detection!
-  }, 1000);
+bootstrapApplication(App, {
+  providers: [provideZonelessChangeDetection()],
 });
 ```
 
-**Before Angular 18**: Signal updates outside the zone wouldn't update the UI.  
-**After Angular 18**: Signal updates always schedule change detection, no matter where they happen.
+In an existing application, migrate incrementally: make asynchronous state updates use signals or another Angular notification mechanism, test the affected features, and then remove Zone.js.
 
-## 🔄 Simple Data Fetching in Zoneless Mode
+## Update state from asynchronous work
 
-**Convert Observables to Signals for seamless reactivity:**
+This callback assigns an ordinary field but does not notify Angular:
 
-```typescript
+```ts
+this.api.load().subscribe((value) => {
+  this.value = value;
+});
+```
+
+Prefer converting a stable observable to a signal:
+
+```ts
+import { Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { CatalogApi } from './catalog-api';
+
 @Component({
   template: `
-    <div class="data-loader">
-      <h3>Zoneless Data Fetching</h3>
-      
-      @if (isLoading()) {
-        <p>Loading posts...</p>
+    @if (products(); as items) {
+      @for (product of items; track product.id) {
+        <p>{{ product.name }}</p>
       }
-      
-      @if (posts(); as postList) {
-        @for (post of postList; track post.id) {
-          <div class="post">
-            <h4>{{ post.title }}</h4>
-            <p>{{ post.content }}</p>
-          </div>
-        }
-      }
-      
-      <button (click)="refreshPosts()">Refresh</button>
-    </div>
-  `,
-  changeDetection: ChangeDetectionStrategy.OnPush
-})
-export class DataLoaderComponent {
-  private http = inject(HttpClient);
-  
-  // Convert Observable to Signal - the zoneless way!
-  posts = toSignal(this.http.get<Post[]>('/api/posts'), { initialValue: [] });
-  isLoading = signal(false);
-
-  async refreshPosts() {
-    this.isLoading.set(true);
-    try {
-      const newPosts = await firstValueFrom(this.http.get<Post[]>('/api/posts'));
-      // Update signal to trigger UI update
-      this.posts.set(newPosts);
-    } finally {
-      this.isLoading.set(false);
     }
-  }
-}
-```
-
-## ✅ Best Practices for Zoneless Angular
-
-### 1. Use OnPush Change Detection
-
-```typescript
-// ✅ Good - Always use OnPush in zoneless mode
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  // Your component will work smoothly
+  `,
 })
-```
-
-### 2. **Prefer Signals Over Traditional State**
-
-```typescript
-// ✅ Good - Use signals for reactive state
-class MyComponent {
-  count = signal(0);
-  items = signal<Item[]>([]);
-}
-
-// ❌ Avoid - Traditional properties won't trigger updates
-class MyComponent {
-  count = 0;
-  items: Item[] = [];
+export class ProductList {
+  private readonly api = inject(CatalogApi);
+  protected readonly products = toSignal(this.api.getProducts(), { initialValue: [] });
 }
 ```
 
-### 3. **Handle Async Operations Properly**
+The `AsyncPipe` is also a valid choice for template-driven observable rendering. For imperative code that must update an ordinary field, call `markForCheck()` after the update.
 
-```typescript
-// ✅ Good - Use signals with async operations
-async loadData() {
-  this.loading.set(true);
-  try {
-    const data = await this.service.getData();
-    this.data.set(data);
-  } finally {
-    this.loading.set(false);
-  }
-}
+## OnPush-compatible components
 
-// ❌ Avoid - Direct property assignment won't trigger UI updates
-async loadData() {
-  this.loading = true;
-  this.data = await this.service.getData(); // Won't update UI in zoneless mode
-  this.loading = false;
-}
+Using `ChangeDetectionStrategy.OnPush` is a recommended way to prepare for zoneless rendering, but it is not required for zoneless compatibility: components must notify Angular when state changes. Angular 22 makes OnPush the default for components, so new v22 examples do not need to set it explicitly.
+
+For code that must preserve pre-v22 eager checking behavior, use `ChangeDetectionStrategy.Eager`. The v22 update migration adds this where needed.
+
+## Remove Zone.js from an existing workspace
+
+After confirming that the app and dependencies work without Zone.js:
+
+1. Remove `zone.js` from the `polyfills` configuration in `angular.json`.
+2. Remove `zone.js/testing` from test polyfills if present.
+3. Remove imports of `zone.js` and `zone.js/testing` from a custom polyfills file.
+4. Remove the dependency if no other package needs it: `npm uninstall zone.js`.
+5. Run unit, integration and end-to-end tests, then build and test in a real browser.
+
+The CLI migration can help with upgrade-related changes. Check its output and review the diff before applying a migration in a large workspace.
+
+## `NgZone` and stability APIs
+
+`NgZone.run()` and `runOutsideAngular()` remain compatible and can still be useful for libraries that also support Zone.js applications. In a zoneless app, `NgZone.onMicrotaskEmpty`, `onStable` and `onUnstable` do not emit, and `isStable` is always `true`; do not use them to schedule app work.
+
+Use `afterNextRender()` or `afterEveryRender()` when work depends on Angular finishing a render. Use a direct browser API such as `MutationObserver` when observing DOM changes is the actual requirement.
+
+## SSR and pending asynchronous work
+
+Server rendering must know when asynchronous work that affects the rendered HTML is complete. Use `PendingTasks` for work Angular cannot otherwise track:
+
+```ts
+import { inject, PendingTasks } from '@angular/core';
+
+const pendingTasks = inject(PendingTasks);
+
+pendingTasks.run(async () => {
+  const result = await loadDataNeededForThePage();
+  this.data.set(result);
+});
 ```
 
-## 🎯 Quick Checklist
+`HttpClient` requests and router navigation are integrated with Angular's stability tracking. Do not mark unrelated background work as pending, or SSR may wait longer than necessary. See [SSR Introduction](/ssr/introduction/).
 
-- [ ] Enable zoneless change detection in bootstrap
-- [ ] Use OnPush change detection strategy
-- [ ] Replace properties with signals
-- [ ] Use computed signals for derived state
-- [ ] Handle async operations with signals
-- [ ] Test thoroughly in zoneless mode
-- [ ] Monitor bundle size improvements
-- [ ] Verify performance gains
+## Reactive Forms note
 
-## 🚀 Next Steps
+Reactive Forms update their own state and emit observables, but updates such as `setValue()` do not necessarily notify a zoneless component to render. If a template reads Reactive Forms state, connect the relevant observable to a signal or call `ChangeDetectorRef.markForCheck()` when the state changes.
 
-1. **[New Template Syntax](/modern/template-syntax/)** - @let and more features
-2. **[Signal Forms](/modern/signal-forms/)** - Modern form handling
-3. **[Incremental Hydration](/modern/incremental-hydration/)** - SSR optimization
+## Testing
 
----
+Angular's `TestBed` uses zoneless change detection by default. Prefer `await fixture.whenStable()` after asynchronous actions, and use `fixture.detectChanges()` when a test intentionally changes ordinary fields directly. Zone-based tests can explicitly provide `provideZoneChangeDetection()`.
 
-**Remember**: Zoneless Angular is like switching to a high-performance electric engine - you get better efficiency, cleaner code, and improved user experience. Embrace signals and reactive patterns for the best results! ⚡
+## Migration checklist
+
+- Replace direct field writes from timers or subscriptions with signals, `AsyncPipe` or explicit `markForCheck()`.
+- Remove code relying on `NgZone.onStable` or `isStable`.
+- Use `PendingTasks` for server-rendered async work not tracked by Angular.
+- Test browser APIs and third-party libraries without relying on Zone.js patches.
+- Remove Zone.js only after tests pass.
+
+## Next steps
+
+- [Angular Signals](/modern/signals/)
+- [Testing Fundamentals](/testing/unit-testing/)
+- [SSR Introduction](/ssr/introduction/)

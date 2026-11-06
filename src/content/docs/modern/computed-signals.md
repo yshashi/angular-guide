@@ -1,219 +1,222 @@
 ---
 title: Computed Signals ⚡
-description: Master computed signals for derived reactive state
+description: Derive state with computed() in Angular 22 — lazy, memoized, read-only signals with dynamic dependencies, custom equality and real-world patterns.
 sidebar:
   order: 3
 ---
 
-Computed signals are like smart calculators that automatically update their results whenever their inputs change. Think of them as Excel formulas - when you change a cell, all dependent formulas update automatically!
+A **computed signal** is a read-only signal whose value is calculated from other signals. Think of a spreadsheet formula: `=B1*B2` updates whenever `B1` or `B2` changes, and you never type into the formula cell yourself. In Angular, `computed()` is the default tool for any value you can *derive* — totals, filtered lists, labels, `isValid` flags.
 
-## 🎯 What are Computed Signals?
+## What you'll learn
 
-**Computed signals are read-only signals that derive their value from other signals.** They automatically recalculate when their dependencies change, giving you efficient reactive derived state.
+- Create computed signals and read them in templates and code
+- Understand that computeds are lazy, memoized and read-only
+- How dynamic dependency tracking works
+- Build real-world derived state (filtering, sorting, totals)
+- When to reach for `linkedSignal()` instead
 
-```typescript
-const firstName = signal('John');
-const lastName = signal('Doe');
+## Creating a computed signal
 
-// ✅ Computed signal automatically updates
-const fullName = computed(() => `${firstName()} ${lastName()}`);
+```ts
+import { computed, signal, Signal } from '@angular/core';
 
-console.log(fullName()); // "John Doe"
+const count = signal(2);
+const double: Signal<number> = computed(() => count() * 2);
 
-firstName.set('Jane');
-console.log(fullName()); // "Jane Doe" - automatically updated!
+console.log(double()); // 4
+count.set(5);
+console.log(double()); // 10
 ```
 
-## 🚀 Real-World Examples
+The function you pass is the **derivation**. Every signal it reads becomes a dependency.
 
-### 1. **Shopping Cart Totals**
+## Three rules of `computed()`
 
-```typescript
+### 1. It's lazy
+
+The derivation doesn't run until someone reads the computed. If nothing reads it, it never runs.
+
+### 2. It's memoized
+
+After the first read, the result is cached. Reading it again returns the cached value **without recalculating** — until one of its dependencies changes. That makes it safe to do expensive work like filtering a large array.
+
+### 3. It's read-only
+
+A computed has no `set()` or `update()`:
+
+```ts
+double.set(3); // ❌ compile error: Property 'set' does not exist on type 'Signal<number>'
+```
+
+If you need a value that is derived **but can also be overwritten** by the user (and resets when the source changes), use [`linkedSignal()`](/modern/linked-signals/).
+
+## Dependencies are dynamic
+
+Only the signals read during the **most recent** run are tracked:
+
+```ts
+const showCount = signal(false);
+const count = signal(0);
+
+const message = computed(() => (showCount() ? `The count is ${count()}` : 'Nothing to see here'));
+```
+
+- While `showCount()` is `false`, `count` isn't read, so changing `count` doesn't recompute `message`.
+- Once `showCount` becomes `true`, `count` is read and becomes a dependency.
+- Set `showCount` back to `false` and `count` is dropped again.
+
+## Real-world example: search, sort and totals
+
+```ts title="product-list.ts"
+import { Component, computed, input, signal } from '@angular/core';
+
+interface Product {
+  id: number;
+  name: string;
+  price: number;
+  category: 'books' | 'games' | 'music';
+}
+
 @Component({
+  selector: 'app-product-list',
   template: `
-    <div>
-      <p>Items: {{ items().length }}</p>
-      <p>Total: {{ total() | currency }}</p>
-      <p>Tax: {{ tax() | currency }}</p>
-      <p>Final: {{ finalTotal() | currency }}</p>
-    </div>
-  `
-})
-export class CartComponent {
-  items = signal<CartItem[]>([
-    { name: 'Laptop', price: 999, quantity: 1 },
-    { name: 'Mouse', price: 29, quantity: 2 }
-  ]);
+    <input placeholder="Search" [value]="search()" (input)="search.set($event.target.value)" />
 
-  // ✅ All computed signals update automatically
-  total = computed(() => 
-    this.items().reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    <select (change)="sortBy.set($any($event.target).value)">
+      <option value="name">Name</option>
+      <option value="price">Price</option>
+    </select>
+
+    <p>Showing {{ visible().length }} of {{ products().length }} products</p>
+
+    @for (p of visible(); track p.id) {
+      <div>{{ p.name }} — {{ p.price }}</div>
+    } @empty {
+      <p>No products match “{{ search() }}”.</p>
+    }
+
+    <p>Total: {{ total() }}</p>
+  `,
+})
+export class ProductList {
+  readonly products = input.required<Product[]>();
+
+  protected readonly search = signal('');
+  protected readonly sortBy = signal<'name' | 'price'>('name');
+
+  protected readonly visible = computed(() => {
+    const term = this.search().toLowerCase();
+    const filtered = this.products().filter((p) => p.name.toLowerCase().includes(term));
+    const key = this.sortBy();
+    return [...filtered].sort((a, b) =>
+      key === 'price' ? a.price - b.price : a.name.localeCompare(b.name),
+    );
+  });
+
+  protected readonly total = computed(() => this.visible().reduce((sum, p) => sum + p.price, 0));
+}
+```
+
+Notes:
+
+- `products` is a signal input, so it's a dependency just like `search`.
+- `[...filtered].sort()` copies before sorting — never sort the input array in place.
+- `total` depends on `visible`, so computeds can be **chained**.
+
+## Chaining computeds
+
+```ts
+const price = signal(100);
+const quantity = signal(2);
+const taxRate = signal(0.2);
+
+const subtotal = computed(() => price() * quantity());
+const tax = computed(() => subtotal() * taxRate());
+const grandTotal = computed(() => subtotal() + tax());
+```
+
+Small, named computeds are easier to read and test than one giant function, and Angular only recalculates the parts whose inputs changed.
+
+## Example: cart summary from an input
+
+```ts title="cart-summary.ts"
+import { Component, computed, input } from '@angular/core';
+
+interface CartItem {
+  id: number;
+  name: string;
+  price: number;
+  qty: number;
+}
+
+@Component({
+  selector: 'app-cart-summary',
+  template: `
+    <p>{{ itemCount() }} items</p>
+    <p>Subtotal: {{ subtotal() }}</p>
+    @if (freeShipping()) {
+      <p>🎉 Free shipping!</p>
+    } @else {
+      <p>Add {{ 50 - subtotal() }} more for free shipping</p>
+    }
+  `,
+})
+export class CartSummary {
+  readonly items = input<CartItem[]>([]);
+
+  protected readonly itemCount = computed(() => this.items().reduce((n, i) => n + i.qty, 0));
+  protected readonly subtotal = computed(() =>
+    this.items().reduce((sum, i) => sum + i.price * i.qty, 0),
   );
-
-  tax = computed(() => this.total() * 0.08);
-  
-  finalTotal = computed(() => this.total() + this.tax());
+  protected readonly freeShipping = computed(() => this.subtotal() >= 50);
 }
 ```
 
-### 2. **User Profile Status**
+## Custom equality
 
-```typescript
-@Component({
-  template: `
-    <div>
-      <h3>{{ user().name }}</h3>
-      <p class="{{ statusClass() }}">{{ statusMessage() }}</p>
-      <div class="progress-bar">
-        <div [style.width.%]="completionPercentage()"></div>
-      </div>
-    </div>
-  `
-})
-export class ProfileComponent {
-  user = signal({
-    name: 'John Doe',
-    email: 'john@example.com',
-    avatar: '',
-    bio: '',
-    phone: '555-1234'
-  });
+A computed notifies its dependents only when its **result** changes (by `Object.is()`). If your derivation returns a new array every time, you can tell Angular when two results should count as equal:
 
-  // ✅ Computed signals for derived state
-  completionPercentage = computed(() => {
-    const user = this.user();
-    const fields = [user.name, user.email, user.avatar, user.bio, user.phone];
-    const completed = fields.filter(field => field && field.trim()).length;
-    return Math.round((completed / fields.length) * 100);
-  });
+```ts
+const items = signal([{ id: 1 }, { id: 2 }]);
 
-  statusMessage = computed(() => {
-    const percentage = this.completionPercentage();
-    if (percentage === 100) return 'Profile Complete! 🎉';
-    if (percentage >= 75) return 'Almost done! 👍';
-    if (percentage >= 50) return 'Making progress... 📝';
-    return 'Just getting started 🚀';
-  });
-
-  statusClass = computed(() => {
-    const percentage = this.completionPercentage();
-    if (percentage === 100) return 'status-complete';
-    if (percentage >= 75) return 'status-good';
-    if (percentage >= 50) return 'status-progress';
-    return 'status-start';
-  });
-}
-```
-
-### 3. **Search & Filter**
-
-```typescript
-@Component({
-  template: `
-    <div>
-      <input [value]="searchTerm()" (input)="updateSearch($event)" />
-      <select [value]="categoryFilter()" (change)="updateCategory($event)">
-        <option value="">All Categories</option>
-        <option value="tech">Tech</option>
-        <option value="books">Books</option>
-      </select>
-      
-      <p>Showing {{ filteredItems().length }} of {{ allItems().length }}</p>
-      
-      @for (item of filteredItems(); track item.id) {
-        <div class="item">{{ item.name }}</div>
-      }
-    </div>
-  `
-})
-export class SearchComponent {
-  searchTerm = signal('');
-  categoryFilter = signal('');
-  
-  allItems = signal([
-    { id: 1, name: 'MacBook Pro', category: 'tech' },
-    { id: 2, name: 'JavaScript Book', category: 'books' },
-    { id: 3, name: 'iPhone', category: 'tech' }
-  ]);
-
-  // ✅ Computed signal handles complex filtering
-  filteredItems = computed(() => {
-    const items = this.allItems();
-    const search = this.searchTerm().toLowerCase();
-    const category = this.categoryFilter();
-
-    return items.filter(item => {
-      const matchesSearch = !search || item.name.toLowerCase().includes(search);
-      const matchesCategory = !category || item.category === category;
-      return matchesSearch && matchesCategory;
-    });
-  });
-
-  updateSearch(event: Event) {
-    this.searchTerm.set((event.target as HTMLInputElement).value);
-  }
-
-  updateCategory(event: Event) {
-    this.categoryFilter.set((event.target as HTMLSelectElement).value);
-  }
-}
-```
-
-## ✅ Best Practices
-
-### 1. **Keep Computations Pure**
-
-```typescript
-// ✅ Good - Pure function, no side effects
-const total = computed(() => this.items().reduce((sum, item) => sum + item.price, 0));
-
-// ❌ Avoid - Side effects in computed signals
-const badComputed = computed(() => {
-  console.log('Computing...'); // Side effect!
-  return this.items().length;
+const ids = computed(() => items().map((i) => i.id), {
+  equal: (a, b) => a.length === b.length && a.every((v, i) => v === b[i]),
 });
 ```
 
-### 2. **Use for Derived State**
+Now replacing `items` with new objects that have the same ids doesn't wake up anything that reads `ids`.
 
-```typescript
-// ✅ Good - Perfect for derived state
-const isFormValid = computed(() => 
-  this.email().includes('@') && this.password().length >= 8
-);
+You can also give a computed a `debugName` (`computed(fn, { debugName: 'ids' })`) to identify it in Angular DevTools.
 
-// ❌ Avoid - Use regular signals for independent state
-const currentTime = computed(() => Date.now()); // This won't update!
-```
+## `computed()` vs `linkedSignal()` vs `effect()`
 
-### 3. **Chain Computed Signals**
+| You need… | Use |
+|---|---|
+| A value calculated from other signals, never set directly | `computed()` |
+| A value that starts from / resets to a derived value but the user can change | `linkedSignal()` |
+| Async data that depends on signals (HTTP, etc.) | `resource()` / `httpResource()` |
+| To push a value **out** to a non-signal API (localStorage, a chart library, logging) | `effect()` |
 
-```typescript
-// ✅ Good - Chain computations for complex logic
-const subtotal = computed(() => 
-  this.items().reduce((sum, item) => sum + item.price, 0)
-);
+## Common mistakes
 
-const tax = computed(() => this.subtotal() * 0.08);
+| Mistake | Fix |
+|---|---|
+| Side effects inside `computed()` (HTTP calls, `set()` on other signals, DOM changes) | Keep derivations pure; use `effect()` or a resource for side effects |
+| Using `effect()` to copy a derived value into another signal | Replace the second signal with a `computed()` |
+| Sorting/mutating an input array inside `computed()` | Copy first: `[...list].sort(...)` |
+| Calling an expensive method in the template instead of a computed | Move it into a `computed()` so it's cached |
+| Reading a signal after `await` inside a computed | Computeds must be synchronous; use a resource for async work |
 
-const total = computed(() => this.subtotal() + this.tax());
-```
+## Key takeaways
 
-## 🎯 Quick Checklist
+- `computed()` creates read-only, lazy, memoized derived state.
+- Dependencies are tracked automatically and dynamically.
+- Chain small computeds for readable derived state.
+- Prefer `computed()` over `effect()` whenever you're *calculating* something.
+- Need it writable? Use `linkedSignal()`.
 
-- [ ] Use computed signals for derived state that depends on other signals
-- [ ] Keep computation functions pure (no side effects)
-- [ ] Chain computed signals for complex calculations
-- [ ] Use computed signals in templates for reactive UI updates
-- [ ] Prefer computed over manual calculations in effects
-- [ ] Test computed signals by testing their inputs and outputs
+## Next steps
 
-## 🚀 Next Steps
-
-1. **[Effects API](/modern/effects/)** - Handle side effects with signals
-2. **[Linked Signals](/modern/linked-signals/)** - Advanced signal patterns
-3. **[Control Flow](/modern/control-flow/)** - New template syntax with signals
-
----
-
-**Remember**: Use computed signals to move complex logic out of templates and into reactive, testable functions. They're perfect for derived state that needs to stay in sync! ⚡
+- [Effects](/modern/effects/) — the right way to run side effects
+- [Linked Signals](/modern/linked-signals/) — writable derived state
+- [Resource API](/modern/resource-api/) — derived **async** state

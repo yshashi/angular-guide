@@ -1,286 +1,325 @@
 ---
 title: Standalone Components 🏗️
-description: Learn about Angular standalone components - the default architecture since Angular 19
+description: Standalone components, directives and pipes in Angular 22 — imports, bootstrapping, lazy loading, providers, and migrating away from NgModules.
 sidebar:
   order: 1
 ---
 
-Standalone components are Angular's **default and recommended approach** for building modern applications! Since Angular 19, standalone is the default for all components, directives, and pipes — you no longer need to set `standalone: true` explicitly. Think of them as independent LEGO blocks that don't need a big box (NgModule) to organize them.
+Every component, directive and pipe you create in Angular 22 is **standalone**. A standalone component lists what it needs in its own `imports` array, so you no longer need an `NgModule` to declare it, and the whole app starts from a single root component. Standalone is the default since v19, so you never have to write `standalone: true`.
 
-## 🎯 What are Standalone Components?
+## What you'll learn
 
-**Standalone components are Angular components that work independently without NgModules.** They manage their own dependencies and can be imported directly where needed. Since Angular 19, all components are standalone by default — no flag needed.
+- What "standalone" means and how the `imports` array works
+- How a standalone app is bootstrapped (`main.ts` + `app.config.ts`)
+- How to lazy load components and route groups without modules
+- Where to register providers (app, route, component)
+- How to keep using existing NgModules and migrate old code
 
-**Why Standalone is Now the Standard:**
-- **🎯 Default by Design** - All new components are standalone automatically (since Angular 19)
-- **🚫 No NgModules** - Skip the module boilerplate entirely
-- **📦 Direct Imports** - Import exactly what you need, where you need it
-- **🌳 Better Tree Shaking** - Smaller bundles with unused code elimination
-- **⚡ Simpler Architecture** - Less complexity, easier to understand
-- **🔄 Easy Migration** - Can coexist with existing NgModule components
-- **🚀 Angular's Direction** - The standard for all Angular development
+## The idea in one example
 
-```typescript
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+A component declares its template dependencies directly:
 
-@Component({
-  selector: 'app-user-profile',
-  imports: [CommonModule, FormsModule], // Direct imports
-  template: `
-    <div class="profile">
-      <h1>{{ user.name }}</h1>
-      <input [(ngModel)]="user.email" placeholder="Email">
-      <button (click)="save()">Save</button>
-    </div>
-  `
-})
-export class UserProfileComponent {
-  user = { name: 'John Doe', email: 'john@example.com' };
-  
-  save() {
-    console.log('Saving user:', this.user);
-  }
-}
-```
+```ts title="user-card.ts"
+import { Component, input } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { InitialsPipe } from './initials-pipe';
+import { Highlight } from './highlight';
 
-:::note[Legacy: NgModule-based Components]
-In older Angular projects (pre-19), components required `standalone: true` in the decorator to opt into standalone mode. If you're working in a legacy codebase that still uses NgModules, you may need to set this flag explicitly or set `standalone: false` to declare a component inside an NgModule.
-
-```typescript
-// user.module.ts - Extra boilerplate file (legacy pattern)
-@NgModule({
-  declarations: [UserProfileComponent],
-  imports: [CommonModule, FormsModule],
-  exports: [UserProfileComponent]
-})
-export class UserModule { }
-
-// app.module.ts - Complex module configuration (legacy pattern)
-@NgModule({
-  imports: [UserModule], // Import entire module
-  // ...
-})
-export class AppModule { }
-```
-:::
-
-### ✅ Modern Angular (Standalone - Default)
-
-```typescript
-// Just import the component directly - no modules needed!
-import { UserProfileComponent } from './user-profile.component';
-
-@Component({
-  imports: [UserProfileComponent], // Direct import
-  template: `<app-user-profile></app-user-profile>`
-})
-export class AppComponent { }
-```
-
-## 🎯 Angular CLI Default Behavior
-
-**New Angular projects generate standalone components by default — no flags needed!**
-
-```bash
-# Create a new Angular project (standalone by default)
-ng new my-app
-
-# Generate a new component (standalone by default since Angular 19)
-ng generate component user-profile
-# Creates: user-profile.component.ts — standalone automatically
-```
-
-**Generated component structure:**
-```typescript
-// Generated component — standalone by default, no flag needed
-@Component({
-  selector: 'app-user-profile',
-  imports: [CommonModule],
-  templateUrl: './user-profile.component.html',
-  styleUrl: './user-profile.component.css'
-})
-export class UserProfileComponent { }
-```
-
-## 🚀 Common Patterns
-
-### 1. **Basic Standalone Component**
-
-```typescript
-@Component({
-  selector: 'app-counter',
-  template: `
-    <div>
-      <p>Count: {{ count }}</p>
-      <button (click)="increment()">+</button>
-      <button (click)="decrement()">-</button>
-    </div>
-  `
-})
-export class CounterComponent {
-  count = 0;
-
-  increment() { this.count++; }
-  decrement() { this.count--; }
-}
-```
-
-### 2. **Standalone with Services**
-
-```typescript
-@Injectable({ providedIn: 'root' })
-export class UserService {
-  getUsers() {
-    return ['Alice', 'Bob', 'Charlie'];
-  }
-}
-
-@Component({
-  selector: 'app-user-list',
-  imports: [CommonModule],
-  template: `
-    <ul>
-      @for (user of users; track user) {
-        <li>{{ user }}</li>
-      }
-    </ul>
-  `
-})
-export class UserListComponent {
-  users = inject(UserService).getUsers();
-}
-```
-
-### 3. **Standalone with Child Components**
-
-```typescript
 @Component({
   selector: 'app-user-card',
+  imports: [DatePipe, InitialsPipe, Highlight],
   template: `
-    <div class="card">
-      <h3>{{ user.name }}</h3>
-      <p>{{ user.email }}</p>
-    </div>
+    <article appHighlight="lightblue">
+      <h3>{{ name() | initials }}</h3>
+      <p>Joined {{ joined() | date: 'mediumDate' }}</p>
+    </article>
   `,
-  inputs: ['user']
 })
-export class UserCardComponent {
-  user!: { name: string; email: string };
-}
-
-@Component({
-  selector: 'app-dashboard',
-  imports: [CommonModule, UserCardComponent], // Import child component
-  template: `
-    <div class="dashboard">
-      <h2>User Dashboard</h2>
-      @for (user of users; track user.id) {
-        <app-user-card [user]="user"></app-user-card>
-      }
-    </div>
-  `
-})
-export class DashboardComponent {
-  users = [
-    { id: 1, name: 'Alice', email: 'alice@example.com' },
-    { id: 2, name: 'Bob', email: 'bob@example.com' }
-  ];
+export class UserCard {
+  readonly name = input.required<string>();
+  readonly joined = input.required<Date>();
 }
 ```
 
-### 4. **Standalone Routing**
+Directives and pipes are standalone too:
 
-```typescript
-// routes.ts
+```ts title="initials-pipe.ts"
+import { Pipe, PipeTransform } from '@angular/core';
+
+@Pipe({ name: 'initials' })
+export class InitialsPipe implements PipeTransform {
+  transform(name: string): string {
+    return name
+      .split(' ')
+      .map((part) => part[0])
+      .join('');
+  }
+}
+```
+
+```ts title="highlight.ts"
+import { Directive, input } from '@angular/core';
+
+@Directive({
+  selector: '[appHighlight]',
+  host: { '[style.backgroundColor]': 'color()' },
+})
+export class Highlight {
+  readonly color = input('yellow', { alias: 'appHighlight' });
+}
+```
+
+To use `UserCard` somewhere else, import the class:
+
+```ts
+@Component({
+  selector: 'app-team',
+  imports: [UserCard],
+  template: `<app-user-card name="Ada Lovelace" [joined]="since" />`,
+})
+export class Team {
+  protected readonly since = new Date(2024, 0, 15);
+}
+```
+
+:::tip
+Components in these examples have no `changeDetection` setting. **OnPush is the default since v22**, which works perfectly with signals and `input()`.
+:::
+
+## What goes in `imports`?
+
+| You use in the template… | Import… |
+|---|---|
+| Another component (`<app-user-card>`) | The component class (`UserCard`) |
+| A custom directive (`appHighlight`) | The directive class (`Highlight`) |
+| A pipe (`date`, `currency`, `async`) | The pipe class (`DatePipe`, `CurrencyPipe`, `AsyncPipe`) |
+| Router links / outlet | `RouterLink`, `RouterLinkActive`, `RouterOutlet` |
+| Reactive forms (`[formGroup]`) | `ReactiveFormsModule` (NgModules are allowed in `imports`) |
+| Signal Forms (`[formField]`) | `FormField` |
+| `@if`, `@for`, `@switch`, `@defer`, `@let` | **Nothing** — control flow is built into the template syntax |
+
+You do **not** need `CommonModule` for control flow, and you can import only the pipes you use (for example `DatePipe`) instead of the whole module.
+
+:::caution[Forgot an import?]
+If you see `NG8001: 'app-user-card' is not a known element`, the component is missing from the `imports` array of the component whose template uses it. Unknown pipes and unknown property bindings are reported the same way at compile time.
+:::
+
+## Bootstrapping a standalone app
+
+A new project (`ng new my-app`) starts the app from the root component and a config object:
+
+```ts title="src/main.ts"
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { App } from './app/app';
+
+bootstrapApplication(App, appConfig).catch((err) => console.error(err));
+```
+
+```ts title="src/app/app.config.ts"
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { routes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes, withComponentInputBinding()),
+    provideHttpClient(),
+  ],
+};
+```
+
+```ts title="src/app/app.ts"
+import { Component } from '@angular/core';
+import { RouterLink, RouterOutlet } from '@angular/router';
+
+@Component({
+  selector: 'app-root',
+  imports: [RouterOutlet, RouterLink],
+  template: `
+    <nav><a routerLink="/admin">Admin</a></nav>
+    <router-outlet />
+  `,
+})
+export class App {}
+```
+
+Features are turned on with `provide*()` functions instead of importing modules: `provideRouter()`, `provideHttpClient()`, `provideClientHydration()`, and so on. New apps are zoneless by default, so there is no `zone.js` polyfill — see [Zoneless Angular](/modern/zoneless/).
+
+## Lazy loading without NgModules
+
+### Lazy routes
+
+Load a single component or a whole group of routes on demand:
+
+```ts title="app.routes.ts"
+import { Routes } from '@angular/router';
+
 export const routes: Routes = [
   {
-    path: 'users',
-    loadComponent: () => import('./user-list.component').then(c => c.UserListComponent)
+    path: 'dashboard',
+    loadComponent: () => import('./dashboard/dashboard').then((m) => m.Dashboard),
   },
   {
-    path: 'profile',
-    loadComponent: () => import('./user-profile.component').then(c => c.UserProfileComponent)
-  }
+    path: 'admin',
+    loadChildren: () => import('./admin/admin.routes').then((m) => m.adminRoutes),
+  },
 ];
-
-// main.ts
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideRouter(routes), // ✅ No RouterModule needed
-    provideHttpClient()    // ✅ No HttpClientModule needed
-  ]
-});
 ```
 
-## ✅ Best Practices
+```ts title="admin/admin.routes.ts"
+import { Routes } from '@angular/router';
 
-### 1. **Import What You Need**
+export const adminRoutes: Routes = [
+  { path: '', loadComponent: () => import('./admin-home').then((m) => m.AdminHome) },
+  { path: 'users', loadComponent: () => import('./user-admin').then((m) => m.UserAdmin) },
+];
+```
 
-```typescript
-// ✅ Good - Import specific modules
+If the file uses a **default export** (`export default class Dashboard {}`), you can shorten it to `loadComponent: () => import('./dashboard/dashboard')`.
+
+### Lazy parts of a template
+
+Use `@defer` to split a component (and everything it imports) into its own chunk that loads when needed:
+
+```html
+@defer (on viewport) {
+  <app-sales-chart />
+} @placeholder {
+  <div class="chart-skeleton"></div>
+}
+```
+
+See [Control Flow → `@defer`](/modern/control-flow/#lazy-loading-with-defer) for all triggers.
+
+### Lazy services
+
+`injectAsync()` (stable in v22) downloads a service's code only when you first call it:
+
+```ts
+import { Component, injectAsync, onIdle } from '@angular/core';
+
 @Component({
-  imports: [CommonModule, FormsModule, RouterModule],
-  // ...
+  selector: 'app-report',
+  template: `<button type="button" (click)="export()">Export</button>`,
 })
+export class Report {
+  private readonly exporter = injectAsync(
+    () => import('./report-exporter').then((m) => m.ReportExporter),
+    { prefetch: onIdle }, // optional: start downloading when the browser is idle
+  );
 
-// ❌ Avoid - Don't create unnecessary modules
-@NgModule({
-  imports: [CommonModule, FormsModule],
-  exports: [CommonModule, FormsModule]
-})
-export class SharedModule { } // Not needed with standalone!
+  protected async export() {
+    const exporter = await this.exporter();
+    exporter.export();
+  }
+}
 ```
 
-### 2. **Use Providers Array**
+The lazy service must be auto-provided (`@Service()` or `@Injectable({ providedIn: 'root' })`).
 
-```typescript
-// ✅ Good - Provide services directly
+## Where do providers go?
+
+| Scope | Where | Lifetime |
+|---|---|---|
+| Whole app (singleton) | `@Service()` on the class — nothing else needed | App |
+| Whole app, configured | `providers` in `app.config.ts` (`provideHttpClient()`, tokens, …) | App |
+| One lazy area | `providers` on a `Route` | While that route tree exists (an environment injector per route) |
+| One component and its children | `providers` in `@Component` | Per component instance |
+
+```ts
+import { Component, Service, inject, signal } from '@angular/core';
+
+@Service()
+export class CartStore {
+  readonly items = signal<string[]>([]);
+}
+
+// Not auto-provided: each <app-editor> gets its own instance
+@Service({ autoProvided: false })
+export class EditorState {
+  readonly dirty = signal(false);
+}
+
 @Component({
-  providers: [UserService], // Component-level service
-  // ...
+  selector: 'app-editor',
+  providers: [EditorState],
+  template: `…`,
 })
-
-// ✅ Better - Use providedIn: 'root' for global services
-@Injectable({ providedIn: 'root' })
-export class UserService { }
+export class Editor {
+  private readonly cart = inject(CartStore);
+  private readonly state = inject(EditorState);
+}
 ```
 
-### 3. **Organize Imports**
+:::note[Angular 21 and earlier]
+`@Service()` is new in v22. Earlier versions use `@Injectable({ providedIn: 'root' })` for app-wide singletons and plain `@Injectable()` for services you provide yourself. Both still work in v22.
+:::
 
-```typescript
-// ✅ Good - Group imports logically
-@Component({
-  imports: [
-    // Angular modules
-    CommonModule,
-    FormsModule,
-    RouterModule,
-    
-    // Your components
-    UserCardComponent,
-    LoadingSpinnerComponent
-  ],
-  // ...
-})
+## Working with existing NgModules
+
+Standalone and NgModule code mix freely:
+
+- **Use an NgModule inside a standalone component** — add it to `imports` (e.g. `ReactiveFormsModule` or a library's module).
+- **Use a standalone component inside an NgModule** — add it to the module's `imports` (not `declarations`).
+- **Use a module's providers at bootstrap** — wrap it with `importProvidersFrom()`:
+
+```ts
+import { ApplicationConfig, importProvidersFrom } from '@angular/core';
+import { LegacyModule } from './legacy/legacy-module';
+
+export const appConfig: ApplicationConfig = {
+  providers: [importProvidersFrom(LegacyModule)],
+};
 ```
 
-## 🎯 Quick Checklist
+Components that are still declared in an NgModule must say `standalone: false`. That is the only time you write the `standalone` flag.
 
-- [ ] Components are standalone by default — no flag needed (Angular 19+)
-- [ ] Import necessary modules in the `imports` array
-- [ ] Import the component directly where needed
-- [ ] Use `loadComponent` for lazy loading
-- [ ] Provide services using `providedIn: 'root'` or component providers
-- [ ] For legacy NgModule projects, consider migrating with `ng generate @angular/core:standalone`
+## Migrating an NgModule app
 
-## 🚀 Next Steps
+The Angular CLI ships a schematic that does the work in three passes. Run it, check the app builds and tests pass, commit, then run the next pass:
 
-1. **[Angular Signals](/modern/signals/)** - Modern reactivity with standalone components
-2. **[Computed Signals](/modern/computed-signals/)** - Derived state in standalone apps
-3. **[Control Flow](/modern/control-flow/)** - New template syntax with standalone components
+```bash
+ng generate @angular/core:standalone
+# 1. "Convert all components, directives and pipes to standalone"
+# 2. "Remove unnecessary NgModule classes"
+# 3. "Bootstrap the application using standalone APIs"
+```
 
----
+Related migrations that pair well with it:
 
-**Remember**: Standalone components are Angular's **default architecture** since Angular 19! All new components are standalone automatically — no flag needed. If you're working with legacy NgModule projects, consider migrating with `ng generate @angular/core:standalone` to enjoy simpler, more modular code! 🌟
+```bash
+ng generate @angular/core:control-flow         # *ngIf/*ngFor → @if/@for
+ng generate @angular/core:inject               # constructor injection → inject()
+ng generate @angular/core:route-lazy-loading   # eager routes → loadComponent
+ng generate @angular/core:cleanup-unused-imports
+```
+
+See [Migrating to Standalone](/migration/standalone/) for a step-by-step walkthrough.
+
+## Common mistakes
+
+| Mistake | Fix |
+|---|---|
+| Writing `standalone: true` | Remove it — it's the default. |
+| Importing `CommonModule` just for `*ngIf`/`*ngFor` | Use `@if` / `@for` (no import needed). `NgIf`/`NgForOf` are deprecated. |
+| Adding a standalone component to `declarations` | Put it in `imports` instead. |
+| Importing a big module to use one pipe | Import the single pipe class (`DatePipe`). |
+| Referencing a `@defer`-ed component elsewhere in the same file | Then it can't be split out; use it only inside the `@defer` block. |
+| Expecting `HttpClientModule` / `RouterModule.forRoot()` | Use `provideHttpClient()` / `provideRouter()` in `app.config.ts`. |
+
+## Key takeaways
+
+- Every component, directive and pipe is standalone by default; never write `standalone: true`.
+- A component's `imports` array lists exactly what its template uses.
+- Apps start with `bootstrapApplication(App, appConfig)` and configure features with `provide*()` functions.
+- Lazy load with `loadComponent`, `loadChildren`, `@defer`, and `injectAsync()`.
+- NgModules still work and can be mixed in; `ng generate @angular/core:standalone` migrates old apps.
+
+## Next steps
+
+- [Angular Signals](/modern/signals/) — the reactive core of modern Angular
+- [Control Flow](/modern/control-flow/) — `@if`, `@for`, `@switch`, `@defer`
+- [Dependency Injection](/advanced/dependency-injection/) — providers and injectors in depth

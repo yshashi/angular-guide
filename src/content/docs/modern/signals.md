@@ -1,351 +1,386 @@
 ---
 title: Angular Signals 🔄
-description: Master Angular Signals - the new reactivity model for modern Angular applications
+description: Learn Angular signals in v22 — signal(), set/update, computed, reactive contexts, untracked, equality, asReadonly and how signals drive change detection.
 sidebar:
   order: 2
 ---
 
-Signals are like smart variables that automatically tell your UI when they change. Think of them as "reactive data containers" that make your Angular apps faster and easier to understand!
+A **signal** is a box around a value that tells Angular when the value changes. You read it by calling it like a function, and Angular remembers *who* read it. When you change the value, only the templates, `computed()`s and effects that actually read it are updated. Signals are the foundation of modern Angular: inputs, queries, forms, resources and zoneless change detection are all built on them.
 
-## 🎯 What are Signals?
+## What you'll learn
 
-**A signal is a wrapper around a value that notifies consumers when that value changes.** It's like a smart variable that automatically updates your UI whenever its data changes.
+- Create, read and update writable signals with `signal()`, `set()` and `update()`
+- Derive values with `computed()` and expose read-only state with `asReadonly()`
+- Understand reactive contexts and when Angular tracks a read
+- Read without tracking using `untracked()`
+- Control change notifications with custom equality functions
+- Avoid the common mistakes (mutating objects, async reads, effects for derived state)
 
-**Key Features:**
-- **🔄 Reactive** - Automatically notify when values change
-- **⚡ Performance** - Only update what actually changed
-- **🎯 Fine-grained** - Precise change detection, not full app scanning
-- **🧠 Simple** - Easy to read, write, and understand
-- **🔗 Composable** - Can be combined and chained together
-- **🚀 Future-Ready** - Angular's new reactivity foundation
+## Your first signal
 
-```typescript
-import { signal } from '@angular/core';
+```ts title="counter.ts"
+import { Component, computed, signal } from '@angular/core';
 
-// ✅ Create a signal
-const count = signal(0);
-
-// ✅ Read the signal value
-console.log(count()); // 0
-
-// ✅ Update the signal
-count.set(5);
-console.log(count()); // 5
-
-// ✅ Update based on current value
-count.update(value => value + 1);
-console.log(count()); // 6
-```
-
-## 🆚 Before vs After
-
-### ❌ Old Way (Zone.js Change Detection)
-
-```typescript
-@Component({
-  template: `
-    <div>Count: {{ count }}</div>
-    <button (click)="increment()">+</button>
-  `
-})
-export class CounterComponent {
-  count = 0;
-  
-  increment() {
-    this.count++; // Zone.js detects this
-    // Angular checks ALL components for changes 😱
-  }
-}
-```
-
-### ✅ New Way (Signals)
-
-```typescript
-@Component({
-  template: `
-    <div>Count: {{ count() }}</div>
-    <button (click)="increment()">+</button>
-  `
-})
-export class CounterComponent {
-  count = signal(0);
-  
-  increment() {
-    this.count.update(c => c + 1);
-    // Only this component updates! ⚡
-  }
-}
-```
-
-## 🚀 Common Patterns
-
-### 1. **Basic Counter**
-
-```typescript
 @Component({
   selector: 'app-counter',
   template: `
-    <div class="counter">
-      <h2>Count: {{ count() }}</h2>
-      <button (click)="increment()">+</button>
-      <button (click)="decrement()">-</button>
-      <button (click)="reset()">Reset</button>
-    </div>
-  `
+    <p>Count: {{ count() }}</p>
+    <p>Double: {{ double() }}</p>
+    <button type="button" (click)="increment()">+1</button>
+    <button type="button" (click)="reset()">Reset</button>
+  `,
 })
-export class CounterComponent {
-  count = signal(0);
+export class Counter {
+  protected readonly count = signal(0);
+  protected readonly double = computed(() => this.count() * 2);
 
-  increment() {
-    this.count.update(value => value + 1);
+  protected increment() {
+    this.count.update((c) => c + 1);
   }
 
-  decrement() {
-    this.count.update(value => value - 1);
-  }
-
-  reset() {
+  protected reset() {
     this.count.set(0);
   }
 }
 ```
 
-### 2. **User Profile Management**
+Three things to notice:
 
-```typescript
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  isActive: boolean;
-}
+1. **Read** a signal by calling it: `count()` (in the template *and* in TypeScript).
+2. **Write** with `set(newValue)` or `update(old => new)`.
+3. The template updates automatically. The component is OnPush (the default since v22) and there is no zone.js — the signal tells Angular exactly which view to refresh.
 
-@Component({
-  selector: 'app-user-profile',
-  template: `
-    <div class="profile">
-      <h2>{{ user().name }}</h2>
-      <p>Email: {{ user().email }}</p>
-      <p>Status: {{ user().isActive ? 'Active' : 'Inactive' }}</p>
-      
-      <button (click)="toggleStatus()">
-        {{ user().isActive ? 'Deactivate' : 'Activate' }}
-      </button>
-      
-      <button (click)="updateEmail()">Update Email</button>
-    </div>
-  `
-})
-export class UserProfileComponent {
-  user = signal<User>({
-    id: 1,
-    name: 'John Doe',
-    email: 'john@example.com',
-    isActive: true
-  });
+## Writable signals
 
-  toggleStatus() {
-    this.user.update(user => ({
-      ...user,
-      isActive: !user.isActive
-    }));
-  }
+`signal(initialValue)` returns a `WritableSignal<T>`. The type is inferred, or you can pass it explicitly:
 
-  updateEmail() {
-    const newEmail = prompt('Enter new email:');
-    if (newEmail) {
-      this.user.update(user => ({
-        ...user,
-        email: newEmail
-      }));
-    }
-  }
-}
+```ts
+import { signal, WritableSignal } from '@angular/core';
+
+const count = signal(0);                          // WritableSignal<number>
+const name = signal<string | null>(null);         // explicit type
+const tags: WritableSignal<string[]> = signal([]);
+
+console.log(count());      // read: 0
+count.set(3);              // replace the value
+count.update((c) => c + 1); // compute from the previous value → 4
 ```
 
-### 3. **Todo List**
+| Method | Use it when |
+|---|---|
+| `set(value)` | You know the new value (`name.set('Ada')`) |
+| `update(fn)` | The new value depends on the old one (`count.update(c => c + 1)`) |
+| `asReadonly()` | You want to hand out a read-only view (see below) |
 
-```typescript
+### Objects and arrays: always create a new value
+
+Signals compare values with `Object.is()` by default. If you mutate an object in place, the reference doesn't change, so **nothing updates**. Always produce a new object or array:
+
+```ts title="todo-list.ts"
+import { Component, computed, signal } from '@angular/core';
+
 interface Todo {
   id: number;
-  text: string;
-  completed: boolean;
+  title: string;
+  done: boolean;
 }
 
 @Component({
   selector: 'app-todo-list',
   template: `
-    <div class="todo-app">
-      <h2>Todo List ({{ todos().length }} items)</h2>
-      
-      <div class="add-todo">
-        <input #todoInput placeholder="Add new todo..." />
-        <button (click)="addTodo(todoInput.value); todoInput.value = ''">
-          Add
-        </button>
-      </div>
-      
-      <ul class="todo-list">
-        @for (todo of todos(); track todo.id) {
-          <li [class.completed]="todo.completed">
-            <input 
-              type="checkbox" 
-              [checked]="todo.completed"
-              (change)="toggleTodo(todo.id)"
-            />
-            <span>{{ todo.text }}</span>
-            <button (click)="removeTodo(todo.id)">Delete</button>
-          </li>
-        }
-      </ul>
-    </div>
-  `
+    <ul>
+      @for (todo of todos(); track todo.id) {
+        <li>
+          <label>
+            <input type="checkbox" [checked]="todo.done" (change)="toggle(todo.id)" />
+            {{ todo.title }}
+          </label>
+        </li>
+      }
+    </ul>
+    <p>{{ remaining() }} left</p>
+    <button type="button" (click)="add('New task')">Add</button>
+  `,
 })
-export class TodoListComponent {
-  todos = signal<Todo[]>([
-    { id: 1, text: 'Learn Angular Signals', completed: false },
-    { id: 2, text: 'Build awesome apps', completed: false }
-  ]);
+export class TodoList {
+  protected readonly todos = signal<Todo[]>([{ id: 1, title: 'Learn signals', done: false }]);
+  protected readonly remaining = computed(() => this.todos().filter((t) => !t.done).length);
 
-  private nextId = 3;
-
-  addTodo(text: string) {
-    if (text.trim()) {
-      this.todos.update(todos => [
-        ...todos,
-        { id: this.nextId++, text: text.trim(), completed: false }
-      ]);
-    }
+  protected add(title: string) {
+    this.todos.update((list) => [...list, { id: Date.now(), title, done: false }]);
   }
 
-  toggleTodo(id: number) {
-    this.todos.update(todos =>
-      todos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
-    );
-  }
-
-  removeTodo(id: number) {
-    this.todos.update(todos => todos.filter(todo => todo.id !== id));
+  protected toggle(id: number) {
+    this.todos.update((list) => list.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   }
 }
 ```
 
-### 4. **Loading States**
+```ts
+// ❌ Mutation: same array reference, no update is triggered
+this.todos().push(newTodo);
 
-```typescript
+// ✅ New array
+this.todos.update((list) => [...list, newTodo]);
+```
+
+:::note
+Older previews had a `mutate()` method. It was removed before signals became stable — use `update()` with an immutable change.
+:::
+
+## Computed signals
+
+`computed()` creates a **read-only** signal derived from other signals. It is lazy (runs only when read) and memoized (re-runs only when a dependency changed):
+
+```ts
+import { computed, signal } from '@angular/core';
+
+const price = signal(100);
+const quantity = signal(2);
+const total = computed(() => price() * quantity()); // Signal<number>
+
+console.log(total()); // 200
+quantity.set(3);
+console.log(total()); // 300
+```
+
+Use `computed()` for anything you can *calculate* from other state: filtered lists, totals, flags like `isValid`. It has its own page: [Computed Signals](/modern/computed-signals/).
+
+## Exposing read-only state with `asReadonly()`
+
+A common pattern is a service that owns writable state but only lets others read it:
+
+```ts title="cart-store.ts"
+import { Service, computed, signal } from '@angular/core';
+
+@Service()
+export class CartStore {
+  private readonly _items = signal<string[]>([]);
+
+  readonly items = this._items.asReadonly(); // Signal<string[]>
+  readonly count = computed(() => this._items().length);
+
+  add(item: string) {
+    this._items.update((items) => [...items, item]);
+  }
+}
+```
+
+```ts title="cart-badge.ts"
+import { Component, inject } from '@angular/core';
+import { CartStore } from './cart-store';
+
 @Component({
-  selector: 'app-data-loader',
-  template: `
-    <div>
-      @if (loading()) {
-        <div class="spinner">Loading...</div>
-      } @else if (error()) {
-        <div class="error">
-          Error: {{ error() }}
-          <button (click)="retry()">Retry</button>
-        </div>
-      } @else {
-        <div class="data">
-          <h3>Data loaded successfully!</h3>
-          <p>{{ data() }}</p>
-        </div>
-      }
-      
-      <button (click)="loadData()">Load Data</button>
-    </div>
-  `
+  selector: 'app-cart-badge',
+  template: `<span>🛒 {{ cart.count() }}</span>`,
 })
-export class DataLoaderComponent {
-  loading = signal(false);
-  error = signal<string | null>(null);
-  data = signal<string | null>(null);
-
-  async loadData() {
-    this.loading.set(true);
-    this.error.set(null);
-
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      if (Math.random() > 0.7) {
-        throw new Error('Random API failure');
-      }
-      
-      this.data.set('Successfully loaded data from API!');
-    } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      this.loading.set(false);
-    }
-  }
-
-  retry() {
-    this.loadData();
-  }
+export class CartBadge {
+  protected readonly cart = inject(CartStore);
 }
 ```
 
-## ✅ Best Practices
+Consumers can call `cart.items()` but not `cart.items.set(...)` — that is a compile error. The read-only signal always reflects the latest value of the original.
 
-### 1. **Use Descriptive Names**
+:::caution
+`asReadonly()` prevents `set()`/`update()`, but it does **not** deep-freeze the value. Code could still mutate the array it reads. Treat signal values as immutable.
+:::
 
-```typescript
-// ✅ Good - Clear, descriptive names
-const userProfile = signal<User | null>(null);
-const isLoading = signal(false);
-const errorMessage = signal<string | null>(null);
+## Signals you already use
 
-// ❌ Avoid - Generic or unclear names
-const data = signal(null);
-const flag = signal(false);
-const msg = signal('');
-```
+Many Angular APIs return signals, so everything on this page applies to them too:
 
-### 2. **Initialize with Proper Types**
+| API | Returns |
+|---|---|
+| `input()`, `input.required()` | `InputSignal<T>` (read-only) |
+| `model()` | `ModelSignal<T>` (writable, two-way bindable) |
+| `viewChild()`, `contentChild()`, `viewChildren()`, `contentChildren()` | read-only signals |
+| `computed()` | `Signal<T>` |
+| `linkedSignal()` | `WritableSignal<T>` — see [Linked Signals](/modern/linked-signals/) |
+| `resource()`, `httpResource()` | `value`, `status`, `error`, `isLoading` signals — see [Resource API](/modern/resource-api/) |
+| `toSignal(observable$)` | `Signal<T>` from RxJS — see [RxJS & Angular patterns](/rxjs/angular-patterns/) |
+| `form()` (Signal Forms) | field state signals — see [Signal Forms](/modern/signal-forms/) |
 
-```typescript
-// ✅ Good - Explicit types and proper initialization
-const users = signal<User[]>([]);
-const selectedUser = signal<User | null>(null);
+## Reactive contexts: when are reads tracked?
+
+A **reactive context** is code that Angular watches. Any signal you read synchronously inside it becomes a dependency. Angular creates a reactive context when it:
+
+- renders a component template (including `host` bindings),
+- evaluates a `computed()` or `linkedSignal()`,
+- runs an `effect()` or `afterRenderEffect()`,
+- evaluates a resource's `params` function.
+
+Outside those places (event handlers, `ngOnInit`, plain methods called from a click) reading a signal just returns its value — nothing is tracked.
+
+Dependencies are **dynamic**: only signals actually read during the *last* run are tracked.
+
+```ts
+const showCount = signal(false);
 const count = signal(0);
 
-// ❌ Avoid - Unclear types
-const stuff = signal(undefined);
-const things = signal(null);
+const message = computed(() => (showCount() ? `The count is ${count()}` : 'Nothing to see here'));
+// While showCount() is false, changing count() does NOT recompute `message`.
 ```
 
-### 3. **Use Update for Complex Changes**
+### Reads after `await` are not tracked
 
-```typescript
-// ✅ Good - Use update for transformations
-this.user.update(user => ({ ...user, isActive: !user.isActive }));
+Tracking only works for synchronous code. Read your signals **before** the first `await`:
 
-// ✅ Good - Use set for complete replacement
-this.user.set(newUserFromAPI);
+```ts
+// ❌ theme() is read after await → not a dependency
+effect(async () => {
+  const data = await fetchUserData();
+  console.log(data.name, theme());
+});
 
-// ❌ Avoid - Don't mutate signal values directly
-this.user().isActive = true; // This won't trigger updates!
+// ✅ read first, then await
+effect(async () => {
+  const currentTheme = theme();
+  const data = await fetchUserData();
+  console.log(data.name, currentTheme);
+});
 ```
 
-## 🎯 Quick Checklist
+### Reading without tracking: `untracked()`
 
-- [ ] Use `signal()` to create reactive state
-- [ ] Call signals as functions to read values: `count()`
-- [ ] Use `set()` to replace the entire value
-- [ ] Use `update()` to transform the current value
-- [ ] Initialize signals with proper types
-- [ ] Use descriptive names for your signals
-- [ ] Don't mutate signal values directly
+Sometimes you need a signal's current value inside a reactive context but don't want changes to it to re-run your code. Wrap the read with `untracked()`:
 
-## 🚀 Next Steps
+```ts
+import { effect, signal, untracked } from '@angular/core';
 
-1. **[Computed Signals](/modern/computed-signals/)** - Create derived state
-2. **[Effects API](/modern/effects/)** - Handle side effects with signals
-3. **[Linked Signals](/modern/linked-signals/)** - Advanced signal patterns
+const currentUser = signal('ada');
+const counter = signal(0);
 
----
+// Re-runs only when currentUser changes, not when counter changes
+effect(() => {
+  console.log(`User: ${currentUser()}, counter: ${untracked(counter)}`);
+});
 
-**Remember**: Signals are the foundation of modern Angular reactivity! Start using them in new components and gradually migrate existing ones. The performance benefits and developer experience improvements are incredible! 🚀
+// Also useful to call code that might read signals internally
+effect(() => {
+  const user = currentUser();
+  untracked(() => {
+    logger.log(`User changed to ${user}`); // signal reads inside log() aren't tracked
+  });
+});
+```
+
+If you write a helper that must never run in a reactive context (for example because it subscribes to something), guard it with `assertNotInReactiveContext(myHelper)`; it throws a clear error if someone calls it from a `computed` or template.
+
+## Equality functions
+
+By default a signal only notifies when the new value is not `Object.is()`-equal to the old one. Setting the same primitive twice does nothing:
+
+```ts
+const n = signal(1);
+n.set(1); // no notification
+```
+
+You can supply your own `equal` function to `signal()`, `computed()` and `linkedSignal()`:
+
+```ts
+interface User {
+  id: number;
+  name: string;
+}
+
+// Treat users with the same id as "the same" value
+const user = signal<User>({ id: 1, name: 'Ada' }, { equal: (a, b) => a.id === b.id });
+
+user.set({ id: 1, name: 'Ada Lovelace' }); // equal → no update!
+```
+
+:::caution
+A custom `equal` that returns `true` means the new value is **ignored for notification purposes** — dependents keep showing the old one. Only use it when "equal" really means "nothing visible changed" (for example a deep-equal check on arrays).
+:::
+
+## Debugging helpers
+
+```ts
+import { isSignal, isWritableSignal, signal, computed } from '@angular/core';
+
+const clicks = signal(0, { debugName: 'clicks' }); // name shown in Angular DevTools
+const doubled = computed(() => clicks() * 2, { debugName: 'doubled' });
+
+isSignal(clicks);          // true
+isWritableSignal(doubled); // false
+```
+
+Angular DevTools can display the **signal graph** of a component — which signals, computeds and effects depend on each other. See [Angular DevTools](/tools/devtools/).
+
+## Debouncing a signal (experimental)
+
+`debounced(source, ms)` turns a fast-changing signal (like a search box) into a **resource** whose value only settles after the source stops changing:
+
+```ts title="search.ts"
+import { Component, debounced, resource, signal } from '@angular/core';
+
+@Component({
+  selector: 'app-search',
+  template: `
+    <input (input)="query.set($event.target.value)" />
+    @if (results.isLoading()) {
+      <p>Searching…</p>
+    }
+    <ul>
+      @for (item of results.value(); track item.id) {
+        <li>{{ item.name }}</li>
+      }
+    </ul>
+  `,
+})
+export class Search {
+  protected readonly query = signal('');
+  protected readonly debouncedQuery = debounced(this.query, 300);
+
+  protected readonly results = resource({
+    params: () => this.debouncedQuery.value(),
+    loader: ({ params }) => fetchResults(params),
+    defaultValue: [],
+  });
+}
+```
+
+While the timer is running, `debouncedQuery.status()` is `'loading'` and `value()` keeps the previous settled value. It must be created in an injection context (or given `{ injector }`), and Angular cancels the timer automatically when the component is destroyed.
+
+:::caution[Experimental]
+`debounced()` was added in v22.0 as **experimental** — the API may change in a minor release. For forms, use the stable `debounce()` rule from Signal Forms instead.
+:::
+
+## Signals and change detection
+
+When a template reads a signal, Angular registers that component's view as a consumer. When the signal changes, Angular marks **that component** for refresh and schedules change detection — components whose signals didn't change are skipped. That is why signals work so well with:
+
+- **OnPush** components (the default since v22) — no need for `markForCheck()`.
+- **Zoneless** apps (the default since v21) — signals are one of the notifications Angular listens to. See [Zoneless Angular](/modern/zoneless/).
+
+## Common mistakes
+
+| Mistake | Why it's a problem | Fix |
+|---|---|---|
+| `{{ count }}` instead of `{{ count() }}` | Prints the function, not the value | Call the signal |
+| `this.items().push(x)` | Mutation doesn't change the reference → no update | `this.items.update(l => [...l, x])` |
+| Copying one signal into another with `effect()` | Extra change detection cycles, glitches, loops | Use `computed()` or `linkedSignal()` |
+| Reading signals after `await` in an effect | Not tracked | Read them first |
+| Using a custom `equal` that's too loose | Real changes are swallowed | Keep default equality unless you're sure |
+| Creating signals inside a template expression or getter | New signal every check | Create signals once as class fields |
+
+## Version notes
+
+- Signals (`signal`, `computed`) became stable in v17; `effect`, `linkedSignal` and `toSignal` in v20.
+- Resources (`resource`, `rxResource`, `httpResource`) became stable in v22.
+- `debounced()` and `resourceFromSnapshots()` are experimental in v22.
+
+## Key takeaways
+
+- `signal()` holds state; call it to read, `set()`/`update()` to write.
+- `computed()` derives state lazily and caches it; prefer it over effects.
+- Only synchronous reads inside reactive contexts are tracked; use `untracked()` to opt out.
+- Treat values as immutable — new objects/arrays on every change.
+- Expose state with `asReadonly()` from services.
+
+## Next steps
+
+- [Computed Signals](/modern/computed-signals/) — derived state in depth
+- [Effects](/modern/effects/) — side effects, and when *not* to use them
+- [Linked Signals](/modern/linked-signals/) — writable state that resets from a source
+- [Testing Signals](/testing/testing-signals/)

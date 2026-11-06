@@ -1,383 +1,103 @@
 ---
 title: Incremental Hydration 💧
-description: Master Angular's incremental hydration for lightning-fast SSR performance
+description: Defer client-side hydration of server-rendered Angular content until it is needed, using hydration triggers in @defer blocks.
 sidebar:
   order: 10
 ---
 
-Incremental hydration is like having a smart loading system for your Angular app - instead of loading everything at once, it loads components precisely when they're needed. Think of it as upgrading from a gas-guzzling truck to a hybrid car that only uses fuel when necessary.
+Incremental hydration lets an Angular application render deferred content on the server while delaying the JavaScript work needed to hydrate that content in the browser. The HTML remains visible and can become interactive when a hydration trigger fires.
 
-## 🎯 What is Incremental Hydration?
+Use it to reduce initial client-side work for non-critical page sections. It does not make server rendering optional: incremental hydration requires SSR and client hydration, and it does not guarantee a performance improvement for every page.
 
-**Incremental hydration is Angular's game-changing approach to SSR** that dramatically improves performance by hydrating components only when needed, rather than all at once. It's like having a smart waiter who brings you each course exactly when you're ready for it.
+## Requirements and setup
 
-**Key Benefits:**
-- **⚡ Faster LCP** - Users see content immediately
-- **🚀 Better INP** - Interactions respond instantly  
-- **📐 Stable CLS** - No unexpected layout shifts
-- **🧠 Smarter Loading** - JavaScript loads only when needed
-- **📱 Mobile Optimized** - Perfect for slower devices
+The application must use SSR and `provideClientHydration()`. In Angular 22, **incremental hydration is enabled by default** whenever you call `provideClientHydration()` — you do not need `withIncrementalHydration()` (which is now deprecated):
 
-## 🔄 How It Works
-
-**Traditional**: All components hydrate immediately → Slow, blocking
-**Incremental**: Components hydrate when needed → Fast, responsive
-
-- **Critical content** (header, main) → Hydrates immediately
-- **Below-the-fold** (footer, comments) → Hydrates on viewport
-- **Interactive features** (search, filters) → Hydrates on interaction
-- **Heavy components** (charts, analytics) → Hydrates on idle
-
-## 🛠️ Setting Up Incremental Hydration
-
-### Step 1: Enable SSR (If Not Already Done)
-
-```bash
-# Add SSR to existing project (built-in since Angular 17)
-ng add @angular/ssr
-
-# Or create new project with SSR
-ng new my-app --ssr
-```
-
-### Step 2: Enable Incremental Hydration
-
-**Update your app configuration:**
-
-```typescript
-// app.config.ts
+```ts title="app.config.ts"
 import { ApplicationConfig } from '@angular/core';
-import { provideRouter } from '@angular/router';
-import { provideClientHydration, withIncrementalHydration } from '@angular/platform-browser';
+import {
+  provideClientHydration,
+  withNoIncrementalHydration,
+} from '@angular/platform-browser';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideRouter(routes),
-    // Enable incremental hydration - that's it! 🎉
-    provideClientHydration(withIncrementalHydration()),
-    // Your other providers...
-  ]
+    // Incremental hydration + event replay are active by default in Angular 22:
+    provideClientHydration(),
+    // If you ever need to opt out of incremental hydration:
+    // provideClientHydration(withNoIncrementalHydration()),
+  ],
 };
 ```
 
-**That's literally it!** Angular handles the complex stuff automatically.
+In the SSR application configuration, make sure the providers used by the browser are also included in the server configuration. Angular CLI SSR projects commonly share providers through `mergeApplicationConfig()`.
 
-## 🎮 Using @defer for Smart Loading
+Incremental hydration enables event replay automatically.
 
-### Basic @defer Syntax
+## Add a hydration boundary
 
-**The `@defer` block is your hydration control center:**
+Add a `hydrate` trigger to an `@defer` block. On the server, Angular renders the block's main content. In the browser, that content remains dehydrated until a trigger fires:
 
-```typescript
-@Component({
-  template: `
-    <div class="app">
-      <!-- Critical content loads immediately -->
-      <header class="header">
-        <h1>My App</h1>
-        <nav>...</nav>
-      </header>
-
-      <!-- Defer heavy components -->
-      @defer (on viewport) {
-        <heavy-chart-component />
-      } @placeholder {
-        <div class="chart-skeleton">Loading chart...</div>
-      } @loading {
-        <div class="spinner">⏳ Loading...</div>
-      } @error {
-        <div class="error">Failed to load chart</div>
-      }
-    </div>
-  `
-})
-export class AppComponent {}
-```
-
-## 🎯 Hydration Triggers
-
-### 1. **hydrate on interaction** - User Clicks/Taps
-
-```typescript
-@Component({
-  template: `
-    <!-- Hydrates only when user interacts -->
-    @defer (hydrate on interaction) {
-      <expensive-user-profile />
-    } @placeholder {
-      <div class="profile-placeholder">
-        <div class="avatar-skeleton"></div>
-        <div class="name-skeleton"></div>
-      </div>
-    }
-  `
-})
-```
-
-### 2. **hydrate on viewport** - When Scrolled Into View
-
-```typescript
-@Component({
-  template: `
-    <!-- Perfect for below-the-fold content -->
-    @defer (hydrate on viewport) {
-      <heavy-product-reviews />
-    } @placeholder {
-      <div class="reviews-skeleton">
-        Loading reviews...
-      </div>
-    }
-  `
-})
-```
-
-### 3. **hydrate on idle** - When Browser is Free
-
-```typescript
-@Component({
-  template: `
-    <!-- Hydrates when browser has spare time -->
-    @defer (hydrate on idle) {
-      <analytics-dashboard />
-    } @placeholder {
-      <div class="dashboard-skeleton">
-        Dashboard loading...
-      </div>
-    }
-  `
-})
-```
-
-### 4. **hydrate on timer** - After Specific Time
-
-```typescript
-@Component({
-  template: `
-    <!-- Hydrates after 3 seconds -->
-    @defer (hydrate on timer(3s)) {
-      <social-media-feed />
-    } @placeholder {
-      <div class="feed-skeleton">
-        Loading social feed...
-      </div>
-    }
-  `
-})
-```
-
-### 5. **Advanced: Preload Strategy**
-
-```typescript
-@Component({
-  template: `
-    <!-- Hydrates on interaction, but preloads when idle -->
-    @defer (hydrate on interaction; preload on idle) {
-      <expensive-component />
-    } @placeholder {
-      <button class="load-component">
-        Click to activate component
-      </button>
-    }
-  `
-})
-```
-
-### 6. **Never Hydrate** - Static Content Only
-
-```typescript
-@Component({
-  template: `
-    <!-- Never hydrates - pure static content -->
-    @defer (hydrate never) {
-      <static-content-component />
-    } @placeholder {
-      <div class="static-placeholder">
-        Static content loading...
-      </div>
-    }
-  `
-})
-```
-
-### 7. **Combining Multiple Triggers**
-
-```typescript
-@Component({
-  template: `
-    <!-- Multiple hydration strategies -->
-    @defer (hydrate on interaction; preload on timer(5s)) {
-      <complex-feature />
-    } @placeholder {
-      <div class="feature-placeholder">
-        Click to activate or wait 5 seconds
-      </div>
-    }
-  `
-})
-```
-
-## 🏗️ Real-World Implementation Patterns
-
-### E-commerce Product Page
-
-```typescript
-@Component({
-  template: `
-    <div class="product-page">
-      <!-- Critical: Load immediately -->
-      <product-header [product]="product()" />
-      <product-images [images]="product().images" />
-      <add-to-cart-button [product]="product()" />
-
-      <!-- Hydrate when scrolled into view -->
-      @defer (hydrate on viewport) {
-        <product-reviews />
-      } @placeholder {
-        <div class="reviews-skeleton">Loading reviews...</div>
-      }
-
-      <!-- Hydrate on user interaction -->
-      @defer (hydrate on interaction) {
-        <product-comparison-tool />
-      } @placeholder {
-        <button class="compare-btn">Compare Products</button>
-      }
-
-      <!-- Hydrate when browser is idle, preload after 5s -->
-      @defer (hydrate on idle; preload on timer(5s)) {
-        <related-products />
-      } @placeholder {
-        <div class="related-skeleton">Loading related products...</div>
-      }
-
-      <!-- Never hydrate - pure static content -->
-      @defer (hydrate never) {
-        <newsletter-signup />
-      } @placeholder {
-        <div class="newsletter-placeholder">Newsletter signup</div>
-      }
-    </div>
-  `
-})
-export class ProductPageComponent {
-  product = signal<Product>(/* product data */);
-}
-```
-
-### Dashboard Application
-
-```typescript
-@Component({
-  template: `
-    <div class="dashboard">
-      <!-- Critical: Always visible -->
-      <dashboard-header />
-      <main-metrics />
-
-      <!-- Hydrate when scrolled into view -->
-      @defer (hydrate on viewport) {
-        <revenue-chart />
-      } @placeholder {
-        <div class="chart-placeholder">📊 Revenue Chart</div>
-      }
-
-      <!-- Hydrate on interaction, preload when idle -->
-      @defer (hydrate on interaction; preload on idle) {
-        <user-analytics />
-      } @placeholder {
-        <div class="analytics-placeholder">
-          Click to load user analytics
-        </div>
-      }
-
-      <!-- Hydrate when browser is idle -->
-      @defer (hydrate on idle) {
-        <data-export-tool />
-        <advanced-reporting />
-      } @placeholder {
-        <div class="tools-placeholder">Loading tools...</div>
-      }
-    </div>
-  `
-})
-export class DashboardComponent {}
-```
-
-## 📊 Performance Impact
-
-**Core Web Vitals Improvements:**
-- **LCP**: 3.2s → 1.1s (65% faster)
-- **INP**: 340ms → 89ms (74% better)
-- **CLS**: 0.15 → 0.02 (87% more stable)
-- **Bundle**: 2.5MB → 800KB initial (68% smaller)
-
-## 🔧 Best Practices
-
-### 1. **Prioritize Critical Content**
-
-```typescript
-// ✅ Good - Critical content loads first
-<header /> <!-- Always hydrate -->
-<main-content /> <!-- Always hydrate -->
-
-@defer (on viewport) {
-  <footer /> <!-- Defer non-critical -->
-}
-```
-
-### 2. **Use Meaningful Placeholders**
-
-```typescript
-// ✅ Good - Informative placeholder
-@defer (on interaction) {
-  <advanced-search />
+```html
+@defer (hydrate on viewport) {
+  <app-product-reviews [productId]="productId()" />
 } @placeholder {
-  <button class="search-placeholder">
-    🔍 Click for advanced search
-  </button>
-}
-
-// ❌ Avoid - Generic placeholder
-@defer (on interaction) {
-  <advanced-search />
-} @placeholder {
-  <div>Loading...</div>
+  <section aria-label="Product reviews">
+    <p>Reviews are loading…</p>
+  </section>
 }
 ```
 
-### 3. **Keep It Simple**
+The placeholder can be visible in client-only rendering or if the deferred content cannot be rendered on the server. Keep dimensions and accessible labels appropriate to avoid layout shifts and confusing screen-reader output.
 
-```typescript
-// ✅ Good - Clear and focused
-@defer (hydrate on interaction) {
-  <user-settings />
+## Hydration triggers
+
+The available triggers are:
+
+| Trigger | When Angular hydrates |
+| --- | --- |
+| `hydrate on idle` | When the browser is idle; accepts an optional timeout such as `hydrate on idle(2s)`. |
+| `hydrate on viewport` | When the block enters the viewport. |
+| `hydrate on interaction` | After a user interaction with the block or a specified reference. |
+| `hydrate on hover` | When the pointer hovers or the block receives focus. |
+| `hydrate on immediate` | As soon as non-deferred content has rendered. |
+| `hydrate on timer(500ms)` | After the specified duration. |
+| `hydrate when condition` | When a template expression becomes truthy. |
+| `hydrate never` | Keep the block dehydrated for the lifetime of the page. Use only for content that does not need client-side behavior. |
+
+Multiple `hydrate` triggers can be separated with semicolons; the first trigger to fire starts hydration.
+
+```html
+@defer (hydrate on interaction; hydrate on timer(5s)) {
+  <app-recommendations />
 } @placeholder {
-  <button>⚙️ Settings</button>
-}
-
-// ❌ Avoid - Overly complex
-@defer (hydrate on interaction; preload on timer(5s); on viewport) {
-  <complex-component />
+  <button type="button">Load recommendations</button>
 }
 ```
 
-## 🎯 Quick Checklist
+Use a trigger that matches the content's purpose. For example, `hydrate on viewport` is often appropriate for below-the-fold content, while a control that users may activate immediately should not be delayed behind an unpredictable trigger.
 
-- [ ] Enable SSR in your Angular application
-- [ ] Add `withIncrementalHydration()` to app config
-- [ ] Identify non-critical components for deferral
-- [ ] Choose appropriate hydration triggers
-- [ ] Add meaningful placeholders and loading states
-- [ ] Test on different devices and network speeds
-- [ ] Monitor Core Web Vitals improvements
-- [ ] Use browser DevTools to verify hydration timing
+## Hydration is not the same as loading
 
-## 🚀 Next Steps
+Ordinary `@defer` triggers (`on idle`, `on viewport`, `on interaction`, and others) control when deferred dependencies and content are loaded. `hydrate` triggers control when server-rendered content becomes interactive in the browser. Incremental hydration combines these behaviors so the server can render the main content without eagerly hydrating it on the client.
 
-1. **[Zoneless Angular](/modern/zoneless/)** - Combine with zoneless for maximum performance
-2. **[New Control Flow](/modern/control-flow/)** - Use @defer with @if, @for, @switch
-3. **[Signal Forms](/modern/signal-forms/)** - Reactive forms with incremental loading
+Do not use hydration triggers as a substitute for route-level code splitting, server-side data loading, or a loading/error state for a request. Each solves a different problem.
 
----
+## Event replay
 
-**Remember**: Incremental hydration is like having a smart assistant that knows exactly when to bring you what you need - not too early, not too late, but precisely at the right moment! 💧
+Incremental hydration uses event replay to capture supported user events that occur before a dehydrated block becomes interactive, then replay them after hydration. Event replay does not make every interaction or third-party widget safe to delay. Test keyboard, pointer, focus and form interactions on the actual rendered page.
+
+## Practical guidance
+
+- Start with a measurable goal such as reducing initial JavaScript work; compare Core Web Vitals and bundle/network traces before and after.
+- Defer content that is useful to show on the initial page but does not need immediate client behavior.
+- Keep server and browser markup consistent and avoid browser-only APIs during server rendering.
+- Ensure any data needed to render the deferred block is available to SSR.
+- Avoid delaying essential navigation, form submission, or other critical interactions.
+- Test hydration in a production build; development mode alone does not reflect real loading behavior.
+
+## Related guides
+
+- [SSR Introduction](/ssr/introduction/)
+- [Hydration](/ssr/hydration/)
+- [Template Control Flow & `@defer`](/modern/control-flow/#deferrable-views-defer)
