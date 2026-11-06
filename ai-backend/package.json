@@ -1,0 +1,13 @@
+{
+  "name": "ng-guide-ask-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --env-file=.env --watch server.mjs"
+  }
+}

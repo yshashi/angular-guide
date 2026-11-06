@@ -1,0 +1,8 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+import AskAI from './AskAI.astro';
+import { ASK_AI_ENDPOINT } from '../config.js';
+---
+
+<Default />
+{ASK_AI_ENDPOINT && <AskAI endpoint={ASK_AI_ENDPOINT} />}

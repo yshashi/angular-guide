@@ -1,0 +1,128 @@
+---
+import { SITE_URL } from '../lib/ai-docs';
+
+const id = Astro.locals.starlightRoute.entry.id;
+const mdPath = `/${id}.md`;
+const pageUrl = id === 'index' ? `${SITE_URL}/` : `${SITE_URL}/${id}/`;
+const prompt = `Read ${SITE_URL}${mdPath} (a page from NG Guide, an Angular 22 learning site; source: ${pageUrl}) so I can ask questions about it. Use Angular 22 conventions in any code you write.`;
+const chatGptUrl = `https://chatgpt.com/?hints=search&q=${encodeURIComponent(prompt)}`;
+const claudeUrl = `https://claude.ai/new?q=${encodeURIComponent(prompt)}`;
+---
+
+<div class="page-actions not-content" data-md-path={mdPath}>
+	<button type="button" class="pa-btn pa-copy" data-copy-page aria-live="polite">
+		<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1Zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H10V7h9v14Z"></path></svg>
+		<span data-copy-label>Copy page</span>
+	</button>
+	<details class="pa-menu">
+		<summary class="pa-btn" aria-label="More page actions">
+			<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2 9.5 8.5 3 11l6.5 2.5L12 20l2.5-6.5L21 11l-6.5-2.5L12 2Z"></path></svg>
+			<span>Ask AI about this page</span>
+			<svg class="pa-caret" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="m7 10 5 5 5-5H7Z"></path></svg>
+		</summary>
+		<ul class="pa-list" role="list">
+			<li><a href={chatGptUrl} target="_blank" rel="noopener noreferrer">Open in ChatGPT</a></li>
+			<li><a href={claudeUrl} target="_blank" rel="noopener noreferrer">Open in Claude</a></li>
+			<li><a href={mdPath} target="_blank" rel="noopener">View as Markdown</a></li>
+			<li><a href="/ai/use-ng-guide-with-ai/">Use NG Guide with your AI tools →</a></li>
+		</ul>
+	</details>
+</div>
+
+<script>
+	function setup() {
+		document.querySelectorAll<HTMLElement>('.page-actions').forEach((root) => {
+			const button = root.querySelector<HTMLButtonElement>('[data-copy-page]');
+			const label = root.querySelector<HTMLElement>('[data-copy-label]');
+			const mdPath = root.dataset.mdPath;
+			if (!button || !label || !mdPath || button.dataset.ready) return;
+			button.dataset.ready = 'true';
+			button.addEventListener('click', async () => {
+				try {
+					const response = await fetch(mdPath);
+					if (!response.ok) throw new Error(`HTTP ${response.status}`);
+					await navigator.clipboard.writeText(await response.text());
+					label.textContent = 'Copied!';
+				} catch {
+					label.textContent = 'Copy failed';
+				}
+				setTimeout(() => (label.textContent = 'Copy page'), 2000);
+			});
+		});
+		document.addEventListener('click', (event) => {
+			document.querySelectorAll<HTMLDetailsElement>('.pa-menu[open]').forEach((menu) => {
+				if (!menu.contains(event.target as Node)) menu.open = false;
+			});
+		});
+	}
+	setup();
+</script>
+
+<style>
+	.page-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.pa-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.5rem;
+		background: var(--sl-color-black);
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-xs);
+		font-weight: 500;
+		line-height: 1.4;
+		cursor: pointer;
+		list-style: none;
+		transition: border-color 0.15s, color 0.15s;
+	}
+	.pa-btn::-webkit-details-marker {
+		display: none;
+	}
+	.pa-btn:hover,
+	.pa-btn:focus-visible,
+	.pa-menu[open] > .pa-btn {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+	.pa-menu {
+		position: relative;
+	}
+	.pa-menu[open] .pa-caret {
+		transform: rotate(180deg);
+	}
+	.pa-list {
+		position: absolute;
+		z-index: 10;
+		top: calc(100% + 0.35rem);
+		inset-inline-start: 0;
+		min-width: 15rem;
+		margin: 0;
+		padding: 0.35rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.6rem;
+		background: var(--sl-color-black);
+		box-shadow: var(--sl-shadow-md);
+	}
+	.pa-list li {
+		margin: 0;
+	}
+	.pa-list a {
+		display: block;
+		padding: 0.45rem 0.6rem;
+		border-radius: 0.4rem;
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-sm);
+		text-decoration: none;
+	}
+	.pa-list a:hover,
+	.pa-list a:focus-visible {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+	}
+</style>
