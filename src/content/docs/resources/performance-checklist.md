@@ -1,290 +1,119 @@
 ---
 title: Performance Checklist ⚡
-description: Comprehensive performance optimization checklist for Angular applications
+description: A practical Angular performance checklist focused on Core Web Vitals, production measurements, rendering, bundles and network behavior.
 sidebar:
   order: 4
 ---
 
-A prioritized checklist for optimizing Angular application performance. Work through each section methodically — the items at the top of each section typically have the highest impact.
+Use this checklist to find and fix measured bottlenecks. Performance depends on the application and its users; none of these techniques guarantees a faster result without measurement.
 
-## 🔄 Change Detection
+## Measure first
 
-- [ ] **Use `OnPush` change detection on every component** — Prevents Angular from checking the component on every cycle. Only checks when inputs change or signals update.
+- [ ] Record LCP, INP and CLS for representative routes and devices.
+- [ ] Use a production build and test both lab measurements and real-user data.
+- [ ] Capture a browser performance trace before changing code.
+- [ ] Set project-specific bundle budgets and review regressions in CI.
 
-```typescript
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  // ...
-})
-```
+## Rendering and state
 
-- [ ] **Use signals for all component state** — Signals notify Angular exactly which components need updating, skipping unnecessary checks.
-
-```typescript
-// ✅ Signal-based state
-count = signal(0);
-doubled = computed(() => this.count() * 2);
-
-// ❌ Plain properties trigger broad checks
-count = 0;
-get doubled() { return this.count * 2; }
-```
-
-- [ ] **Use `computed()` for derived state** — Computed signals are memoized and only recalculate when their dependencies change.
-
-- [ ] **Consider going zoneless** — Angular 21 supports experimental zoneless change detection, eliminating Zone.js overhead entirely.
-
-```typescript
-// app.config.ts
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideExperimentalZonelessChangeDetection(),
-    // ...
-  ],
-};
-```
-
-- [ ] **Avoid triggering change detection in `effect()`** — Effects that modify signals can cause infinite loops. Use `untracked()` for reads you don't want to track.
-
-## 📦 Bundle Size
-
-- [ ] **Lazy-load feature routes** — Only load code when the user navigates to a route.
-
-```typescript
-{
-  path: 'admin',
-  loadChildren: () =>
-    import('./admin/admin.routes').then(m => m.adminRoutes),
-}
-```
-
-- [ ] **Use `loadComponent` for standalone page components** — Avoids bundling pages the user may never visit.
-
-```typescript
-{
-  path: 'settings',
-  loadComponent: () =>
-    import('./settings.component').then(m => m.SettingsComponent),
-}
-```
-
-- [ ] **Analyze your bundle** — Use `ng build --stats-json` and then `npx webpack-bundle-analyzer dist/stats.json` to identify large dependencies.
-
-- [ ] **Remove unused imports** — Tree-shaking only works if you don't import things you don't use. Check for barrel file re-exports that pull in entire modules.
-
-- [ ] **Use `@defer` for heavy below-the-fold components** — Deferred components are split into separate chunks automatically.
-
-- [ ] **Avoid importing entire libraries** — Import specific functions/modules instead of entire packages.
-
-```typescript
-// ✅ Good — tree-shakable import
-import { map, filter } from 'rxjs';
-
-// ❌ Bad — imports everything
-import * as rxjs from 'rxjs';
-```
-
-## 🖼️ Rendering Performance
-
-- [ ] **Always provide `track` in `@for` blocks** — The `track` expression enables Angular to reuse DOM nodes instead of recreating them.
+- [ ] Use signals for mutable state consumed by templates and `computed()` for derived values.
+- [ ] Angular 22 defaults components to `ChangeDetectionStrategy.OnPush`; inspect update migrations for components that need eager behavior.
+- [ ] In zoneless apps, make asynchronous updates notify Angular with signals, `AsyncPipe`, `markForCheck()` or another supported mechanism.
+- [ ] Keep template expressions inexpensive and side-effect free.
+- [ ] Use a stable key in every `@for` block.
+- [ ] Consider virtual scrolling for measured large-list rendering bottlenecks.
+- [ ] Use `effect()` for synchronizing with imperative APIs, not for deriving state.
 
 ```html
-<!-- ✅ Track by unique ID -->
 @for (user of users(); track user.id) {
   <app-user-card [user]="user" />
 }
-
-<!-- ⚠️ Track by index — only if items have no unique ID -->
-@for (item of items(); track $index) {
-  <span>{{ item }}</span>
-}
 ```
 
-- [ ] **Use `@defer` to lazy-load heavy components** — Split large widgets, charts, and editors into deferred blocks.
+## Loading and bundles
 
-```html
-@defer (on viewport) {
-  <app-analytics-chart [data]="chartData()" />
-} @placeholder {
-  <div class="chart-skeleton" style="height: 400px"></div>
-}
-```
-
-- [ ] **Use virtual scrolling for long lists** — The CDK `VirtualScrollViewport` renders only visible items.
-
-```html
-<cdk-virtual-scroll-viewport itemSize="48" class="list-viewport">
-  <div *cdkVirtualFor="let item of items" class="list-item">
-    {{ item.name }}
-  </div>
-</cdk-virtual-scroll-viewport>
-```
-
-- [ ] **Avoid DOM manipulation in tight loops** — Batch DOM changes. Prefer signal-driven updates over imperative DOM mutations.
-
-- [ ] **Limit the use of `effect()`** — Effects run on every signal change. Prefer `computed()` when you're just deriving values.
-
-## 🌐 Network Performance
-
-- [ ] **Use `httpResource` for declarative data fetching** — Caches results and provides built-in loading/error states.
-
-```typescript
-readonly users = httpResource<User[]>(() => '/api/users');
-```
-
-- [ ] **Implement HTTP caching with interceptors** — Cache GET requests to avoid redundant network calls.
-
-```typescript
-export const cacheInterceptor: HttpInterceptorFn = (req, next) => {
-  if (req.method !== 'GET') return next(req);
-
-  const cache = inject(HttpCacheService);
-  const cached = cache.get(req.urlWithParams);
-  if (cached) return of(cached);
-
-  return next(req).pipe(
-    tap(event => {
-      if (event instanceof HttpResponse) {
-        cache.set(req.urlWithParams, event);
-      }
-    }),
-  );
-};
-```
-
-- [ ] **Use preloading strategies** — Preload lazy routes after the initial load completes.
-
-```typescript
-provideRouter(
-  routes,
-  withPreloading(PreloadAllModules),
-)
-```
-
-- [ ] **Use service workers for offline support** — Add `@angular/service-worker` for PWA caching.
+- [ ] Lazy-load routes that are not needed for the initial page.
+- [ ] Use `@defer` for non-critical components that can load later; provide an appropriate placeholder and error state.
+- [ ] Dynamically import large libraries when they are needed.
+- [ ] Remove unused dependencies and imports.
+- [ ] Review the production output and set budgets that match the project.
+- [ ] Consider selective route preloading only when the navigation benefit outweighs the extra downloads.
 
 ```bash
-ng add @angular/service-worker
+ng build --configuration production
 ```
 
-- [ ] **Compress API responses** — Ensure your server sends gzip or brotli-compressed responses.
+## Images and layout
 
-## 🖼️ Image Optimization
+- [ ] Set image dimensions or an aspect ratio to reserve space.
+- [ ] Use `NgOptimizedImage` where appropriate; mark likely LCP images as `priority`, accounting for different screen sizes.
+- [ ] Serve responsive, compressed image formats.
+- [ ] Avoid layout shifts caused by late-loading content and fonts.
+- [ ] Use semantic HTML, labels and accessible alternatives for visual content.
 
-- [ ] **Use `NgOptimizedImage` for all images** — Enforces best practices automatically (lazy loading, sizing, priority hints).
+Import `NgOptimizedImage` in the component before using `ngSrc`:
 
 ```html
-<!-- Hero image — mark as priority -->
-<img ngSrc="/hero.jpg" width="1200" height="600" priority />
-
-<!-- Regular images — lazy-loaded by default -->
-<img ngSrc="/product.jpg" width="400" height="300" />
+<img ngSrc="/assets/hero.webp" width="1200" height="600" priority alt="Your product" />
+<img ngSrc="/assets/product.webp" width="400" height="300" alt="Product detail" />
 ```
 
-- [ ] **Set `priority` on LCP images** — The Largest Contentful Paint image should always have the `priority` attribute.
+Use real image paths, dimensions and descriptive alternatives. Only mark an image `priority` when it is a likely LCP candidate.
 
-- [ ] **Provide `width` and `height` attributes** — Prevents layout shift (CLS). `NgOptimizedImage` will warn if these are missing.
+## Data and network
 
-- [ ] **Use responsive images with `ngSrcset`** — Serve appropriate image sizes based on viewport.
+- [ ] Request only the data the current route needs; paginate large collections.
+- [ ] Use `httpResource()` for reactive HTTP reads when its resource semantics fit; it does not automatically cache arbitrary server responses.
+- [ ] Use `HttpClient` for writes and imperative request workflows.
+- [ ] Add caching only with a clear freshness, invalidation and privacy policy.
+- [ ] Compress responses and use a CDN where appropriate.
+- [ ] Avoid making requests that are not needed for the initial user task.
+- [ ] Debounce search input and cancel superseded requests where appropriate.
+- [ ] Consider a service worker for offline support only after reviewing its caching and update behavior.
 
-```html
-<img
-  ngSrc="/product.jpg"
-  ngSrcset="300w, 600w, 900w"
-  sizes="(max-width: 768px) 100vw, 50vw"
-  width="900"
-  height="600"
-/>
+## SSR and rendering strategy
+
+- [ ] Choose CSR, prerendering or SSR based on route requirements and data freshness.
+- [ ] Add hydration only when it improves the measured user experience.
+- [ ] Verify server rendering does not wait on irrelevant background work.
+- [ ] Test browser-only APIs and third-party widgets in the server-rendered app.
+
+## Memory and cleanup
+
+- [ ] Prefer `AsyncPipe` or `toSignal()` over manual subscriptions when appropriate.
+- [ ] Use `takeUntilDestroyed()` for subscriptions that need imperative handling.
+- [ ] Clean up timers, observers and external event listeners.
+- [ ] Keep effects tied to a lifecycle and clean up external resources they create.
+
+For an imperative subscription created in an injection context:
+
+```ts
+interval(1000)
+  .pipe(takeUntilDestroyed())
+  .subscribe((tick) => this.ticks.set(tick));
 ```
 
-- [ ] **Use modern image formats** — Serve WebP or AVIF with fallbacks.
+Import `interval` from `rxjs` and `takeUntilDestroyed` from `@angular/core/rxjs-interop`. For a complete component and guidance on calls outside an injection context, see [Performance Optimization](/advanced/performance/#clean-up-long-lived-work).
 
-## 🧹 Memory Management
+## Example bundle budgets
 
-- [ ] **Use `takeUntilDestroyed()` for all subscriptions** — Automatically unsubscribes when the component is destroyed.
-
-```typescript
-export class MyComponent {
-  private readonly destroyRef = inject(DestroyRef);
-
-  constructor() {
-    this.someObservable$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(value => this.data.set(value));
-  }
-}
-```
-
-- [ ] **Prefer signals over manual subscriptions** — Signals don't need unsubscription. Use `computed()` and `effect()` instead of `.subscribe()` where possible.
-
-- [ ] **Clean up event listeners** — Use the `host` property in the decorator, which Angular manages automatically.
-
-```typescript
-@Component({
-  host: {
-    '(window:resize)': 'onResize($event)',
-  },
-})
-```
-
-- [ ] **Avoid memory leaks in `effect()`** — Effects are cleaned up automatically when the owning context is destroyed. Don't create effects in services without proper lifecycle management.
-
-- [ ] **Use `untracked()` to prevent unnecessary subscriptions** — In effects that read many signals, use `untracked()` for signals you only want to read, not react to.
-
-```typescript
-effect(() => {
-  const id = this.userId(); // react to this
-  const config = untracked(() => this.config()); // just read this
-  this.loadUser(id, config);
-});
-```
-
-## 🏗️ Build Optimization
-
-- [ ] **Use the default esbuild builder** — Angular 21 uses esbuild by default, which is significantly faster than webpack.
-
-- [ ] **Enable production optimizations** — Always build with `ng build` (production mode is the default).
-
-```bash
-ng build                    # production by default
-ng build --configuration=development  # dev build
-```
-
-- [ ] **Enable route-level code splitting** — This happens automatically with `loadComponent` and `loadChildren`.
-
-- [ ] **Configure budget limits** — Set bundle size budgets in `angular.json` to catch regressions.
+Put project-specific limits in `angular.json` under `architect.build.configurations.production`:
 
 ```json
-"budgets": [
-  {
-    "type": "initial",
-    "maximumWarning": "500kB",
-    "maximumError": "1MB"
-  },
-  {
-    "type": "anyComponentStyle",
-    "maximumWarning": "4kB",
-    "maximumError": "8kB"
-  }
-]
+{
+  "budgets": [
+    { "type": "initial", "maximumWarning": "500kB", "maximumError": "1MB" },
+    { "type": "anyComponentStyle", "maximumWarning": "4kB", "maximumError": "8kB" }
+  ]
+}
 ```
 
-- [ ] **Enable SSR/SSG for content pages** — Server-side rendering improves Time to First Byte (TTFB) and SEO.
+These values are examples, not required limits. A warning highlights a regression; an error budget fails the build.
 
-```bash
-ng add @angular/ssr
-```
+## After each change
 
-## 📊 Monitoring and Profiling
+- [ ] Re-run the same performance measurement.
+- [ ] Confirm functionality, keyboard behavior and screen-reader output still work.
+- [ ] Keep the change only if measurements or maintainability improve.
 
-- [ ] **Use Angular DevTools** — The Chrome/Firefox extension shows component trees, change detection cycles, and profiler data.
-
-- [ ] **Profile with Chrome DevTools Performance tab** — Record and analyze runtime performance bottlenecks.
-
-- [ ] **Monitor Core Web Vitals** — Track LCP, FID/INP, and CLS in production.
-
-- [ ] **Set up error tracking** — Use tools like Sentry to catch runtime errors in production.
-
-:::tip
-Start with the **Change Detection** and **Bundle Size** sections — these typically provide the biggest performance wins with the least effort.
-:::
+See [Performance Optimization](/advanced/performance/) and [Zoneless Angular](/modern/zoneless/) for detailed guidance. Current Core Web Vitals definitions and thresholds are maintained at [web.dev](https://web.dev/articles/vitals).
