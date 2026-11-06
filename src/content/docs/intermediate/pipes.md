@@ -1,551 +1,318 @@
 ---
 title: Pipes & Custom Pipes 🔧
-description: Transform data with Angular pipes and create custom ones
+description: Format values in Angular templates with built-in pipes, compose transformations and create reusable custom pipes.
 sidebar:
   order: 8
 ---
 
-Pipes are like filters for your data - they take raw information and transform it into a format that's perfect for display. Think of them as the formatting tools that make your data look exactly how you want it in the user interface.
+A pipe transforms a value for display in a template. Pipes keep presentation formatting out of component logic and can be reused across templates.
 
-## 🎯 What Are Pipes?
+The expression to the left of `|` is the input; the name to the right selects the pipe:
 
-**Imagine pipes as a series of processing stations** - your data goes in one end, gets transformed along the way, and comes out perfectly formatted on the other side. They're pure functions that don't change the original data, just how it appears.
-
-**Why Use Pipes?**
-- **Clean Templates** - Keep formatting logic out of components
-- **Reusable** - Use the same pipe across multiple components
-- **Pure Functions** - Predictable transformations
-- **Performance** - Angular optimizes pipe execution
-
-## 🔧 Built-in Pipes
-
-### Text Transformation Pipes
-
-**These pipes are like text editors** - they help you format strings exactly how you need them.
-
-```typescript
-@Component({
-  selector: 'app-text-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h3>Text Transformation Examples</h3>
-      
-      <!-- Original text -->
-      <p>Original: {{userInput()}}</p>
-      
-      <!-- Text transformations -->
-      <p>Uppercase: {{userInput() | uppercase}}</p>
-      <p>Lowercase: {{userInput() | lowercase}}</p>
-      <p>Title Case: {{userInput() | titlecase}}</p>
-      
-      <!-- Slicing text -->
-      <p>First 10 chars: {{userInput() | slice:0:10}}</p>
-      <p>Last 5 chars: {{userInput() | slice:-5}}</p>
-      
-      <input [(ngModel)]="inputValue" (input)="updateInput()">
-    </div>
-  `
-})
-export class TextDemoComponent {
-  inputValue = 'hello world from angular pipes';
-  userInput = signal(this.inputValue);
-
-  updateInput() {
-    this.userInput.set(this.inputValue);
-  }
-}
+```html
+<p>{{ customerName() | uppercase }}</p>
 ```
 
-### Number and Currency Pipes
+Pipes are Angular template syntax, not the JavaScript bitwise OR operator. They format displayed values; they do not change the original value.
 
-**These pipes are like calculators and accountants** - they format numbers, currencies, and percentages perfectly.
+## Built-in pipes
 
-```typescript
+Angular provides these pipes in `@angular/common`:
+
+| Pipe name | Import | Common use |
+| --- | --- | --- |
+| `uppercase`, `lowercase`, `titlecase` | `UpperCasePipe`, `LowerCasePipe`, `TitleCasePipe` | Format text |
+| `number`, `percent`, `currency` | `DecimalPipe`, `PercentPipe`, `CurrencyPipe` | Format numbers using locale rules |
+| `date` | `DatePipe` | Format dates and times |
+| `slice` | `SlicePipe` | Display part of a string or array |
+| `keyvalue` | `KeyValuePipe` | Iterate over an object or map as key-value entries |
+| `i18nPlural`, `i18nSelect` | `I18nPluralPipe`, `I18nSelectPipe` | Select a message using a count or key |
+| `json` | `JsonPipe` | Inspect an object while debugging |
+| `async` | `AsyncPipe` | Display the latest Observable or Promise value |
+
+Import the pipes used by a standalone component:
+
+```ts
+import { CurrencyPipe, DatePipe, DecimalPipe, PercentPipe, UpperCasePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+
 @Component({
-  selector: 'app-number-demo',
+  selector: 'app-order-summary',
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, PercentPipe, UpperCasePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div>
-      <h3>Number Formatting Examples</h3>
-      
-      <!-- Basic number formatting -->
-      <p>Raw number: {{price()}}</p>
-      <p>Decimal places: {{price() | number:'1.2-2'}}</p>
-      <p>With commas: {{largeNumber() | number:'1.0-0'}}</p>
-      
-      <!-- Currency formatting -->
-      <p>USD: {{price() | currency:'USD':'symbol':'1.2-2'}}</p>
-      <p>EUR: {{price() | currency:'EUR':'symbol':'1.2-2'}}</p>
-      <p>Custom: {{price() | currency:'USD':'symbol-narrow':'1.0-0'}}</p>
-      
-      <!-- Percentage -->
-      <p>Percentage: {{percentage() | percent:'1.1-1'}}</p>
-      
-      <!-- Controls -->
-      <div>
-        <label>Price: 
-          <input type="number" [(ngModel)]="priceValue" (input)="updatePrice()">
-        </label>
-        <label>Percentage: 
-          <input type="number" [(ngModel)]="percentValue" (input)="updatePercent()" step="0.01">
-        </label>
-      </div>
-    </div>
-  `
+    <h2>{{ order().customerName | uppercase }}</h2>
+    <p>Placed: {{ order().createdAt | date:'mediumDate':'UTC' }}</p>
+    <p>Items: {{ order().itemCount | number }}</p>
+    <p>Total: {{ order().total | currency:'USD':'symbol':'1.2-2' }}</p>
+    <p>Discount: {{ order().discount | percent }}</p>
+  `,
 })
-export class NumberDemoComponent {
-  priceValue = 1234.56;
-  percentValue = 0.85;
-  
-  price = signal(this.priceValue);
-  percentage = signal(this.percentValue);
-  largeNumber = signal(1234567);
-
-  updatePrice() {
-    this.price.set(this.priceValue);
-  }
-
-  updatePercent() {
-    this.percentage.set(this.percentValue);
-  }
-}
-```
-
-### Date Pipes
-
-**Date pipes are like time machines** - they can display dates and times in any format you need, for any timezone.
-
-```typescript
-@Component({
-  selector: 'app-date-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <h3>Date Formatting Examples</h3>
-      
-      <!-- Current date in different formats -->
-      <p>Raw date: {{currentDate()}}</p>
-      <p>Short: {{currentDate() | date:'short'}}</p>
-      <p>Medium: {{currentDate() | date:'medium'}}</p>
-      <p>Long: {{currentDate() | date:'long'}}</p>
-      <p>Full: {{currentDate() | date:'full'}}</p>
-      
-      <!-- Custom formats -->
-      <p>Custom: {{currentDate() | date:'dd/MM/yyyy HH:mm'}}</p>
-      <p>Day name: {{currentDate() | date:'EEEE, MMMM d, y'}}</p>
-      <p>Time only: {{currentDate() | date:'HH:mm:ss'}}</p>
-      
-      <!-- Relative time -->
-      <p>Created: {{createdDate() | date:'short'}}</p>
-      <p>Time ago: {{timeAgo()}}</p>
-      
-      <button (click)="updateTime()">Update Current Time</button>
-    </div>
-  `
-})
-export class DateDemoComponent implements OnInit {
-  currentDate = signal(new Date());
-  createdDate = signal(new Date(Date.now() - 2 * 60 * 60 * 1000)); // 2 hours ago
-  
-  timeAgo = computed(() => {
-    const now = this.currentDate().getTime();
-    const created = this.createdDate().getTime();
-    const diffMinutes = Math.floor((now - created) / (1000 * 60));
-    
-    if (diffMinutes < 60) {
-      return `${diffMinutes} minutes ago`;
-    } else {
-      const diffHours = Math.floor(diffMinutes / 60);
-      return `${diffHours} hours ago`;
-    }
+export class OrderSummary {
+  readonly order = signal({
+    customerName: 'Ada Lovelace',
+    createdAt: new Date('2026-01-02T12:00:00Z'),
+    itemCount: 3,
+    total: 125.5,
+    discount: 0.25,
   });
-
-  ngOnInit() {
-    // Update time every second
-    setInterval(() => {
-      this.currentDate.set(new Date());
-    }, 1000);
-  }
-
-  updateTime() {
-    this.currentDate.set(new Date());
-  }
 }
 ```
 
-## 🎨 Creating Custom Pipes
+With the default `en-US` locale, the total is `$125.50` and the discount is `25%`. The percent pipe treats `0.25` as 25%, not 0.25%. Date output can also depend on the timezone; this example explicitly uses UTC.
 
-**Custom pipes are like building your own specialized tools** - when the built-in ones don't do exactly what you need.
+## Pipe parameters and chaining
 
-### Simple Custom Pipe
+Pass parameters after a colon. Pipes can be chained from left to right:
 
-```typescript
-// highlight.pipe.ts
-@Pipe({
-  name: 'highlight'
-})
-export class HighlightPipe implements PipeTransform {
-  transform(text: string, searchTerm: string): string {
-    if (!text || !searchTerm) {
-      return text;
-    }
-    
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
-    return text.replace(regex, '<mark>$1</mark>');
-  }
-}
+```html
+<p>{{ publishedAt() | date:'longDate':'UTC' }}</p>
+<p>{{ subtotal() | currency:currencyCode():'symbol':'1.2-2' }}</p>
+<p>{{ description() | slice:0:160 }}…</p>
+```
 
-// Usage in component
+Keep chains readable. When formatting becomes conditional or domain-specific, use a custom pipe or compute the display value in the component.
+
+For number and currency pipes, a digits argument such as `1.2-2` means at least one integer digit and between two and two fraction digits. The currency code is separate from the locale: use `currency:'EUR'` when the amount is in euros, rather than relying on a locale to convert currencies.
+
+Parenthesize a conditional before piping its result:
+
+```html
+<p>{{ (isAdmin() ? 'access granted' : 'access denied') | uppercase }}</p>
+```
+
+Without parentheses, the pipe applies to the last branch of this conditional, not necessarily to the whole expression.
+
+### Plurals and object entries
+
+The plural pipe chooses a message for a count; `#` in the selected message is replaced by the count. `keyvalue` turns an object or map into entries that a template can loop over:
+
+```ts
+import { I18nPluralPipe, KeyValuePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+
 @Component({
-  selector: 'app-search-results',
+  selector: 'app-file-settings',
+  imports: [I18nPluralPipe, KeyValuePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [HighlightPipe],
   template: `
-    <div>
-      <input [(ngModel)]="searchTerm" placeholder="Search...">
-      
-      @for (item of searchResults(); track item.id) {
-        <div [innerHTML]="item.title | highlight:searchTerm"></div>
-      }
-    </div>
-  `
+    <p>{{ files().length | i18nPlural:fileMessages }}</p>
+    @for (entry of settings | keyvalue; track entry.key) {
+      <p>{{ entry.key }}: {{ entry.value }}</p>
+    }
+  `,
 })
-export class SearchResultsComponent {
-  searchTerm = '';
-  
-  searchResults = signal([
-    { id: 1, title: 'Angular Pipes Tutorial' },
-    { id: 2, title: 'Custom Pipe Examples' },
-    { id: 3, title: 'Pipe Performance Tips' }
-  ]);
+export class FileSettings {
+  readonly files = signal(['report.pdf', 'photo.jpg']);
+  readonly fileMessages = { '=0': 'No files', '=1': 'One file', other: '# files' };
+  readonly settings = { pageSize: 20, theme: 'dark' };
 }
 ```
 
-### Advanced Custom Pipe with Parameters
+Plural categories depend on the configured locale. `keyvalue` uses its default key ordering unless you provide a comparison function; do not assume it always preserves insertion order.
 
-```typescript
-// truncate.pipe.ts
+## Locale and timezone
+
+Number, date and currency pipes use Angular locale data. Angular includes `en-US` by default; register the data for another locale and provide `LOCALE_ID` in the application configuration:
+
+```ts
+import { registerLocaleData } from '@angular/common';
+import localeFr from '@angular/common/locales/fr';
+import { ApplicationConfig, LOCALE_ID } from '@angular/core';
+
+registerLocaleData(localeFr, 'fr-FR');
+
+export const appConfig: ApplicationConfig = {
+  providers: [{ provide: LOCALE_ID, useValue: 'fr-FR' }],
+};
+```
+
+Formatting uses the chosen locale; it does not translate your application text or perform currency conversion. When a timezone is not specified, `DatePipe` uses its configured default or the local system timezone. For server-rendered applications, use an explicit timezone when the server and browser must produce the same date and time.
+
+Outside a template, use a formatting function instead of creating a component just to use a pipe:
+
+```ts
+import { formatDate } from '@angular/common';
+
+const label = formatDate(new Date('2026-01-02T12:00:00Z'), 'mediumDate', 'en-US', 'UTC');
+```
+
+## Observable values with `AsyncPipe`
+
+`AsyncPipe` subscribes to an Observable or Promise and renders its latest value. It unsubscribes from an Observable when the view is destroyed or the expression changes:
+
+```ts
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { delay, of } from 'rxjs';
+
+interface Product {
+  id: number;
+  name: string;
+}
+
+@Component({
+  selector: 'app-product-list',
+  imports: [AsyncPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (products$ | async; as products) {
+      @for (product of products; track product.id) {
+        <p>{{ product.name }}</p>
+      } @empty {
+        <p>No products found.</p>
+      }
+    } @else {
+      <p role="status">Loading products…</p>
+    }
+  `,
+})
+export class ProductList {
+  readonly products$ = of<Product[]>([
+    { id: 1, name: 'Notebook' },
+    { id: 2, name: 'Pencil' },
+  ]).pipe(delay(500));
+}
+```
+
+The delay simulates an asynchronous source. For a real request, model loading and failure explicitly; an `@else` loading message does not by itself handle an Observable error. Keep the Observable reference stable rather than creating a new Observable on every template check.
+
+If component logic also needs the latest value, consider converting an Observable once with `toSignal()`:
+
+```ts
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { interval, map } from 'rxjs';
+
+@Component({
+  selector: 'app-elapsed-time',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<p>Elapsed: {{ seconds() }} seconds</p>`,
+})
+export class ElapsedTime {
+  readonly seconds = toSignal(
+    interval(1000).pipe(map((tick) => tick + 1)),
+    { initialValue: 0 },
+  );
+}
+```
+
+`toSignal()` subscribes immediately and normally cleans up with its injection context. If the Observable errors, reading the signal throws; handle the error in the stream or model an error state when needed. Use `AsyncPipe` when a value is only needed in the template; neither approach universally replaces the other.
+
+## Create a custom pipe
+
+Use `@Pipe` for a pure, reusable transformation. A pure pipe reruns when its input value or arguments change. Save this example as `truncate-pipe.ts`:
+
+```ts
+import { Pipe, PipeTransform } from '@angular/core';
+
 @Pipe({
-  name: 'truncate'
+  name: 'truncate',
 })
 export class TruncatePipe implements PipeTransform {
-  transform(
-    text: string, 
-    limit: number = 50, 
-    trail: string = '...'
-  ): string {
-    if (!text) return '';
-    
-    if (text.length <= limit) {
-      return text;
+  transform(value: string | null | undefined, limit = 80): string {
+    if (!Number.isInteger(limit) || limit < 0) {
+      throw new RangeError('The limit must be a non-negative integer.');
     }
-    
-    return text.substring(0, limit).trim() + trail;
+    if (value == null) return '';
+    if (value.length <= limit) return value;
+    if (limit === 0) return '';
+    return `${value.slice(0, limit - 1).trimEnd()}…`;
   }
 }
+```
 
-// file-size.pipe.ts
-@Pipe({
-  name: 'fileSize'
+The limit includes the ellipsis, so the returned string is never longer than the limit in JavaScript UTF-16 code units. Use a grapheme-aware approach such as `Intl.Segmenter` when truncating arbitrary user-visible text containing emoji or combining characters.
+
+Use the pipe from a component that imports it:
+
+```ts
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { TruncatePipe } from './truncate-pipe';
+
+@Component({
+  selector: 'app-article-summary',
+  imports: [TruncatePipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<p>{{ summary() | truncate:20 }}</p>`,
 })
+export class ArticleSummary {
+  readonly summary = signal('Angular pipes make values easier to read.');
+}
+```
+
+### Example: file sizes
+
+Another reusable presentation transformation is formatting file sizes. Save this example as `file-size.ts`. The pipe uses binary units: one KiB is 1,024 bytes.
+
+```ts
+import { Pipe, PipeTransform } from '@angular/core';
+
+@Pipe({ name: 'fileSize' })
 export class FileSizePipe implements PipeTransform {
-  transform(bytes: number, precision: number = 1): string {
+  transform(bytes: number, decimals = 1): string {
+    if (!Number.isSafeInteger(bytes) || bytes < 0) {
+      throw new RangeError('File size must be a non-negative safe integer.');
+    }
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 4) {
+      throw new RangeError('Decimals must be an integer from 0 to 4.');
+    }
     if (bytes === 0) return '0 B';
-    
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const base = 1024;
-    const unitIndex = Math.floor(Math.log(bytes) / Math.log(base));
-    const size = bytes / Math.pow(base, unitIndex);
-    
-    return `${size.toFixed(precision)} ${units[unitIndex]}`;
-  }
-}
 
-// Component using custom pipes
-@Component({
-  selector: 'app-file-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TruncatePipe, FileSizePipe],
-  template: `
-    <div>
-      <h3>File List</h3>
-      
-      @for (file of files(); track file.id) {
-        <div>
-          <div>
-            <strong>{{file.name | truncate:30}}</strong>
-          </div>
-          <div>
-            Size: {{file.size | fileSize:2}}
-          </div>
-          <div>
-            Description: {{file.description | truncate:100:'... (read more)'}}
-          </div>
-        </div>
-      }
-    </div>
-  `
-})
-export class FileListComponent {
-  files = signal([
-    {
-      id: 1,
-      name: 'very-long-filename-that-needs-truncation.pdf',
-      size: 2048576,
-      description: 'This is a very long description that explains what this file contains and why it might be important for the user to understand its contents.'
-    },
-    {
-      id: 2,
-      name: 'image.jpg',
-      size: 524288,
-      description: 'A beautiful landscape photo taken during vacation.'
-    }
-  ]);
-}
-```
-
-### Async Pipe Alternative with Signals
-
-**Modern approach: Converting observables to signals instead of using async pipe.**
-
-```typescript
-// Modern signal-based approach
-@Component({
-  selector: 'app-user-profile',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      @if (user()) {
-        <div>
-          <h2>{{user()!.name}}</h2>
-          <p>{{user()!.email}}</p>
-          <p>Joined: {{user()!.joinDate | date:'mediumDate'}}</p>
-        </div>
-      } @else if (loading()) {
-        <div>Loading user...</div>
-      } @else {
-        <div>User not found</div>
-      }
-    </div>
-  `
-})
-export class UserProfileComponent {
-  private userService = inject(UserService);
-  private route = inject(ActivatedRoute);
-  
-  // Convert observable to signal
-  user = toSignal(
-    this.route.params.pipe(
-      switchMap(params => this.userService.getUser(params['id']))
-    )
-  );
-  
-  loading = signal(false);
-}
-```
-
-## 🔄 Pipe Chaining and Composition
-
-**Pipe chaining is like an assembly line** - each pipe does one job, and you can combine them for complex transformations.
-
-```typescript
-@Component({
-  selector: 'app-pipe-chaining',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TruncatePipe, HighlightPipe],
-  template: `
-    <div>
-      <h3>Pipe Chaining Examples</h3>
-      
-      <input [(ngModel)]="searchTerm" placeholder="Search term">
-      
-      @for (post of posts(); track post.id) {
-        <article>
-          <!-- Chain multiple pipes -->
-          <h4 [innerHTML]="post.title | truncate:50 | highlight:searchTerm"></h4>
-          
-          <!-- Complex chaining -->
-          <p [innerHTML]="post.content | truncate:200:'...' | highlight:searchTerm"></p>
-          
-          <small>
-            {{post.author | titlecase}} • 
-            {{post.publishDate | date:'shortDate'}} • 
-            {{post.readTime}} min read
-          </small>
-        </article>
-      }
-    </div>
-  `
-})
-export class PipeChainingComponent {
-  searchTerm = '';
-  
-  posts = signal([
-    {
-      id: 1,
-      title: 'Understanding Angular Pipes and Their Power',
-      content: 'Angular pipes are a powerful feature that allows you to transform data in your templates. They provide a clean way to format and display data without cluttering your component logic.',
-      author: 'john doe',
-      publishDate: new Date('2024-01-15'),
-      readTime: 5
-    },
-    {
-      id: 2,
-      title: 'Custom Pipes: Building Your Own Data Transformers',
-      content: 'Creating custom pipes in Angular gives you the flexibility to implement any data transformation you need. This article covers best practices and common patterns.',
-      author: 'jane smith',
-      publishDate: new Date('2024-02-01'),
-      readTime: 8
-    }
-  ]);
-}
-```
-
-## 🚀 Performance Considerations
-
-**Pure vs Impure Pipes - Understanding the difference is crucial for performance.**
-
-```typescript
-// Pure pipe (default) - only runs when input changes
-@Pipe({
-  name: 'expensiveCalculation',
-  pure: true // This is the default
-})
-export class ExpensiveCalculationPipe implements PipeTransform {
-  transform(value: number): number {
-    console.log('Pure pipe executed'); // Only logs when value changes
-    
-    // Expensive calculation
-    let result = value;
-    for (let i = 0; i < 1000000; i++) {
-      result = Math.sqrt(result + 1);
-    }
-    return result;
-  }
-}
-
-// Impure pipe - runs on every change detection cycle
-@Pipe({
-  name: 'currentTime',
-  pure: false // Runs every change detection cycle
-})
-export class CurrentTimePipe implements PipeTransform {
-  transform(): string {
-    console.log('Impure pipe executed'); // Logs frequently
-    return new Date().toLocaleTimeString();
-  }
-}
-
-// Better approach: Use signals for frequently changing data
-@Component({
-  selector: 'app-performance-demo',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div>
-      <!-- Pure pipe - good performance -->
-      <p>Calculation: {{inputValue() | expensiveCalculation}}</p>
-      
-      <!-- Impure pipe - use sparingly -->
-      <p>Current time (impure): {{'' | currentTime}}</p>
-      
-      <!-- Better approach with signals -->
-      <p>Current time (signal): {{currentTime()}}</p>
-      
-      <input type="number" [(ngModel)]="value" (input)="updateValue()">
-    </div>
-  `
-})
-export class PerformanceDemoComponent implements OnInit, OnDestroy {
-  value = 100;
-  inputValue = signal(this.value);
-  currentTime = signal(new Date().toLocaleTimeString());
-  
-  private timeInterval?: number;
-
-  ngOnInit() {
-    // Update time with signal instead of impure pipe
-    this.timeInterval = window.setInterval(() => {
-      this.currentTime.set(new Date().toLocaleTimeString());
-    }, 1000);
-  }
-
-  ngOnDestroy() {
-    if (this.timeInterval) {
-      clearInterval(this.timeInterval);
-    }
-  }
-
-  updateValue() {
-    this.inputValue.set(this.value);
+    const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+    const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / 1024 ** index).toFixed(decimals)} ${units[index]}`;
   }
 }
 ```
 
-## ✅ Best Practices
+For example, `2048 | fileSize:1` displays `2.0 KiB`. Import `FileSizePipe` into the component that uses it. Validate external data before passing it to the pipe; invalid sizes or precision produce an explicit error rather than a misleading value.
 
-### 1. **Keep Pipes Pure When Possible**
-```typescript
-// ✅ Good - Pure pipe for simple transformations
-@Pipe({ name: 'capitalize', pure: true })
-export class CapitalizePipe implements PipeTransform {
-  transform(value: string): string {
-    return value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
-  }
-}
+## Pure and impure pipes
 
-// ❌ Avoid - Impure pipes for simple transformations
-@Pipe({ name: 'capitalize', pure: false })
-export class BadCapitalizePipe { /* ... */ }
+Custom pipes are **pure** by default. Angular reruns a pure pipe when a primitive argument changes or when an object, array or `Date` argument has a new reference. If a collection changes, replace it instead of mutating the existing array:
+
+```ts
+this.files.update((files) => [...files, newFile]);
 ```
 
-### 2. **Use Signals Instead of Async Pipe**
-```typescript
-// ✅ Modern approach - Convert to signal
-export class Component {
-  data = toSignal(this.service.getData());
-}
+An impure pipe (`pure: false`) can run whenever its view is checked, even if its inputs have the same references. It may be expensive, and it does not make an otherwise unchanged OnPush view check itself. `AsyncPipe` is intentionally impure because it manages asynchronous values; that does not make all impure pipes appropriate.
 
-// ✅ Still valid - Async pipe for simple cases
-@Component({
-  template: `{{data$ | async}}`
-})
-export class Component {
-  data$ = this.service.getData();
-}
+Keep custom pipes synchronous and side-effect free. Do not fetch data or mutate application state in `transform()`. For expensive derived state, consider a `computed()` signal and measure the result.
+
+## Test a custom pipe
+
+A pipe without injected dependencies can be tested as a normal class. For example, with Vitest:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { TruncatePipe } from './truncate-pipe';
+
+describe('TruncatePipe', () => {
+  const pipe = new TruncatePipe();
+
+  it('limits the output including the ellipsis', () => {
+    expect(pipe.transform('Angular', 4)).toBe('Ang…');
+    expect(pipe.transform('Angular', 0)).toBe('');
+    expect(pipe.transform('Angular', 10)).toBe('Angular');
+  });
+
+  it('handles missing input and rejects an invalid limit', () => {
+    expect(pipe.transform(null, 4)).toBe('');
+    expect(() => pipe.transform('Angular', -1)).toThrow(RangeError);
+  });
+});
 ```
 
-### 3. **Handle Null and Undefined Values**
-```typescript
-@Pipe({ name: 'safeTransform' })
-export class SafeTransformPipe implements PipeTransform {
-  transform(value: string | null | undefined): string {
-    // Always handle null/undefined cases
-    if (!value) return '';
-    
-    return value.toUpperCase();
-  }
-}
-```
+Also test the component that imports the pipe when you need to verify template wiring.
 
-## 🎯 Quick Checklist
+## Common pitfalls
 
-- [ ] Use built-in pipes for common transformations
-- [ ] Create custom pipes for reusable logic
-- [ ] Keep pipes pure for better performance
-- [ ] Handle null/undefined values gracefully
-- [ ] Use pipe chaining for complex transformations
-- [ ] Consider signals instead of async pipe
-- [ ] Test custom pipes thoroughly
-- [ ] Use meaningful pipe names
-- [ ] Document complex pipe logic
+- **Mutating an object in place:** A pure pipe may not rerun because the reference did not change. Replace the object or array instead.
+- **Repeated expensive work:** Move complex calculations to a `computed()` signal or cache at the appropriate layer.
+- **Missing locale:** Register locale data and set `LOCALE_ID` for supported locales beyond the default.
+- **Timezone surprises:** Set a timezone when an application needs consistent server and browser output.
+- **Using `JsonPipe` in production UI:** It is useful for debugging, not for presenting user-facing data.
+- **Forgetting imports:** Standalone components must import each built-in or custom pipe they use.
 
-## 🚀 Next Steps
-
-1. **[Angular Material](/intermediate/material/)** - UI components with built-in pipes
-2. **[Testing](/intermediate/testing/)** - Testing custom pipes
-3. **[Performance](/advanced/performance/)** - Optimizing pipe performance
-
----
-
-**Remember**: Pipes are like specialized tools in your toolkit - use the right one for each job, and don't be afraid to create custom ones when you need something specific. Keep them simple, pure, and focused on one transformation! 🔧
+Continue with [Template Control Flow](/modern/control-flow/), [Unit Testing](/testing/unit-testing/) and [Performance Optimization](/advanced/performance/).
