@@ -1,49 +1,60 @@
-# Starlight Starter Kit: Basics
+# NG Guide
 
-[![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
+**A one-stop, beginner-friendly guide to modern Angular.**
 
+Learn Angular 22 from the first component through signals, Signal Forms, routing, HTTP, RxJS, testing, server rendering, deployment and complete projects. The site also covers Angular's CLI MCP server and practical ways to use AI tools safely.
+
+🌐 **Read the guide:** [ng-guide.letsprogram.in](https://ng-guide.letsprogram.in/)
+
+## What this repository contains
+
+- **Astro + Starlight** documentation site. Content is authored in `src/content/docs/`.
+- **Shared sidebar and AI index** in `src/sidebar.mjs`.
+- **Markdown endpoints** for each page, plus `/llms.txt` and `/llms-full.txt` for AI tools.
+- **Per-page actions** to copy Markdown or open the page in an AI assistant.
+- **Downloadable Angular agent skill** at `/skills/ng-guide/SKILL.md`.
+- An optional **Ask AI** widget backed by `ai-backend/`; it is disabled unless `PUBLIC_ASK_AI_ENDPOINT` is configured.
+
+## Run the site locally
+
+Requirements: Node.js supported by the installed Astro version and npm.
+
+```bash
+npm install
+npm run dev
 ```
-npm create astro@latest -- --template starlight
+
+Open [http://localhost:4321](http://localhost:4321).
+
+## Build and preview
+
+```bash
+npm run build
+npm run preview
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+The site builds statically into `dist/`.
 
-## 🚀 Project Structure
+## Add or update a documentation page
 
-Inside of your Astro + Starlight project, you'll see the following folders and files:
+1. Add or edit a `.md` / `.mdx` file under `src/content/docs/`.
+2. Include `title` and `description` frontmatter.
+3. Add the page's label and slug to `src/sidebar.mjs`.
+4. Follow [best-practice.md](./best-practice.md) for Angular examples.
+5. Run `npm run build`.
 
-```
-.
-├── public/
-├── src/
-│   ├── assets/
-│   ├── content/
-│   │   └── docs/
-│   └── content.config.ts
-├── astro.config.mjs
-├── package.json
-└── tsconfig.json
-```
+The sidebar also controls the ordering used by `/llms.txt` and `/llms-full.txt`.
 
-Starlight looks for `.md` or `.mdx` files in the `src/content/docs/` directory. Each file is exposed as a route based on its file name.
+## Optional Ask AI service
 
-Images can be added to `src/assets/` and embedded in Markdown with a relative link.
+The widget stays hidden unless the build environment defines `PUBLIC_ASK_AI_ENDPOINT`. The backend is a small Node.js service that retrieves relevant text from the guide and calls an OpenAI-compatible LLM API. Configure it using [ai-backend/README.md](./ai-backend/README.md).
 
-Static assets, like favicons, can be placed in the `public/` directory.
+**Never place an LLM API key in `PUBLIC_` variables or browser code.** Set `LLM_API_KEY` only in the backend's environment or secret manager.
 
-## 🧞 Commands
+## Angular version baseline
 
-All commands are run from the root of the project, from a terminal:
+Content targets Angular 22.2 and includes short notes for older versions when behavior differs. Angular's release cadence and APIs change; version-specific claims should be rechecked against official release notes before future updates.
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+## Contributing
 
-## 👀 Want to learn more?
-
-Check out [Starlight’s docs](https://starlight.astro.build/), read [the Astro documentation](https://docs.astro.build), or jump into the [Astro Discord server](https://astro.build/chat).
+Keep examples accurate, accessible and self-contained. Prefer internal guide links and clearly label preview or experimental APIs. Pull requests that update version-sensitive facts should include the source used for verification.

@@ -1,11 +1,12 @@
 ---
-title: Complete Angular Guide
-description: Master Angular from beginner to advanced - comprehensive guide covering all latest features including Angular 19, 20, and 21
+title: NG Guide — Learn Modern Angular
+description: A free, beginner-friendly guide to Angular 22 — signals, standalone components, Signal Forms, testing with Vitest, SSR, real projects and AI tooling.
 template: splash
 hero:
-  tagline: Master Angular from Beginner to Expert!
+  title: Learn Modern Angular, Step by Step
+  tagline: A free, beginner-friendly guide to Angular 22 — from your first component to signals, testing, SSR, real projects and AI-assisted development.
   image:
-    alt: Complete Angular Guide - From Zero to Hero
+    alt: NG Guide — learn modern Angular
     file: ../../assets/houston.webp
   actions:
     - text: Start Learning
@@ -20,99 +21,70 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## Welcome to the Complete Angular Guide! 🚀
+## Everything you need, in one place 🚀
 
-The most comprehensive Angular learning resource covering everything from absolute basics to advanced enterprise patterns. Master Angular 19, 20, 21 and beyond with hands-on examples, real-world projects, and industry best practices.
-
-### 🎯 What You'll Master
+NG Guide teaches **Angular 22** the way you would write it today: standalone components, signals,
+the built-in control flow (`@if`, `@for`), Signal Forms, zoneless change detection and Vitest.
+Every page explains the _why_ in plain English, then shows small, working, type-checked examples.
 
 <CardGrid>
-  <Card title="🌱 Complete Fundamentals" icon="puzzle">
-    Start from zero and build a solid foundation with components, services, routing, and forms.
+  <Card title="🌱 Start from zero" icon="puzzle">
+    No Angular experience needed. Set up your tools, build [your first app](/beginner/first-app/)
+    and learn components, templates, services, routing, forms and HTTP.
   </Card>
-  <Card title="⚡ Latest Features" icon="rocket">
-    Master Angular 19-21 features: Signals, Standalone Components, Control Flow, Zoneless, and more.
+  <Card title="⚡ Modern Angular" icon="rocket">
+    Master [signals](/modern/signals/), `computed`, `linkedSignal`, the
+    [Resource API](/modern/resource-api/), [Signal Forms](/modern/signal-forms/) and
+    [zoneless](/modern/zoneless/) apps — all stable in Angular 22.
   </Card>
-  <Card title="🏗️ Advanced Patterns" icon="setting">
-    Learn enterprise-grade patterns, performance optimization, testing, and deployment strategies.
+  <Card title="🧪 Testing & quality" icon="approve-check">
+    Write fast unit tests with [Vitest](/testing/unit-testing/), test components and services,
+    mock dependencies and run end-to-end tests with [Playwright](/testing/e2e-testing/).
   </Card>
-  <Card title="📱 Real Projects" icon="open-book">
-    Build complete applications: Todo apps, e-commerce dashboards, chat apps, and PWAs.
+  <Card title="🌐 SSR & hydration" icon="laptop">
+    Render on the server, prerender static pages and hydrate them in the browser — start with the
+    [SSR introduction](/ssr/introduction/).
+  </Card>
+  <Card title="💼 Real projects" icon="star">
+    Build complete apps: a [todo app](/projects/todo-app/), an [admin dashboard](/projects/dashboard/),
+    an [e-commerce store](/projects/ecommerce/), a [chat app](/projects/chat-app/) and a
+    [PWA](/projects/pwa/).
+  </Card>
+  <Card title="🤖 Angular + AI" icon="random">
+    Use the Angular CLI MCP server, AI config files and agent skills to get better AI help — see
+    [Angular + AI](/ai/overview/).
   </Card>
 </CardGrid>
 
-### 📚 Comprehensive Learning Structure
+## How the guide is organised 🗺️
 
 <CardGrid>
-  <Card title="🌱 Beginner-Friendly Start" icon="document">
-    Start from absolute zero - no prior Angular knowledge required. Build a solid foundation step by step.
+  <Card title="1. Beginner" icon="document">
+    [What is Angular?](/beginner/what-is-angular/) → components, templates, directives, services,
+    routing, forms and HTTP.
   </Card>
-  <Card title="💻 Hands-On Examples" icon="laptop">
-    Every concept comes with working code examples, interactive demos, and practical exercises.
+  <Card title="2. Intermediate" icon="list-format">
+    Component communication, lifecycle hooks, reactive forms, advanced routing, RxJS, state
+    management, pipes and Angular Material.
   </Card>
-  <Card title="🎯 Real-World Projects" icon="star">
-    Build complete applications: Todo apps, e-commerce dashboards, chat applications, and PWAs.
+  <Card title="3. Modern & advanced" icon="setting">
+    Signals in depth, control flow, `@let`, hydration, custom directives, dynamic components,
+    advanced DI and performance.
   </Card>
-  <Card title="🔍 Industry Best Practices" icon="approve-check">
-    Learn enterprise patterns, testing strategies, and deployment techniques used in production.
+  <Card title="4. Ship it" icon="external">
+    Testing, SSR, deployment, CI/CD, migration guides and developer tools.
   </Card>
 </CardGrid>
 
-### 🌟 What Makes This Guide Special
+## Why NG Guide? 💡
 
-- **📈 Progressive Learning**: Structured path from beginner to advanced with clear milestones
-- **🔬 Latest Features**: Comprehensive coverage of Angular 19, 20, and 21 features
-- **🏆 Production-Ready**: Real-world patterns and enterprise-grade solutions
-- **📱 Modern Development**: Standalone components, signals, zoneless change detection
-- **🎨 Interactive Learning**: Code playgrounds, visual diagrams, and step-by-step tutorials
+- **Up to date** — written for Angular 22.2 (the latest stable release), with short notes when
+  older versions behave differently.
+- **Simple first** — each topic starts with the basics and builds up to real-world use.
+- **Code you can trust** — examples use current best practices: `inject()`, `input()`/`output()`,
+  signals, native control flow and `@Service()`.
+- **One-stop** — concepts, examples, common mistakes and next steps on every page, so you rarely
+  need to look anywhere else.
 
-### 🚀 Complete Learning Path
-
-#### 🌱 **Beginner Level** (Weeks 1-4)
-Master the fundamentals: components, templates, services, routing, and forms
-
-#### 🚀 **Intermediate Level** (Weeks 5-8)  
-Advanced components, RxJS, state management, testing, and Angular Material
-
-#### ⚡ **Modern Angular** (Weeks 9-12)
-Latest features: Signals, standalone components, control flow, zoneless Angular
-
-#### 🏗️ **Advanced Topics** (Weeks 13-16)
-Performance optimization, custom directives, micro frontends, and enterprise patterns
-
-#### 🧪 **Testing & Quality** (Weeks 17-18)
-Comprehensive testing strategies, E2E testing, and code quality practices
-
-#### 🌐 **Deployment & Production** (Weeks 19-20)
-SSR, deployment strategies, CI/CD, and production optimization
-
-### 💡 Perfect For
-
-- **Complete Beginners** - Start your Angular journey from scratch
-- **Experienced Developers** - Upgrade to modern Angular patterns and latest features  
-- **Teams & Organizations** - Standardize on best practices and modern development
-- **Career Advancement** - Build portfolio projects and master in-demand skills
-
-### 🎯 What You'll Build
-
-Throughout this comprehensive guide, you'll create:
-
-- **📊 Interactive Dashboard** - Data visualization with charts and real-time updates
-- **🛒 E-commerce Platform** - Complete shopping experience with cart, checkout, and payments
-- **💬 Real-time Chat App** - WebSocket integration with user authentication
-- **📱 Progressive Web App** - Offline-first application with service workers
-- **🏢 Enterprise Dashboard** - Role-based access, data management, and reporting
-- **📝 Blog Platform** - Content management with rich text editing and SEO
-
-### 🏆 Learning Outcomes
-
-By completing this guide, you'll be able to:
-
-- ✅ Build production-ready Angular applications from scratch
-- ✅ Implement modern Angular patterns and latest features
-- ✅ Optimize applications for performance and scalability
-- ✅ Write comprehensive tests and maintain code quality
-- ✅ Deploy applications using modern CI/CD practices
-- ✅ Lead Angular projects and mentor other developers
-
-Ready to become an Angular expert? [Start your journey now!](/introduction/)
+Ready? [Start with the introduction](/introduction/) or jump straight to
+[building your first app](/beginner/first-app/). 🎉

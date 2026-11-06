@@ -1,273 +1,260 @@
 ---
 title: Learning Path Guide 🗺️
-description: Your complete roadmap to mastering Angular from beginner to expert - structured 20-week journey
+description: A structured roadmap through NG Guide — from your first component to signals, testing, SSR, deployment, real projects and AI tooling with Angular 22.
 sidebar:
   order: 4
 ---
 
+This page turns the whole guide into a clear plan. Follow it from top to bottom as a
+**~20-week course** (about 6–10 hours a week), or jump to the phase that matches what you already
+know. Every link below points to a page on this site.
 
-Welcome to your comprehensive roadmap for mastering Angular! This structured guide will take you from complete beginner to Angular expert through our carefully designed curriculum that aligns with our complete tutorial content.
+## What you'll learn
 
-## 🎯 Learning Objectives
+- Where to start based on your current experience
+- The order to read the guide in, phase by phase
+- Which project to build at the end of each phase
+- How to plan your study time
 
-By the end of this journey, you'll be able to:
-- Build production-ready Angular applications
-- Implement modern Angular patterns and latest features
-- Optimize applications for performance and scalability
-- Write comprehensive tests and maintain code quality
-- Deploy applications using modern CI/CD practices
-- Lead Angular projects and mentor other developers
+## Where should you start?
 
-## 📊 Skill Assessment
+| Your experience | Start here |
+| --- | --- |
+| New to Angular (and maybe to frameworks) | [What is Angular?](/beginner/what-is-angular/) |
+| You know React, Vue or Svelte | [Angular Architecture](/beginner/architecture/) → [Your First App](/beginner/first-app/) |
+| You used Angular before signals/standalone (v16 or older) | [Standalone Components](/modern/standalone-components/) → [Signals](/modern/signals/) |
+| You know modern Angular and want depth | [Advanced Topics](/advanced/custom-directives/), [Testing](/testing/unit-testing/), [SSR](/ssr/introduction/) |
+| You need to upgrade an existing app | [Version Upgrades](/migration/version-upgrade/) → [Modernization](/migration/modernization/) |
 
-Before starting, assess your current level:
+:::tip[Before you begin]
+Make sure you've read [Prerequisites](/prerequisites/) and set up your
+[Development Environment](/setup/). You need Node.js 22.22.3+, 24.15+ or 26 and Angular CLI 22.
+:::
 
-### Complete Beginner
-- New to Angular and web frameworks
-- Basic HTML, CSS, JavaScript knowledge
-- **Start here:** [What is Angular?](/beginner/what-is-angular/)
+## Phase 1 — Foundations (weeks 1–4) 🌱
 
-### Some Programming Experience
-- Familiar with JavaScript/TypeScript
-- Used other frameworks (React, Vue)
-- **Start here:** [Angular Architecture](/beginner/architecture/)
+Learn the building blocks every Angular app uses.
 
-### Angular Basics Known
-- Built simple Angular apps before
-- Want to learn modern features
-- **Start here:** [Modern Angular Features](/modern/standalone-components/)
+**Week 1: Getting started**
 
-### Experienced Developer
-- Solid Angular foundation
-- Ready for advanced topics
-- **Start here:** [Advanced Topics](/advanced/custom-directives/)
-
-## 🚀 20-Week Learning Path
-
-### 🌱 **Phase 1: Foundation (Weeks 1-4)**
-*Build a solid foundation with Angular fundamentals*
-
-#### Week 1: Getting Started
 - [ ] [What is Angular?](/beginner/what-is-angular/)
 - [ ] [Angular Architecture](/beginner/architecture/)
-- [ ] [Your First App](/beginner/first-app/)
-- [ ] **Project**: Hello World Angular App
+- [ ] [Your First App](/beginner/first-app/) — build a task manager
 
-#### Week 2: Core Concepts
+**Week 2: Components and templates**
+
 - [ ] [Components Basics](/beginner/components/)
 - [ ] [Templates & Data Binding](/beginner/templates/)
 - [ ] [Directives](/beginner/directives/)
-- [ ] **Project**: Interactive Component Gallery
 
-#### Week 3: Services & Dependency Injection
+**Week 3: Services and data**
+
 - [ ] [Services & DI](/beginner/services/)
 - [ ] [HTTP Client](/beginner/http/)
-- [ ] **Project**: Data Service with API Integration
 
-#### Week 4: Navigation & Forms
+**Week 4: Navigation and input**
+
 - [ ] [Routing Basics](/beginner/routing/)
 - [ ] [Forms Introduction](/beginner/forms/)
-- [ ] **Project**: Multi-page Application with Forms
 
-**Milestone**: Build a complete CRUD application
+🏁 **Milestone project:** a small multi-page app (list + detail + form) that loads data over HTTP.
+The [Todo App with Signals](/projects/todo-app/) project is a great guided option.
 
----
+## Phase 2 — Intermediate skills (weeks 5–8) 🚀
 
-### 🚀 **Phase 2: Intermediate Skills (Weeks 5-8)**
-*Master advanced component patterns and state management*
+Make components talk to each other, handle complex forms and navigation, and manage state.
 
-#### Week 5: Advanced Components
+**Week 5: Components in depth**
+
 - [ ] [Advanced Components](/intermediate/advanced-components/)
 - [ ] [Component Communication](/intermediate/component-communication/)
 - [ ] [Lifecycle Hooks](/intermediate/lifecycle-hooks/)
-- [ ] **Project**: Component Library
 
-#### Week 6: Forms & Validation
+**Week 6: Forms and pipes**
+
 - [ ] [Reactive Forms](/intermediate/reactive-forms/)
-- [ ] **Project**: Complex Form with Validation
+- [ ] [Pipes & Custom Pipes](/intermediate/pipes/)
 
-#### Week 7: Routing & Navigation
-- [ ] [Advanced Routing](/intermediate/advanced-routing/)
-- [ ] **Project**: Multi-module Application
+**Week 7: Routing and UI**
 
-#### Week 8: RxJS & State Management
+- [ ] [Advanced Routing](/intermediate/advanced-routing/) — lazy loading, guards, resolvers
+- [ ] [Angular Material](/intermediate/material/)
+
+**Week 8: Reactive data and state**
+
 - [ ] [RxJS & Observables](/intermediate/rxjs/)
 - [ ] [State Management](/intermediate/state-management/)
-- [ ] **Project**: State-driven Application
 
-**Milestone**: Build an e-commerce application
+🏁 **Milestone project:** [Blog Platform — Part 1](/projects/blog/),
+[Part 2](/projects/blog-part2/) and [Part 3](/projects/blog-part3/).
 
----
+## Phase 3 — Modern Angular (weeks 9–12) ⚡
 
-### ⚡ **Phase 3: Modern Angular (Weeks 9-12)**
-*Learn the latest Angular features and patterns*
+Master the APIs that define Angular today. Everything in this phase is **stable** in Angular 22.
 
-#### Week 9: Standalone Components
+**Week 9: Standalone and signals**
+
 - [ ] [Standalone Components](/modern/standalone-components/)
-- [ ] **Project**: Migrate existing app to standalone
-
-#### Week 10: Angular Signals
 - [ ] [Angular Signals](/modern/signals/)
 - [ ] [Computed Signals](/modern/computed-signals/)
-- [ ] **Project**: Signal-based State Management
 
-#### Week 11: Effects & Advanced Signals
+**Week 10: Reactive patterns**
+
 - [ ] [Effects API](/modern/effects/)
-- [ ] [Linked Signals (v19)](/modern/linked-signals/)
-- [ ] [Resource API (Experimental)](/modern/resource-api/)
-- [ ] **Project**: Reactive Dashboard with Signals
+- [ ] [Linked Signals](/modern/linked-signals/)
+- [ ] [Resource API](/modern/resource-api/)
+- [ ] [HttpResource API](/modern/http-resource-api/)
 
-#### Week 12: Modern Features
-- [ ] [Control Flow (@if, @for, @switch)](/modern/control-flow/)
+**Week 11: Templates and forms**
+
+- [ ] [Control Flow (`@if`, `@for`, `@switch`)](/modern/control-flow/)
+- [ ] [New Template Syntax (`@let`)](/modern/template-syntax/)
+- [ ] [Signal Forms](/modern/signal-forms/)
+
+**Week 12: Performance foundations**
+
 - [ ] [Zoneless Angular](/modern/zoneless/)
-- [ ] [New Template Syntax (@let)](/modern/template-syntax/)
 - [ ] [Incremental Hydration](/modern/incremental-hydration/)
-- [ ] **Project**: Modern Angular Application
 
-**Milestone**: Build a real-time chat application
+🏁 **Milestone project:** the [Admin Dashboard](/projects/dashboard/) — put signals and the modern
+APIs to work in a real-world UI.
 
----
+## Phase 4 — Advanced topics & RxJS (weeks 13–16) 🏗️
 
-### 🏗️ **Phase 4: Advanced Topics (Weeks 13-16)**
-*Master enterprise patterns and performance optimization*
+Go deeper into Angular's internals and reactive programming.
 
-#### Week 13: Custom Directives & Dynamic Components
+**Week 13: Building reusable UI**
+
 - [ ] [Custom Directives](/advanced/custom-directives/)
 - [ ] [Dynamic Components](/advanced/dynamic-components/)
 - [ ] [Content Projection](/advanced/content-projection/)
-- [ ] **Project**: Custom UI Component Library
 
-#### Week 14: Advanced DI & Architecture
+**Week 14: Architecture**
+
 - [ ] [Advanced DI Patterns](/advanced/dependency-injection/)
 - [ ] [Custom Decorators](/advanced/decorators/)
-- [ ] **Project**: Plugin Architecture System
-
-#### Week 15: Micro Frontends & Elements
 - [ ] [Angular Elements](/advanced/elements/)
 - [ ] [Micro Frontends](/advanced/micro-frontends/)
-- [ ] **Project**: Micro Frontend Architecture
 
-#### Week 16: Performance Optimization
+**Week 15: Performance**
+
 - [ ] [Performance Optimization](/advanced/performance/)
 - [ ] [Memory Management](/advanced/memory-management/)
 - [ ] [Bundle Optimization](/advanced/bundle-optimization/)
-- [ ] **Project**: Performance Audit & Optimization
 
-**Milestone**: Build a scalable enterprise application
+**Week 16: RxJS in depth** (read alongside the other weeks if you prefer)
 
----
+- [ ] [RxJS Fundamentals](/rxjs/fundamentals/) · [Observables & Observers](/rxjs/observables/) · [Subjects & BehaviorSubject](/rxjs/subjects/)
+- [ ] [Transformation](/rxjs/transformation-operators/) · [Filtering](/rxjs/filtering-operators/) · [Combination](/rxjs/combination-operators/) operators
+- [ ] [Error Handling](/rxjs/error-handling/) · [Higher-Order Observables](/rxjs/higher-order-observables/) · [Schedulers & Testing](/rxjs/schedulers/)
+- [ ] [RxJS Patterns in Angular](/rxjs/angular-patterns/)
 
-### 🧪 **Phase 5: Testing & Quality (Weeks 17-18)**
-*Master testing strategies and code quality*
+🏁 **Milestone project:** the [E-commerce Store](/projects/ecommerce/).
 
-#### Week 17: Testing Fundamentals
+## Phase 5 — Testing & quality (weeks 17–18) 🧪
+
+New Angular projects use **Vitest** by default. Learn to test everything you've built.
+
+**Week 17: Unit and component tests**
+
 - [ ] [Unit Testing Deep Dive](/testing/unit-testing/)
 - [ ] [Component Testing](/testing/component-testing/)
 - [ ] [Service Testing](/testing/service-testing/)
-- [ ] **Project**: Comprehensive Test Suite
+- [ ] [Testing Signals](/testing/testing-signals/)
 
-#### Week 18: Advanced Testing
+**Week 18: Beyond unit tests**
+
+- [ ] [Mocking & Spies](/testing/mocking/)
 - [ ] [Integration Testing](/testing/integration-testing/)
 - [ ] [E2E Testing with Playwright](/testing/e2e-testing/)
-- [ ] [Testing Signals](/testing/testing-signals/)
 - [ ] [Code Coverage](/testing/coverage/)
-- [ ] **Project**: Full Testing Pipeline
 
-**Milestone**: Achieve 90%+ test coverage
+🏁 **Milestone:** add unit, component and E2E tests to one of your projects and run them in CI.
 
----
+## Phase 6 — SSR, deployment & production (weeks 19–20) 🌐
 
-### 🌐 **Phase 6: Production & Deployment (Weeks 19-20)**
-*Learn deployment strategies and production optimization*
+Make your app fast to load, search-engine friendly and running in production.
 
-#### Week 19: Server-Side Rendering
-- [ ] [Server-Side Rendering (SSR)](/ssr/introduction/)
-- [ ] [Static Site Generation (SSG)](/ssr/static-generation/)
-- [ ] [Hydration Strategies](/ssr/hydration/)
-- [ ] **Project**: SSR Application
+**Week 19: Server-side rendering**
 
-#### Week 20: Deployment & CI/CD
+- [ ] [SSR Introduction](/ssr/introduction/)
+- [ ] [Render Modes](/ssr/render-modes/)
+- [ ] [Static Site Generation](/ssr/static-generation/)
+- [ ] [Hydration](/ssr/hydration/)
+- [ ] [Event Replay](/ssr/event-replay/)
+
+**Week 20: Shipping**
+
 - [ ] [Deployment Strategies](/deployment/strategies/)
 - [ ] [Docker & Containers](/deployment/docker/)
 - [ ] [CI/CD Pipelines](/deployment/ci-cd/)
-- [ ] **Project**: Complete DevOps Pipeline
 
-**Final Milestone**: Deploy a production application
+🏁 **Final projects:** the real-time [Chat App](/projects/chat-app/) and an installable
+[Progressive Web App](/projects/pwa/) — then deploy one of them.
 
----
+## Bonus tracks (any time) 🎁
 
-## 📱 **Bonus: Real-World Projects**
+**🤖 Angular + AI** — make your AI assistant write modern Angular code, and add AI features to
+your apps: [Overview](/ai/overview/) · [Angular MCP Server](/ai/mcp-server/) ·
+[AI Config, Rules & Skills](/ai/ai-config-and-skills/) · [Build AI Features](/ai/build-ai-features/)
 
-Throughout your journey, build these portfolio projects:
+**🛠️ Developer tools** — sharpen your workflow:
+[Angular CLI](/tools/angular-cli/) · [VS Code Setup](/tools/vscode/) ·
+[Angular DevTools](/tools/devtools/) · [Debugging](/tools/debugging/) · [ESLint](/tools/eslint/) ·
+[Prettier](/tools/prettier/) · [Schematics](/tools/schematics/) · [Git Hooks](/tools/git-hooks/)
 
-### 🏪 **E-commerce Platform**
-- Product catalog with search/filter
-- Shopping cart with signals
-- User authentication
-- Payment integration
-- Admin dashboard
+**🔄 Migration** — working on an older codebase?
+[Version Upgrades](/migration/version-upgrade/) · [Standalone Migration](/migration/standalone/) ·
+[Signals Migration](/migration/signals/) · [Modernization](/migration/modernization/)
 
-### 💬 **Real-time Chat Application**
-- WebSocket integration
-- User presence indicators
-- File sharing
-- Message history
-- Push notifications
+**📚 Keep handy** — [Best Practices](/resources/best-practices/) ·
+[Design Patterns](/resources/patterns/) · [Cheat Sheet](/resources/cheat-sheet/) ·
+[Performance Checklist](/resources/performance-checklist/) ·
+[Troubleshooting](/resources/troubleshooting/)
 
-### 📊 **Data Visualization Dashboard**
-- Interactive charts
-- Real-time data updates
-- Filtering and drill-down
-- Export functionality
-- Responsive design
+## Fast tracks
 
-### 📝 **Blog Platform**
-- Content management system
-- Rich text editor
-- SEO optimization
-- Comment system
-- Social sharing
+Short on time? These condensed routes cover the essentials.
 
-## 🎯 **Weekly Study Plan**
+| Goal | Route |
+| --- | --- |
+| **Ship a first real app in 2 weeks** | First App → Components → Templates → Services → Routing → HTTP → Signals → [Todo App](/projects/todo-app/) |
+| **Modern Angular refresher (1 week)** | Standalone → Signals → Computed → Linked Signals → Resource API → Control Flow → Signal Forms → Zoneless |
+| **Testing crash course (1 week)** | Unit Testing → Component Testing → Service Testing → Mocking → E2E |
+| **Performance & SEO (1 week)** | Performance → Bundle Optimization → SSR Introduction → Render Modes → Hydration |
 
-### Time Commitment
-- **Minimum**: 5-7 hours per week
-- **Recommended**: 10-12 hours per week
-- **Intensive**: 15-20 hours per week
+## Planning your study time
 
-### Daily Schedule (Recommended)
-- **Monday**: Theory & Reading (1-2 hours)
-- **Tuesday**: Hands-on Coding (2-3 hours)
-- **Wednesday**: Practice Exercises (1-2 hours)
-- **Thursday**: Project Work (2-3 hours)
-- **Friday**: Review & Testing (1-2 hours)
-- **Weekend**: Project completion & exploration (2-4 hours)
+| Pace | Hours / week | Full course |
+| --- | --- | --- |
+| Relaxed | 4–6 | ~6 months |
+| Steady (recommended) | 6–10 | ~20 weeks |
+| Intensive | 15–20 | ~8–10 weeks |
 
-## 📚 **Learning Resources**
+A simple weekly rhythm that works well:
 
-### Official Documentation
-- [Angular.dev](https://angular.dev/) - Official Angular documentation
-- [Angular Blog](https://blog.angular.dev/) - Latest updates and features
+1. **Read** the week's pages and run every example (2–3 hours).
+2. **Practise** — change the examples and try the challenges (2–3 hours).
+3. **Build** — add the week's ideas to your current project (2–4 hours).
+4. **Review** — write down what you learned and what is still unclear (30 minutes).
 
-### Community Resources
-- [Angular Community](https://angular.dev/) - Official community
-- [Stack Overflow](https://stackoverflow.com/questions/tagged/angular) - Q&A
-- [Reddit r/Angular2](https://www.reddit.com/r/Angular2/) - Discussions
+## Tips for success
 
-### Practice Platforms
-- [StackBlitz](https://stackblitz.com/) - Online IDE
-- [CodeSandbox](https://codesandbox.io/) - Online development
-- [Plunker](https://plnkr.co/) - Prototyping
+- **Build while you learn.** Reading alone won't make it stick.
+- **Use the type checker.** Angular's strict templates show many mistakes before you even run the app.
+- **Inspect with Angular DevTools** to see your component tree and signal values live.
+- **Read the error message.** Angular errors include a code (like `NG0950`) you can search for.
+- **Join the community** — see [Community](/resources/community/) and
+  [Further Reading](/resources/further-reading/).
 
-## 🚀 **Ready to Start?**
+## Key takeaways
 
-Choose your starting point based on your current skill level:
+- The guide is organised in six phases: foundations → intermediate → modern Angular → advanced &
+  RxJS → testing → SSR & deployment, with projects after each phase.
+- Start where your experience fits — you don't have to read everything in order.
+- The bonus tracks (AI, tools, migration, resources) can be used at any time.
 
-- **Complete Beginner**: [What is Angular?](/beginner/what-is-angular/)
-- **Some Experience**: [Angular Architecture](/beginner/architecture/)
-- **Want Modern Features**: [Standalone Components](/modern/standalone-components/)
-- **Ready for Advanced**: [Custom Directives](/advanced/custom-directives/)
+## Next steps
 
----
-
-**Remember**: Learning is a journey, not a destination. Take your time, practice consistently, and don't hesitate to ask for help when needed. The Angular community is here to support you! 🌟
+Ready? Start with [What is Angular?](/beginner/what-is-angular/), or if you already know the basics,
+jump straight into [Your First App](/beginner/first-app/). 🚀

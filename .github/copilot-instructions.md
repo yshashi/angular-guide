@@ -1,67 +1,47 @@
 # Copilot Instructions
 
-## Project Overview
+## Project
 
-This is **NG Guide** (`ng-guide.letsprogram.in`) — a comprehensive Angular learning documentation site built with [Astro Starlight](https://starlight.astro.build/). It is a content-focused site, not an Angular application itself. All content is authored in Markdown/MDX.
+NG Guide (`https://ng-guide.letsprogram.in`) is an Astro 5 + Starlight documentation site, not an Angular application. Documentation lives in `src/content/docs/` as Markdown or MDX. Angular examples must follow [best-practice.md](../best-practice.md) and target Angular 22.2 unless a page is explicitly about an older version.
 
 ## Commands
 
 ```bash
-npm run dev       # Start dev server at localhost:4321
-npm run build     # Production build to ./dist/
-npm run preview   # Preview production build locally
+npm run dev       # Start at localhost:4321
+npm run build     # Production build into dist/
+npm run preview   # Preview the production build
 ```
 
-No test or lint tooling is configured.
+There is no repository test or lint script configured. The production build validates Starlight content and routes.
 
-## Architecture
+## Site structure
 
-- **`astro.config.mjs`** — Central config defining site metadata, integrations (Starlight, sitemap, React), and the **complete sidebar navigation structure**. This is the most important file for understanding site organization.
-- **`src/content/docs/`** — All documentation content as `.md`/`.mdx` files. File paths map to URL routes (e.g., `beginner/components.md` → `/beginner/components/`).
-- **`src/config.js`** — Runtime config for API URL (environment-aware) and Google Analytics measurement ID.
-- **`src/styles/custom.css`** — Starlight theme overrides.
-- **`src/content/docs/index.mdx`** — Splash landing page using Starlight components (`Card`, `CardGrid`).
+- `astro.config.mjs` configures Astro, Starlight, integrations and UI overrides.
+- `src/sidebar.mjs` is the shared source of truth for sidebar and AI content ordering. Adding a page requires an entry here.
+- `src/content/docs/` contains the guide pages; file paths map to routes.
+- `src/components/` contains Starlight component overrides and page actions.
+- `src/pages/` contains generated Markdown and AI endpoints such as `/llms.txt`.
+- `skills/ng-guide/SKILL.md` provides downloadable agent instructions.
+- `ai-backend/` is the optional Node service for the site's Ask AI widget. Never commit API keys.
+- `src/styles/custom.css` contains Starlight theme overrides.
+- `src/content/docs/index.mdx` is the splash page and uses Starlight components.
 
-## Content Conventions
+## Documentation conventions
 
-### Frontmatter
+Every page needs `title` and `description` frontmatter. Use an emoji in the title, set `sidebar.order` within the section and do not duplicate the title as a body-level H1. Use concise, progressive explanations, working examples, short version notes and internal links with trailing slashes.
 
-Every doc page must include `title` and `description` in YAML frontmatter. Use `sidebar.order` to control sort order within a section:
+When writing Angular examples, verify Angular APIs and stability against the installed package declarations or the official Angular documentation. Label developer-preview and experimental APIs. Do not claim a framework API is stable merely because it appears in a release note.
 
-```yaml
----
-title: Page Title 🚀
-description: Brief description for SEO and Starlight metadata
-sidebar:
-  order: 1
----
-```
+## Angular example baseline
 
-### Sidebar Management
+- Standalone by default; never add redundant `standalone: true`.
+- Angular 22 defaults components to OnPush; do not add `changeDetection` boilerplate.
+- Prefer `input()`, `output()`, `model()`, `inject()`, signals and `computed()`.
+- Use native control flow (`@if`, `@for` with `track`, `@switch`) and class/style bindings.
+- Use `@Service()` for suitable new root-provided services; use `@Injectable()` for cases where it fits better or for older-version compatibility.
+- Signal Forms use `FormField` and `[formField]`.
+- Use `provideHttpClient()`; Fetch is already the default in Angular 22.
+- Use Vitest for newly created Angular projects.
+- Use the `host` metadata instead of `@HostBinding`/`@HostListener`.
 
-The sidebar is **manually defined** in `astro.config.mjs` using `label` + `slug` pairs. Adding a new doc file requires a corresponding sidebar entry — files are not auto-discovered.
-
-### Content Organization
-
-Docs are grouped into topic directories under `src/content/docs/`:
-`beginner/`, `intermediate/`, `modern/`, `advanced/`, `rxjs/`, `testing/`, `ssr/`, `deployment/`, `projects/`, `migration/`, `tools/`, `resources/`
-
-### Writing Style
-
-- Use emoji in `title` frontmatter values (e.g., `🧩`, `🚀`)
-- Include working Angular code examples with TypeScript syntax highlighting
-- Structure content progressively — each section builds on prior knowledge
-
-## Angular Code Examples in Content
-
-When writing or editing Angular code examples within documentation, follow the conventions in `best-practice.md`:
-
-- Use **standalone components** (do NOT set `standalone: true` — it's the default)
-- Use `input()`/`output()` functions instead of `@Input`/`@Output` decorators
-- Use `inject()` function instead of constructor injection
-- Use native control flow (`@if`, `@for`, `@switch`) instead of `*ngIf`/`*ngFor`/`*ngSwitch`
-- Use **signals** for state, `computed()` for derived state
-- Use `ChangeDetectionStrategy.OnPush` in component decorators
-- Use `class` bindings instead of `ngClass`, `style` bindings instead of `ngStyle`
-- Use `providedIn: 'root'` for singleton services
-- Do NOT use `@HostBinding`/`@HostListener` — use the `host` property in decorators
+See [best-practice.md](../best-practice.md) and the [NG Guide agent skill](../skills/ng-guide/SKILL.md) for the full conventions.

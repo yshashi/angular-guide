@@ -1,160 +1,169 @@
 ---
 title: Welcome & Course Overview 🚀
-description: Your comprehensive guide to mastering Angular from beginner to expert
+description: Start here — what NG Guide covers, who it is for, how the course is organised and how to get the most out of it while learning Angular 22.
 sidebar:
   order: 1
 ---
 
-Welcome to the most comprehensive Angular tutorial available! Whether you're completely new to Angular or a seasoned developer looking to master the latest features, this guide will take you from zero to hero with modern Angular development.
+Welcome to **NG Guide**, a free and complete course for learning Angular. Whether you have never
+written a line of Angular or you have used it for years and want to catch up with the latest
+features, this guide takes you from the basics to production-ready apps — one small step at a time.
 
-## 🎯 What is Angular?
+Everything here is written for **Angular 22** (the current stable release). When something worked
+differently in older versions, you will see a short note so you can still read older code.
 
-Angular is a powerful, full-featured framework for building dynamic web applications. Created and maintained by Google, Angular provides:
+## What you'll learn on this page
 
-- **Component-based architecture**: Build reusable UI components
-- **TypeScript-first**: Strong typing and modern JavaScript features
-- **Powerful CLI**: Generate, build, and deploy with ease
-- **Rich ecosystem**: Extensive libraries and community support
-- **Enterprise-ready**: Scalable architecture for large applications
+- What Angular is, in one minute
+- What "modern Angular" means and why it matters
+- How the course is organised and who it is for
+- What you need before you start
 
-## 🌟 Why This Tutorial?
+## Angular in one minute
 
-### 📚 Comprehensive Coverage
-This isn't just another tutorial. We provide:
+Angular is an open-source **framework for building web applications**, maintained by a team at
+Google. Instead of giving you only a UI library, Angular ships everything a real app needs:
 
-- **Complete Learning Path**: From absolute beginner to Angular expert
-- **Latest Features**: Angular 19, 20, 21 features
-- **Real-World Projects**: Build production-ready applications (Coming soon)
-- **Best Practices**: Industry-standard patterns and techniques
-- **Modern Angular**: Standalone components, signals, and latest APIs
+| You need to… | Angular gives you… |
+| --- | --- |
+| Build the UI out of reusable pieces | **Components** with HTML templates and scoped CSS |
+| Keep the screen in sync with your data | **Signals** — a fine-grained reactivity system |
+| Share logic and data between screens | **Services** and **dependency injection** |
+| Move between pages | The **Router** (lazy loading, guards, resolvers) |
+| Collect and validate user input | **Forms** (Signal Forms, Reactive Forms, template-driven) |
+| Talk to a backend | **HttpClient** and `httpResource()` |
+| Create, run, test and build projects | The **Angular CLI** (`ng new`, `ng serve`, `ng test`, `ng build`) |
+| Render on the server for speed and SEO | **SSR**, prerendering (SSG) and hydration |
 
-### 🎓 Learning-First Approach
+Here is a complete Angular component. Don't worry about the details yet — you will learn every
+line of it in the beginner section:
 
-- **Progressive Complexity**: Each section builds on previous knowledge
-- **Hands-on Examples**: Every concept includes working code
-- **Project-Based Learning**: Build real applications as you learn
-- **Expert Guidance**: Learn from experienced Angular developers
+```ts title="counter.ts"
+import { Component, computed, signal } from '@angular/core';
 
-## 🚀 What You'll Master
+@Component({
+  selector: 'app-counter',
+  template: `
+    <p>You clicked {{ count() }} times (double: {{ double() }})</p>
+    <button type="button" (click)="increment()">Click me</button>
+  `,
+})
+export class Counter {
+  protected readonly count = signal(0);
+  protected readonly double = computed(() => this.count() * 2);
 
-### 🌱 **Beginner Level**
-- Angular fundamentals and architecture
-- Components, templates, and data binding
-- Services and dependency injection
-- Routing and navigation
-- Forms and HTTP client
+  protected increment() {
+    this.count.update((value) => value + 1);
+  }
+}
+```
 
-### 🚀 **Intermediate Level**
-- Advanced component patterns
-- Reactive forms and validation
-- RxJS and state management
-- Testing fundamentals
-- Angular Material integration
+When you click the button, `count` changes and Angular updates exactly the parts of the page
+that read it. That is the heart of modern Angular.
 
-### ⚡ **Modern Angular Features**
-- **Standalone Components**: Simplified architecture
-- **Angular Signals**: Revolutionary reactivity system
-- **Control Flow**: New @if, @for, @switch syntax
-- **Zoneless Angular**: Performance optimization
-- **Latest APIs**: Resource API, Effects, and more
+## What "modern Angular" means
 
-### 🏗️ **Advanced Topics**
-- Custom directives and dynamic components
-- Performance optimization techniques
-- Micro frontends and Angular Elements
-- Advanced testing strategies
-- Production deployment
+Angular has changed a lot in the last few years. If you find an old tutorial online, it may look
+very different from the code in this guide. Here is what changed:
 
-## 🏆 Real-World Projects
+| Older Angular | Modern Angular (what this guide teaches) |
+| --- | --- |
+| `NgModule`s everywhere | **Standalone components** (the default) |
+| `*ngIf`, `*ngFor`, `*ngSwitch` | Built-in control flow: **`@if`, `@for`, `@switch`** |
+| `@Input()` / `@Output()` decorators | **`input()`, `output()`, `model()`** functions |
+| Constructor injection | The **`inject()`** function |
+| `@Injectable({ providedIn: 'root' })` | The **`@Service()`** decorator (new in v22) |
+| Plain class fields + zone.js | **Signals** + **zoneless** change detection |
+| Karma + Jasmine tests | **Vitest** (the default test runner since v21) |
+| `component.ts` / `app.component.ts` file names | Short names: `app.ts`, `user-card.ts` |
 
-Throughout this course, you'll build below apps (Youtube Videos and Docs will be added soon):
+:::tip
+You don't need to learn the "old way" first. Learn the modern way, then use our
+[Migration Guides](/migration/version-upgrade/) when you meet older code at work.
+:::
 
-### 📱 **Todo Application**
-- Master component basics and state management
-- Implement CRUD operations
-- Learn form handling and validation
+## How this course is organised
 
-### 🛒 **E-commerce Platform**
-- Product catalog with search and filtering
-- Shopping cart with signals
-- User authentication and authorization
-- Payment integration
+The course is split into sections that build on each other. The
+[Learning Path Guide](/learning-path/) turns them into a week-by-week plan.
 
-### 💬 **Real-time Chat App**
-- WebSocket integration
-- Real-time messaging
-- User presence indicators
-- File sharing capabilities
+| Section | What you'll learn |
+| --- | --- |
+| 🚀 **Getting Started** | Prerequisites, tool setup and how to use this guide |
+| 🌱 **Beginner** | Components, templates, directives, services, routing, forms, HTTP |
+| 🚀 **Intermediate** | Component communication, lifecycle hooks, reactive forms, advanced routing, RxJS, state, pipes, Angular Material |
+| ⚡ **Modern Angular** | Signals, `computed`, effects, `linkedSignal`, Resource API, `httpResource`, Signal Forms, control flow, `@let`, zoneless, hydration |
+| 🏗️ **Advanced** | Custom directives, dynamic components, content projection, advanced DI, Angular Elements, micro frontends, performance |
+| 🔄 **RxJS** | Observables, subjects, operators, error handling and RxJS patterns in Angular |
+| 🧪 **Testing** | Unit, component, service and integration tests with Vitest, mocking, coverage, and Playwright E2E tests |
+| 🌐 **SSR** | Server-side rendering, static generation, hydration, render modes and event replay |
+| 🚀 **Deployment** | Hosting options, Docker and CI/CD pipelines |
+| 💼 **Projects** | Todo app, blog platform, dashboard, e-commerce store, chat app and PWA |
+| 🔄 **Migration** | Upgrading versions and moving to standalone, signals and other modern APIs |
+| 🛠️ **Tools** | Angular CLI, VS Code, Angular DevTools, debugging, ESLint, Prettier, schematics, Git hooks |
+| 🤖 **Angular + AI** | The Angular CLI MCP server, AI config files and agent skills — see [Angular + AI](/ai/overview/) |
+| 📚 **Resources** | Best practices, patterns, cheat sheet, performance checklist, troubleshooting |
 
-### 📊 **Analytics Dashboard**
-- Data visualization with charts
-- Real-time updates with signals
-- Interactive filtering and drill-down
-- Responsive design patterns
+Every page follows the same shape: a short intro, **what you'll learn**, concepts with small
+examples, **common mistakes** or best practices, **key takeaways**, and links to what to read next.
 
-## 💡 Who This Course Is For
+## Who this course is for
 
-### 🎯 Perfect For
+- **Complete beginners** who know some HTML, CSS and JavaScript and want to learn a framework.
+- **Developers coming from React, Vue or Svelte** who want to understand how Angular does things.
+- **Backend developers** moving into frontend work.
+- **Angular developers** who learned an older version and want to catch up with signals,
+  standalone components, Signal Forms, zoneless and Vitest.
+- **Team leads** planning a new Angular project or modernising an existing one.
 
-- **Complete Beginners**: New to Angular and web frameworks
-- **Frontend Developers**: Coming from React, Vue, or vanilla JavaScript
-- **Backend Developers**: Looking to expand into frontend development
-- **Angular Developers**: Want to learn modern features and best practices
-- **Team Leads**: Planning Angular adoption or modernization
+## What you need
 
-### 📋 What You Need
+**Knowledge:** basic HTML, CSS and JavaScript. TypeScript helps, but you can learn it as you go —
+the [Prerequisites](/prerequisites/) page lists exactly what to know.
 
-**Required Knowledge:**
-- Basic HTML, CSS, and JavaScript
-- Understanding of web development concepts
-- Willingness to learn TypeScript (we'll teach you!)
+**Tools:**
 
-**Helpful but Not Required:**
-- Previous framework experience
-- TypeScript knowledge
-- Understanding of reactive programming
+- **Node.js** 22.22.3+, 24.15+ or 26 (Angular 22 does not support Node.js 20)
+- **Angular CLI** 22 (`npm install -g @angular/cli`)
+- **A code editor** — VS Code with the Angular Language Service extension is a great choice
+- **A modern browser** with the Angular DevTools extension
 
-## 🛠️ Development Environment
+The [Development Environment](/setup/) page walks you through installing all of them.
 
-### Required Tools
-- **Node.js** (version 18 or higher)
-- **Angular CLI** (latest version)
-- **Code Editor** (VS Code recommended)
-- **Git** (for version control)
+## How to get the most out of this guide
 
-### Recommended Setup
-- **Angular DevTools** browser extension
-- **TypeScript** and **Angular** VS Code extensions
-- **Chrome/Firefox** with developer tools
+1. **Type the code yourself.** Copying is fine, but typing makes it stick.
+2. **Change things and break things.** Then read the error message — Angular's errors are helpful.
+3. **Build the projects.** The [Projects](/projects/todo-app/) section is where everything clicks.
+4. **Don't rush.** Short daily sessions beat one long weekend session.
 
-## 🎉 Ready to Start Your Journey?
+## Key takeaways
 
-This comprehensive course is designed to take you from beginner to Angular expert in 20 weeks. Each week includes:
+- Angular is a complete, TypeScript-first framework for building web apps.
+- This guide teaches **Angular 22** with modern APIs: standalone components, signals,
+  `inject()`, `input()`/`output()`, built-in control flow, `@Service()` and Vitest.
+- The course goes from beginner to advanced, with testing, SSR, deployment, real projects and AI
+  tooling along the way.
 
-- **Theory and Concepts**: 2-3 hours of learning
-- **Hands-on Practice**: 3-4 hours of coding
-- **Project Work**: 2-3 hours building real applications
-- **Review and Testing**: 1-2 hours reinforcing knowledge
+## Next steps
 
-### Your Next Steps
-
-1. **[Prerequisites & Setup](/prerequisites/)** - Ensure you're ready to start
-2. **[Development Environment](/setup/)** - Set up your coding environment
-3. **[Learning Path Guide](/learning-path/)** - Plan your learning journey
-4. **[What is Angular?](/beginner/what-is-angular/)** - Begin your Angular adventure
+1. **[Prerequisites](/prerequisites/)** — check what you should know before you start
+2. **[Development Environment](/setup/)** — install Node.js, the Angular CLI and your editor
+3. **[Learning Path Guide](/learning-path/)** — choose a plan that fits your experience
+4. **[What is Angular?](/beginner/what-is-angular/)** — begin the beginner section
 
 ---
 
-**Ready to become an Angular expert?** Let's start with the [prerequisites and setup](/prerequisites/) to ensure you have everything you need for this incredible journey! 🌟
+## About the author
 
-I believe that knowledge should be accessible to everyone, and through Interview Helper, I aim to create a comprehensive resource that helps developers prepare for technical interviews effectively. This platform is built with love and dedication, incorporating real-world scenarios and practical insights from my experience in the tech industry.
+I believe knowledge should be accessible to everyone, so NG Guide is free and built from
+real-world experience of shipping Angular apps.
 
 **Connect with me:**
-- [YouTube - Let's Program](https://youtube.com/@letsprogram30)
+
+- [YouTube — Let's Program](https://youtube.com/@letsprogram30)
 - [Blog](https://letsprogram.in)
 - [Portfolio](https://sashikumar.dev)
 - [LinkedIn](https://linkedin.com/in/sashikumar-yadav/)
 
----
-
-**Ready to master your Angular journey?** Let's get started! 🚀
+Happy learning! 🚀

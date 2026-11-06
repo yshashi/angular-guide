@@ -1,315 +1,447 @@
 ---
 title: Development Environment 🛠️
-description: Complete setup guide for Angular development with latest tools and best practices
+description: Set up Angular 22 step by step — Node.js versions, the Angular CLI, ng new prompts and flags, the project structure, VS Code, DevTools and AI config.
 sidebar:
   order: 3
 ---
 
-Let's set up your development environment to build modern Angular applications with the latest features, tools, and best practices. This guide ensures you have everything needed for our comprehensive Angular tutorial.
+Let's get your computer ready for Angular development. By the end of this page you will have
+Node.js, the Angular CLI, a fresh Angular 22 project running in your browser, and an editor that
+understands Angular templates.
 
-## 🚀 Quick Setup Checklist
+## What you'll learn
 
-- [ ] Node.js 18+ installed
-- [ ] Angular CLI installed globally
-- [ ] Code editor with Angular extensions
-- [ ] Git configured
-- [ ] Browser with Angular DevTools
+- Which Node.js versions Angular 22 supports and how to install one
+- How to install the Angular CLI and create a project with `ng new`
+- What every prompt and important flag of `ng new` does
+- What each file in a new Angular 22 project is for
+- How to set up VS Code, Angular DevTools and (optionally) AI assistants
 
-## 📦 Required Software
+## Quick checklist
 
-### Node.js (Version 18+)
+- [ ] Node.js `^22.22.3`, `^24.15.0` or `>=26.0.0`
+- [ ] Angular CLI 22 installed
+- [ ] A new project created with `ng new` and running with `ng serve`
+- [ ] Editor with the **Angular Language Service** extension
+- [ ] Browser with **Angular DevTools**
 
-Angular requires Node.js for development. Install the latest LTS version:
+## Step 1: Install Node.js
+
+The Angular CLI runs on [Node.js](https://nodejs.org/). Angular 22 supports these versions:
+
+| Angular | Node.js | TypeScript | RxJS |
+| --- | --- | --- | --- |
+| **22.x** | `^22.22.3 \|\| ^24.15.0 \|\| >=26.0.0` | `>=6.0 <6.1` | `^6.5.3 \|\| ^7.4.0` |
+| 21.x | `^20.19.0 \|\| ^22.12.0 \|\| ^24.0.0` | `>=5.9 <6.0` | `^6.5.3 \|\| ^7.4.0` |
+| 20.x | `^20.19.0 \|\| ^22.12.0 \|\| ^24.0.0` | `>=5.8 <6.0` | `^6.5.3 \|\| ^7.4.0` |
+
+Check what you have:
 
 ```bash
-# Check your Node.js version
 node --version
-
-# Should output v18.0.0 or higher
+# e.g. v24.15.0 ✅   v20.19.0 ❌ (not supported by Angular 22)
 ```
 
-**Installation:**
-- **Windows/Mac**: Download from [nodejs.org](https://nodejs.org/)
-- **Linux**: Use your package manager or Node Version Manager (nvm)
-
-### Angular CLI (Latest Version)
-
-The Angular CLI is essential for creating and managing Angular projects:
+**Recommended:** install the latest **LTS** (long-term support) release from
+[nodejs.org](https://nodejs.org/), or use a version manager so you can switch versions per project:
 
 ```bash
-# Install Angular CLI globally
-npm install -g @angular/cli
+# macOS / Linux with nvm (https://github.com/nvm-sh/nvm)
+nvm install 24
+nvm use 24
 
-# Check version
+# Windows: use the official installer, or nvm-windows / fnm
+```
+
+:::tip
+Stick to even-numbered (LTS) Node.js releases. The Angular CLI prints a warning when you use an
+odd-numbered release such as 25.x, because those are not supported for production.
+:::
+
+## Step 2: Install the Angular CLI
+
+The **Angular CLI** (`ng`) creates projects, generates code, runs the dev server, runs tests and
+builds for production. Install it globally with your package manager of choice:
+
+```bash
+npm install -g @angular/cli    # npm
+pnpm install -g @angular/cli   # pnpm
+yarn global add @angular/cli   # Yarn
+bun install -g @angular/cli    # Bun
+```
+
+Then check it works:
+
+```bash
 ng version
-
-# Should show Angular CLI 21+ for latest features
 ```
 
-### Package Manager
+You should see `Angular CLI: 22.x.x` along with your Node.js version and package manager.
 
-Choose your preferred package manager:
+:::note[Prefer not to install globally?]
+You can run any CLI command with `npx`, e.g. `npx @angular/cli@latest new my-app`. Inside a
+project, `npx ng serve` uses the project's own CLI version.
+:::
+
+## Step 3: Create a new project
 
 ```bash
-# npm (comes with Node.js)
-npm --version
-
-# Or yarn (optional)
-npm install -g yarn
-yarn --version
-
-# Or pnpm (fastest)
-npm install -g pnpm
-pnpm --version
+ng new my-app
 ```
 
-## 🎨 Code Editor Setup
+The CLI asks a few questions. Use the arrow keys and <kbd>Enter</kbd>; if you're unsure, accept
+the defaults.
 
-### Visual Studio Code (Recommended)
+| Prompt | Choices | Our advice |
+| --- | --- | --- |
+| **What name would you like to use for the new workspace and initial project?** | any name (e.g. `my-app`) | Only asked if you didn't type one |
+| **Which stylesheet system would you like to use?** | CSS, Tailwind CSS, Sass (SCSS), Sass (Indented), Less | CSS is perfect for learning; Tailwind sets everything up for you |
+| **Do you want to enable Server-Side Rendering (SSR) and Static Site Generation (SSG/Prerendering)?** | Yes / No (default: No) | No for now — you can add it later with `ng add @angular/ssr` |
+| **Which AI tools should Angular integrate with?** | None, Claude Code, Cursor, Gemini CLI, Open AI Codex, VSCode | Pick the assistant you use, or None (see [Step 7](#step-7-optional-set-up-ai-assistants)) |
 
-Download from [code.visualstudio.com](https://code.visualstudio.com/)
+The CLI then creates the files, installs the npm packages and makes an initial Git commit.
 
-**Essential Extensions:**
-```json
-{
-  "recommendations": [
-    "angular.ng-template",
-    "ms-vscode.vscode-typescript-next",
-    "esbenp.prettier-vscode",
-    "bradlc.vscode-tailwindcss",
-    "formulahendry.auto-rename-tag",
-    "ms-vscode.vscode-json"
+### What a new Angular 22 project gives you
+
+You don't need to configure any of this — it's the default:
+
+| Default | What it means |
+| --- | --- |
+| **Standalone components** | No `NgModule`s. Each component lists what it uses in `imports`. |
+| **Zoneless** | No `zone.js`. Angular updates the screen when signals change, template events fire, or inputs change (default since v21). |
+| **OnPush change detection** | Components skip unnecessary checks by default (since v22) — you don't write `changeDetection` any more. |
+| **Routing** | `app.routes.ts` and `provideRouter(routes)` are ready to use. |
+| **Vitest** | `ng test` runs your unit tests with Vitest (default since v21). |
+| **Strict TypeScript + strict templates** | TypeScript 6 and the Angular compiler are strict by default, so many bugs are caught at build time. |
+| **Prettier** | A `.prettierrc` file and the `prettier` dev dependency for consistent formatting. |
+| **Short file names** | `app.ts`, `app.html`, class `App` — no `.component` suffix (the "2025" style guide). |
+| **Fast builds** | The `@angular/build:application` builder (esbuild + Vite). |
+
+### Useful `ng new` flags
+
+Skip the prompts or change the defaults with flags:
+
+```bash
+# Accept every default without being asked
+ng new my-app --defaults
+
+# Pick options up front
+ng new my-app --style=scss --ssr=false --ai-config=vscode
+
+# Use a different package manager
+ng new my-app --package-manager=pnpm
+```
+
+| Flag | Values (default) | What it does |
+| --- | --- | --- |
+| `--style` | `css` \| `scss` \| `sass` \| `less` \| `tailwind` (`css`) | Stylesheet format |
+| `--ssr` | boolean (`false`) | Adds SSR + prerendering (`server.ts`, `main.server.ts`, …) |
+| `--ai-config` | `none`, `claude-code`, `cursor`, `gemini-cli`, `open-ai-codex`, `vscode` | Generates AI instruction + MCP config files |
+| `--routing` | boolean (`true`) | Sets up the router |
+| `--zoneless` | boolean (`true`) | `--zoneless=false` adds zone.js and `provideZoneChangeDetection()` |
+| `--test-runner` | `vitest` \| `karma` (`vitest`) | Unit test runner |
+| `--package-manager` | `npm` \| `pnpm` \| `yarn` \| `bun` | Package manager to install with |
+| `--prefix` | string (`app`) | Prefix for component selectors (`app-header`) |
+| `--inline-style` / `-s` | boolean | Put the root component's CSS in `app.ts` |
+| `--inline-template` / `-t` | boolean | Put the root component's HTML in `app.ts` |
+| `--skip-tests` / `-S` | boolean | Don't create `.spec.ts` files |
+| `--skip-git` / `-g` | boolean | Don't initialise a Git repository |
+| `--skip-install` | boolean | Don't run `npm install` |
+| `--minimal` | boolean | No testing setup — for quick experiments only |
+| `--file-name-style-guide` | `2025` \| `2016` (`2025`) | `2016` brings back `app.component.ts`-style names |
+| `--directory` | path | Create the workspace in a different folder |
+
+Run `ng new --help` to see every option.
+
+## Step 4: Run the app
+
+```bash
+cd my-app
+ng serve        # or: npm start
+```
+
+```text
+  ➜  Local:   http://localhost:4200/
+  ➜  press h + enter to show help
+```
+
+Open `http://localhost:4200`. 🎉 Leave `ng serve` running while you work — when you save a file, the
+browser updates automatically (template and style changes are hot-replaced without a full reload).
+
+```bash
+ng serve --open        # open the browser for you (-o)
+ng serve --port 4300   # use another port
+```
+
+:::note
+In Angular 22 the `PORT` environment variable, if set, takes priority over `--port` and
+`angular.json`.
+:::
+
+## Step 5: Understand the project structure
+
+Here is what `ng new my-app` creates (with the default answers):
+
+```text
+my-app/
+├── .vscode/               # Recommended VS Code extension, launch & task configs
+├── node_modules/          # Installed packages (never edit, never commit)
+├── public/
+│   └── favicon.ico        # Static files copied as-is to the build output
+├── src/
+│   ├── app/
+│   │   ├── app.ts         # Root component class (App)
+│   │   ├── app.html       # Root component template
+│   │   ├── app.css        # Root component styles (scoped to App)
+│   │   ├── app.spec.ts    # Unit tests for App (Vitest)
+│   │   ├── app.config.ts  # Application-wide providers (router, HTTP, …)
+│   │   └── app.routes.ts  # Route definitions
+│   ├── index.html         # The single HTML page; contains <app-root>
+│   ├── main.ts            # Entry point: bootstraps the App component
+│   └── styles.css         # Global styles
+├── .editorconfig          # Editor formatting basics (indentation, charset)
+├── .gitignore
+├── .prettierrc            # Prettier formatting rules
+├── angular.json           # Workspace & build configuration
+├── package.json           # Dependencies and npm scripts
+├── README.md
+├── tsconfig.json          # Shared TypeScript + Angular compiler options
+├── tsconfig.app.json      # TypeScript config for the app
+└── tsconfig.spec.json     # TypeScript config for tests
+```
+
+With `--ssr` you also get `src/server.ts`, `src/main.server.ts`, `src/app/app.config.server.ts` and
+`src/app/app.routes.server.ts`. There is no `assets/` or `environments/` folder any more: put static
+files in `public/`, and run `ng generate environments` if you need environment files.
+
+### The key files
+
+**`src/main.ts`** starts the app by bootstrapping the root component with the app config:
+
+```ts title="src/main.ts"
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { App } from './app/app';
+
+bootstrapApplication(App, appConfig)
+  .catch((err) => console.error(err));
+```
+
+**`src/app/app.config.ts`** lists application-wide **providers** — services and features such as
+the router or `HttpClient`:
+
+```ts title="src/app/app.config.ts"
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { routes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes)
   ]
+};
+```
+
+`provideBrowserGlobalErrorListeners()` reports uncaught errors and unhandled promise rejections to
+Angular's `ErrorHandler`. Notice there is no `provideZoneChangeDetection()` — the app is zoneless.
+
+**`src/app/app.ts`** is the root component. Its selector `app-root` matches the `<app-root>` tag in
+`index.html`:
+
+```ts title="src/app/app.ts"
+import { Component, signal } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+
+@Component({
+  imports: [RouterOutlet],
+  selector: 'app-root',
+  styleUrl: './app.css',
+  templateUrl: './app.html',
+})
+export class App {
+  protected readonly title = signal('my-app');
 }
 ```
 
-**VS Code Settings for Angular:**
+**`src/app/app.html`** contains a big placeholder welcome page. Somewhere inside it you'll find
+`<h1>Hello, {{ title() }}</h1>` and, at the very end, `<router-outlet />`, where routed pages
+appear. You'll replace this file in [Your First App](/beginner/first-app/).
+
+**`angular.json`** configures the `build` (`@angular/build:application`), `serve`
+(`@angular/build:dev-server`) and `test` (`@angular/build:unit-test`) targets — including bundle
+size **budgets** that warn you when your app grows too large.
+
+**`package.json`** contains handy scripts:
+
+| Script | Runs | Purpose |
+| --- | --- | --- |
+| `npm start` | `ng serve` | Dev server on port 4200 |
+| `npm run build` | `ng build` | Production build into `dist/my-app/` |
+| `npm run watch` | `ng build --watch --configuration development` | Rebuild on every change |
+| `npm test` | `ng test` | Run unit tests with Vitest |
+
+### Generate code with the CLI
+
+Use `ng generate` (or `ng g`) instead of creating files by hand:
+
+```bash
+ng generate component user-card   # src/app/user-card/user-card.ts, .html, .css, .spec.ts
+ng generate service user-store    # src/app/user-store.ts (uses @Service()) + spec
+ng generate pipe initials
+ng generate directive highlight
+ng generate guard auth
+```
+
+See the [Angular CLI](/tools/angular-cli/) page for every command.
+
+## Step 6: Set up your editor
+
+### VS Code (recommended)
+
+Install [Visual Studio Code](https://code.visualstudio.com/). When you open a new Angular project,
+VS Code suggests the extension listed in `.vscode/extensions.json`:
+
+| Extension | ID | Why |
+| --- | --- | --- |
+| **Angular Language Service** | `angular.ng-template` | Autocomplete, errors, go-to-definition and quick info **inside templates** |
+| Prettier | `esbenp.prettier-vscode` | Formats code using the project's `.prettierrc` |
+| ESLint (optional) | `dbaeumer.vscode-eslint` | Shows lint errors after you run `ng add angular-eslint` |
+
+Suggested workspace settings (`.vscode/settings.json`):
+
 ```json
 {
-  "typescript.preferences.importModuleSpecifier": "relative",
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.codeActionsOnSave": {
-    "source.organizeImports": true
-  },
-  "typescript.suggest.autoImports": true
+  "typescript.preferences.quoteStyle": "single"
 }
 ```
 
-### Alternative Editors
+The generated `.vscode/launch.json` already contains an **"ng serve"** debug configuration, so you
+can press <kbd>F5</kbd> to start the app with the VS Code debugger attached. See
+[VS Code Setup](/tools/vscode/) for more tips.
 
-- **WebStorm**: Full-featured IDE with excellent Angular support
-- **Sublime Text**: Lightweight with Angular packages
-- **Vim/Neovim**: With coc-angular or similar plugins
+### Other editors
 
-## 🌐 Browser Setup
+The Angular Language Service is also available for **WebStorm** (built in), **Zed**, **Neovim**,
+**Sublime Text** and **Eclipse IDE**.
 
-### Chrome/Edge (Recommended)
+## Step 7 (optional): Set up AI assistants
 
-Install Angular DevTools extension:
-- [Chrome Web Store](https://chrome.google.com/webstore/detail/angular-devtools/ienfalfjdbdpebioblfackkekamfmbnh)
-- [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/angular-devtools/ienfalfjdbdpebioblfackkekamfmbnh)
-
-### Firefox
-
-- [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/angular-devtools/)
-
-## 🔧 Development Tools
-
-### Git Configuration
+Angular 22 has first-class support for AI coding assistants. If you answered the
+**"Which AI tools…"** prompt, the CLI already created these files. You can add them to any existing
+project too:
 
 ```bash
-# Configure Git (if not already done)
-git config --global user.name "Your Name"
-git config --global user.email "your.email@example.com"
-
-# Verify configuration
-git config --list
+ng generate ai-config            # asks which tools you use
+ng generate ai-config --tool=vscode
 ```
 
-### Terminal Setup
+| Tool | Files created |
+| --- | --- |
+| Claude Code | `CLAUDE.md` + `.mcp.json` |
+| Cursor | `AGENTS.md` + `.cursor/mcp.json` |
+| Gemini CLI | `.gemini/GEMINI.md` + `.gemini/settings.json` |
+| OpenAI Codex | `AGENTS.md` + `.codex/config.toml` |
+| VS Code | `AGENTS.md` + `.vscode/mcp.json` |
 
-**Windows:**
-- Windows Terminal (recommended)
-- PowerShell 7+
-- Git Bash
+- The **instruction file** (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) teaches the assistant modern
+  Angular best practices, so it writes signals and `@if` instead of outdated code.
+- The **MCP config** connects the assistant to the **Angular CLI MCP server** (`ng mcp`), which lets
+  it search the official docs, find examples, list your projects, build, test and more.
 
-**Mac:**
-- iTerm2 (recommended)
-- Built-in Terminal
-- Oh My Zsh for enhanced experience
+For example, `.vscode/mcp.json` looks like this:
 
-**Linux:**
-- Your distribution's default terminal
-- Terminator or Tilix for advanced features
-
-## 🧪 Verify Installation
-
-Let's create a test project to verify everything works:
-
-```bash
-# Create a new Angular project
-ng new angular-test-app --routing=true --style=scss --package-manager=npm
-
-# Navigate to the project
-cd angular-test-app
-
-# Start the development server
-ng serve
-
-# Open browser to http://localhost:4200
+```json title=".vscode/mcp.json"
+{
+  "servers": {
+    "angular-cli": {
+      "command": "npx",
+      "args": ["-y", "@angular/cli", "mcp"]
+    }
+  }
+}
 ```
 
-You should see the Angular welcome page! 🎉
+Learn more in [Angular MCP Server](/ai/mcp-server/) and
+[AI Config, Rules & Skills](/ai/ai-config-and-skills/), or start with the
+[Angular + AI overview](/ai/overview/).
 
-## ⚙️ Optional Enhancements
+## Step 8: Install Angular DevTools
 
-### Angular Schematics
+**Angular DevTools** is a browser extension for inspecting your running app: the component tree,
+inputs and signal values, the dependency-injection tree, the router tree and a change-detection
+profiler.
 
-Install useful schematics for faster development:
+- [Chrome Web Store](https://chrome.google.com/webstore/detail/angular-developer-tools/ienfalfjdbdpebioblfackkekamfmbnh) (works in Chrome and Edge)
+- [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/angular-devtools/)
+
+Open your app (in development mode), press <kbd>F12</kbd> and look for the **Angular** tab. See
+[Angular DevTools](/tools/devtools/) for a full walkthrough.
+
+## Optional extras
+
+Add official and community packages with `ng add`, which installs **and** configures them:
 
 ```bash
-# Angular Material
-ng add @angular/material
-
-# PWA support
-ng add @angular/pwa
-
-# Angular Elements
-ng add @angular/elements
+ng add @angular/material   # Material Design components (+ CDK)
+ng add @angular/ssr        # Server-side rendering for an existing app
+ng add angular-eslint      # Linting with `ng lint`
 ```
 
-### Global Packages
-
-Useful global packages for Angular development:
+Enable tab-completion for `ng` commands in your shell:
 
 ```bash
-# Angular DevKit
-npm install -g @angular-devkit/schematics-cli
-
-# TypeScript compiler
-npm install -g typescript
-
-# Prettier for code formatting
-npm install -g prettier
-
-# ESLint for code quality
-npm install -g eslint
+ng completion
 ```
 
-### Performance Tools
+## Troubleshooting
 
-> **Note:** Since Angular 17, esbuild is the default build tool (replacing Webpack). You no longer need `webpack-bundle-analyzer` for most use cases. Use `ng build --stats-json` and the built-in bundle budgets in `angular.json` to monitor bundle sizes.
+**"The Angular CLI requires a minimum Node.js version…"** — your Node.js is too old (for example
+v20). Install a supported version (Step 1) and reinstall the CLI.
 
-```bash
-# Lighthouse CLI
-npm install -g lighthouse
+**`ng: command not found`** — the global npm folder isn't on your `PATH`. Close and reopen the
+terminal, or use `npx ng …` inside a project.
 
-# Angular CLI analytics (optional)
-ng analytics on
+**PowerShell: "running scripts is disabled on this system"** (Windows) — allow scripts for your user:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-## 🔍 Troubleshooting
+**`EACCES: permission denied`** when installing globally (macOS/Linux) — avoid `sudo` where you can;
+installing Node.js with a version manager such as nvm puts global packages in your home folder.
 
-### Common Issues
+**Port 4200 is already in use** — stop the other server, or run `ng serve --port 4300`.
 
-**Node.js version conflicts:**
+**Strange build errors after switching branches or upgrading** — clear the build cache:
+
 ```bash
-# Use Node Version Manager (nvm)
-nvm install 18
-nvm use 18
+ng cache clean
 ```
 
-**Angular CLI installation issues:**
-```bash
-# Clear npm cache
-npm cache clean --force
-
-# Reinstall Angular CLI
-npm uninstall -g @angular/cli
-npm install -g @angular/cli@latest
-```
-
-**Permission errors (Mac/Linux):**
-```bash
-# Fix npm permissions
-sudo chown -R $(whoami) $(npm config get prefix)/{lib/node_modules,bin,share}
-```
-
-### Verification Commands
+**Still stuck?** Check the versions of everything:
 
 ```bash
-# Check all versions
 node --version
 npm --version
 ng version
-git --version
-
-# Test Angular CLI
-ng help
-ng new --help
 ```
 
-## 📱 Mobile Development (Optional)
+## Key takeaways
 
-For mobile app development with Ionic:
+- Angular 22 needs **Node.js 22.22.3+, 24.15+ or 26**; install the CLI with `npm install -g @angular/cli`.
+- `ng new` asks about **styles, SSR and AI tools**; everything else (standalone, zoneless, OnPush,
+  routing, Vitest, strict mode, Prettier) is already set up for you.
+- The app starts in `main.ts` → `bootstrapApplication(App, appConfig)`; providers live in
+  `app.config.ts`, routes in `app.routes.ts`.
+- Install the **Angular Language Service** and **Angular DevTools** — they make learning much easier.
 
-```bash
-# Install Ionic CLI
-npm install -g @ionic/cli
+## Next steps
 
-# Verify installation
-ionic --version
-```
+1. **[Learning Path Guide](/learning-path/)** — choose your route through the course
+2. **[What is Angular?](/beginner/what-is-angular/)** — start the beginner section
+3. **[Your First App](/beginner/first-app/)** — build a task manager in your new project
 
-## 🐳 Docker Setup (Optional)
-
-For containerized development:
-
-```dockerfile
-# Dockerfile for Angular development
-FROM node:18-alpine
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-
-EXPOSE 4200
-CMD ["ng", "serve", "--host", "0.0.0.0"]
-```
-
-## ✅ Setup Complete!
-
-Congratulations! Your development environment is now ready for modern Angular development with all the latest tools and best practices.
-
-## 🎯 What's Next?
-
-Now that your environment is ready, choose your learning path:
-
-### For Complete Beginners
-1. **[Learning Path Guide](/learning-path/)** - Plan your 20-week journey
-2. **[What is Angular?](/beginner/what-is-angular/)** - Start with Angular fundamentals
-3. **[Angular Architecture](/beginner/architecture/)** - Understand how Angular works
-
-### For Experienced Developers
-1. **[Learning Path Guide](/learning-path/)** - Choose your focus areas
-2. **[Modern Angular Features](/modern/standalone-components/)** - Jump to latest features
-3. **[Advanced Topics](/advanced/custom-directives/)** - Deep dive into complex patterns
-
-### Quick Start Options
-- **Build Your First App**: Follow our [First App Tutorial](/beginner/first-app/)
-- **Explore Modern Features**: Try [Standalone Components](/modern/standalone-components/)
-- **See Real Examples**: Check out our [Project Gallery](/projects/)
-
-## 🆘 Need Help?
-
-If you encounter any setup issues:
-
-- **Common Problems**: Check our [troubleshooting section](#-troubleshooting) above
-- **Community Support**: Join our [Telegram community](https://t.me/letsprogramYt/1)
-- **Documentation**: Visit [Angular.dev](https://angular.dev/) for official docs
-
----
-
-**Ready to become an Angular expert?** Let's start your journey with the [Learning Path Guide](/learning-path/) to plan your route to mastery! 🚀
+Need help? Join the [Let's Program Telegram community](https://t.me/letsprogramYt/1). 🚀

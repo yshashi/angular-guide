@@ -1,225 +1,229 @@
 ---
 title: Prerequisites & Setup 📋
-description: Everything you need to know before starting your Angular learning journey
+description: What you should know before learning Angular 22 — the HTML, CSS, JavaScript and TypeScript basics, plus a quick checklist to test your setup.
 sidebar:
   order: 2
 ---
 
-Before diving into Angular development, let's ensure you have the foundational knowledge and tools needed to get the most out of this comprehensive tutorial.
+You don't need to be an expert to start learning Angular, but a few basics will make the journey
+much smoother. This page lists exactly what to know, gives you a quick TypeScript crash course,
+and helps you check that your computer is ready.
 
-## 🎯 Required Knowledge
+## What you'll learn
 
-### JavaScript/TypeScript Fundamentals
+- Which HTML, CSS and JavaScript skills Angular builds on
+- The TypeScript features you will see on almost every Angular page
+- Which tools you need (and which versions)
+- How to check that everything works before you start
 
-You should be comfortable with:
+## Must-have knowledge
 
-**JavaScript ES6+ Features:**
-- Arrow functions and function expressions
-- Destructuring assignment
-- Template literals
-- Modules (import/export)
-- Promises and async/await
-- Classes and object-oriented programming
+### HTML & CSS
 
-**TypeScript Basics:**
-- Type annotations and interfaces
-- Generics (basic understanding)
-- Union types and optional properties
-- Working with TypeScript in Angular projects
+- Common elements (`div`, `section`, `button`, `form`, `input`, `ul`/`li`) and attributes
+- Semantic HTML (`header`, `main`, `nav`, `footer`) and accessible labels
+- CSS selectors, the box model, Flexbox and Grid
+- Basic responsive design (media queries)
 
-### Web Development Fundamentals
+Sass/SCSS or Tailwind CSS are optional — Angular supports both, and plain CSS is perfectly fine.
 
-**HTML & CSS:**
-- Semantic HTML elements and structure
-- CSS selectors, flexbox, and grid
-- Responsive design principles
-- Basic understanding of SCSS/Sass (helpful)
+### JavaScript (ES2015+)
 
-**HTTP & Web APIs:**
-- Understanding of REST APIs
-- HTTP methods (GET, POST, PUT, DELETE)
-- JSON data format
-- Basic authentication concepts
+You should be comfortable reading and writing code like this:
 
-### Angular Knowledge (Optional)
+```ts
+// const/let, arrow functions and template literals
+const greet = (name: string) => `Hello, ${name}!`;
 
-**If you're new to Angular, don't worry!** We'll teach you everything from scratch. However, if you have some experience:
+// Destructuring and spread
+const user = { name: 'Ada', role: 'admin', active: true };
+const { name, ...rest } = user;
+const updated = { ...user, active: false };
+const numbers = [1, 2, 3];
+const more = [...numbers, 4];
 
-**Helpful Angular Concepts:**
-- **Components**: Basic component structure
-- **Templates**: Data binding and event handling
-- **Services**: Dependency injection basics
-- **Standalone**: Components are standalone by default (no NgModules needed since Angular 19)
-- **CLI**: Angular CLI commands
+// Array methods you will use all the time
+const evens = more.filter((n) => n % 2 === 0);
+const doubled = more.map((n) => n * 2);
+const total = more.reduce((sum, n) => sum + n, 0);
 
-**Advanced Concepts (We'll Cover These):**
-- RxJS and Observables
-- Reactive forms and validation
-- Advanced routing patterns
-- State management
-- Testing strategies
+// Optional chaining and nullish coalescing
+const city = (user as { address?: { city?: string } }).address?.city ?? 'Unknown';
 
-## 🛠️ Development Environment
+// Promises and async/await
+async function loadUsers() {
+  const response = await fetch('/api/users');
+  return response.json();
+}
 
-### Required Software
-
-**Node.js (Version 18+)**
-```bash
-# Check your Node.js version
-node --version
-
-# Should output v18.0.0 or higher
+// Modules
+// export function formatPrice(value: number) { ... }
+// import { formatPrice } from './format-price';
 ```
 
-**Angular CLI (Latest Version)**
-```bash
-# Install Angular CLI globally
-npm install -g @angular/cli
+:::tip[Why immutability matters]
+Angular's signals notice changes when you give them a **new** value. Spreading
+(`{ ...user, active: false }`, `[...list, item]`) instead of mutating objects in place is a habit you
+will use constantly.
+:::
 
-# Check version
-ng version
+### TypeScript basics
+
+Angular is written in TypeScript and every Angular project uses it. If you know JavaScript, you
+already know most of TypeScript — it adds **types** on top. These are the features you'll see most:
+
+```ts
+// 1. Type annotations
+let title: string = 'My app';
+let count = 0; // inferred as number
+
+// 2. Interfaces and type aliases describe the shape of data
+interface Product {
+  id: number;
+  name: string;
+  price: number;
+  description?: string; // optional property
+}
+
+// 3. Union types — a value can be one of several options
+type Status = 'idle' | 'loading' | 'success' | 'error';
+let status: Status = 'idle';
+
+// 4. Generics — reusable types with a "type parameter"
+const products: Array<Product> = [];
+function first<T>(items: T[]): T | undefined {
+  return items[0];
+}
+
+// 5. Classes with access modifiers and readonly fields
+class Cart {
+  private readonly items: Product[] = [];
+
+  add(product: Product): void {
+    this.items.push(product);
+  }
+
+  protected get size(): number {
+    return this.items.length;
+  }
+}
 ```
 
-**Code Editor**
-We recommend **Visual Studio Code** with these extensions:
-- Angular Language Service
-- TypeScript Importer
-- Prettier - Code formatter
-- Auto Rename Tag
-- Bracket Pair Colorizer
+In Angular you will also see **decorators** such as `@Component()` and `@Service()`. A decorator is
+just a function that attaches extra information (metadata) to a class. You don't need to write your
+own — you only use the ones Angular provides.
 
-### Optional but Helpful
+:::note
+New Angular 22 projects use **TypeScript 6.0** in **strict mode**, so the compiler catches mistakes
+such as possibly-`undefined` values early. That can feel strict at first, but it prevents many
+bugs. The [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) is a great
+free reference.
+:::
 
-**Browser Extensions:**
-- Angular DevTools (Chrome/Firefox)
-- Redux DevTools (for state debugging)
+### The command line
 
-**Online Development:**
-- StackBlitz account (for running examples online)
-- CodeSandbox account (alternative online IDE)
+You will run commands like `ng serve` and `npm install` in a terminal. Know how to:
 
-## 🧠 Conceptual Prerequisites
+- Open a terminal (VS Code has one built in: <kbd>Ctrl</kbd>+<kbd>`</kbd>)
+- Move between folders with `cd` and list files with `ls` (or `dir` on Windows)
+- Stop a running command with <kbd>Ctrl</kbd>+<kbd>C</kbd>
 
-### Reactive Programming Basics
+### How the web works (basics)
 
-While not strictly required, understanding these concepts will help:
+- What HTTP requests and responses are (`GET`, `POST`, `PUT`, `DELETE`, status codes)
+- What JSON looks like
+- What a REST API is
 
-**State Management:**
-- What is application state?
-- The difference between local and global state
-- Why state management matters in complex applications
+## Nice to have (we'll teach these)
 
-**Reactive Programming:**
-- The concept of "reactive" updates
-- Push vs pull-based systems
-- The observer pattern (basic understanding)
+You **don't** need these before you start — the guide covers them:
 
-### Angular's Evolution
+- Reactive programming and [RxJS](/rxjs/fundamentals/) Observables
+- [Signals](/modern/signals/) and fine-grained reactivity
+- Testing with [Vitest](/testing/unit-testing/)
+- Git (helpful for saving your progress — `ng new` initialises a Git repository for you)
 
-**Understanding Angular's Journey:**
-- Why Angular introduced signals
-- The relationship between RxJS and Signals
-- The concept of "fine-grained reactivity"
+If you already know another framework (React, Vue, Svelte), many ideas transfer directly:
+components, props (Angular **inputs**), events (Angular **outputs**), and reactive state (Angular
+**signals**).
 
-## ✅ Knowledge Check
+## Tools and versions
 
-Before proceeding, assess your readiness:
+| Tool | Version for Angular 22 | Check with |
+| --- | --- | --- |
+| Node.js | `^22.22.3`, `^24.15.0` or `>=26.0.0` | `node --version` |
+| npm (comes with Node.js) — or pnpm, Yarn, Bun | any recent version | `npm --version` |
+| Angular CLI | 22.x | `ng version` |
+| Code editor | VS Code, WebStorm, or any editor with the Angular Language Service | — |
+| Browser | A current Chrome, Edge or Firefox + Angular DevTools | — |
 
-### JavaScript/TypeScript Fundamentals
-- [ ] Create and use arrow functions
-- [ ] Destructure objects and arrays
-- [ ] Use template literals for string interpolation
-- [ ] Work with Promises and async/await
-- [ ] Understand basic TypeScript types (optional)
+:::caution[Node.js 20 is not supported]
+Angular 22 dropped support for Node.js 20. If `node --version` prints `v20.x` (or an older
+22.x/24.x release), upgrade first — see [Development Environment](/setup/).
+:::
 
-### Web Development Basics
-- [ ] Create HTML structure and forms
-- [ ] Style elements with CSS
-- [ ] Understand HTTP requests and responses
-- [ ] Work with JSON data
-- [ ] Basic understanding of web security
+You don't need to install TypeScript globally — every Angular project includes its own TypeScript
+version in `package.json`.
 
-### Development Environment
-- [ ] Have Node.js 18+ installed
-- [ ] Have Angular CLI installed globally
-- [ ] Can create a new Angular project
-- [ ] Have a code editor with extensions
-- [ ] Comfortable with terminal/command line
+## Quick readiness check
 
-## 🚀 Quick Setup Test
+### Knowledge checklist
 
-Let's verify your environment is ready:
+- [ ] I can write a function with an arrow function and a template literal
+- [ ] I can use `map`, `filter` and spread (`...`) on arrays and objects
+- [ ] I understand `async`/`await` and what a Promise is
+- [ ] I can read a TypeScript `interface` and a union type like `'a' | 'b'`
+- [ ] I can build a simple page with HTML and style it with CSS
+
+### Environment test
+
+Once you have installed Node.js and the Angular CLI (see [Development Environment](/setup/)), run:
 
 ```bash
-# Create a test Angular project
-ng new angular-test --routing=true --style=scss --skip-git
+# Create a test project with all the defaults (no questions asked)
+ng new angular-test --defaults
 
-# Navigate to the project
+# Move into the project and start the dev server
 cd angular-test
-
-# Serve the application
 ng serve
 ```
 
-If you can see the default Angular welcome page at `http://localhost:4200`, you're ready to go!
+Open `http://localhost:4200` in your browser. If you see the Angular welcome page, you are ready! 🎉
+Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal to stop the server.
 
-## 📚 Learning Resources
+## Want to brush up first?
 
-If you need to strengthen any prerequisites:
+- [MDN: JavaScript Guide](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide) — the
+  best free JavaScript reference
+- [javascript.info](https://javascript.info/) — a friendly, complete JavaScript tutorial
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) — official TS docs
+- [MDN: Learn web development](https://developer.mozilla.org/en-US/docs/Learn_web_development) —
+  HTML, CSS and HTTP from scratch
 
-**JavaScript/TypeScript:**
-- [MDN JavaScript Guide](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [JavaScript.info](https://javascript.info/) - Comprehensive JS tutorial
+## Key takeaways
 
-**Web Development Fundamentals:**
-- [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web) - HTML, CSS, HTTP
-- [CSS-Tricks](https://css-tricks.com/) - CSS techniques and patterns
-- [REST API Tutorial](https://restfulapi.net/) - Understanding REST APIs
+- You need basic HTML, CSS and modern JavaScript; TypeScript basics you can learn as you go.
+- Angular 22 needs **Node.js 22.22.3+, 24.15+ or 26** and uses **TypeScript 6.0** in strict mode.
+- `ng new` + `ng serve` is the quickest way to check your setup.
 
-**Angular Preparation:**
-- [Angular Official Docs](https://angular.dev/) - Latest documentation
-- [Angular Tutorial](https://angular.dev/tutorials/learn-angular) - Official tutorial
-- [TypeScript for Angular](https://angular.dev/guide/typescript-configuration) - TS in Angular
+## Next steps
 
-## 🎯 Don't Meet All Prerequisites?
+Pick the path that matches your experience:
 
-**No problem!** This course is designed to be inclusive:
+**New to Angular**
 
-### Complete Beginner Path
-- **New to Programming?** Start with basic JavaScript tutorials first
-- **New to Web Development?** Learn HTML/CSS basics, then return here
-- **New to TypeScript?** We'll teach you TypeScript as we go
+1. [Development Environment](/setup/) — install and configure your tools
+2. [Learning Path Guide](/learning-path/) — plan your journey
+3. [What is Angular?](/beginner/what-is-angular/) — start from the beginning
 
-### Experienced Developer Path
-- **Coming from React/Vue?** You'll pick up Angular concepts quickly
-- **Backend Developer?** Focus on frontend concepts, we'll handle the rest
-- **Experienced Angular?** Skip to [Modern Angular Features](/modern/standalone-components/)
+**Used another framework**
 
-### Learning Support
-- **Struggling with concepts?** Each section includes additional resources
-- **Need practice?** Every lesson has hands-on exercises
-- **Want community help?** Join our Telegram channel for real-time support
+1. [Development Environment](/setup/)
+2. [Angular Architecture](/beginner/architecture/) — see how the pieces fit together
+3. [Your First App](/beginner/first-app/) — build something real
 
-## 🚀 Ready to Start?
+**Used an older Angular version**
 
-Choose your path based on your current level:
-
-### Path 1: Complete Beginner
-1. **[Development Environment Setup](/setup/)** - Get your tools ready
-2. **[Learning Path Guide](/learning-path/)** - Plan your 20-week journey
-3. **[What is Angular?](/beginner/what-is-angular/)** - Start from the beginning
-
-### Path 2: Some Experience
-1. **[Development Environment Setup](/setup/)** - Ensure you have the latest tools
-2. **[Angular Architecture](/beginner/architecture/)** - Understand Angular's structure
-3. **[Modern Angular Features](/modern/standalone-components/)** - Jump to latest features
-
-### Path 3: Experienced Developer
-1. **[Learning Path Guide](/learning-path/)** - Choose your focus areas
-2. **[Modern Angular Features](/modern/standalone-components/)** - Latest Angular patterns
-3. **[Advanced Topics](/advanced/custom-directives/)** - Deep dive into complex concepts
-
----
-
-**Remember:** Learning is a journey, not a race. Take your time, practice consistently, and don't hesitate to ask for help when needed! 🌟
+1. [Standalone Components](/modern/standalone-components/) and [Signals](/modern/signals/)
+2. [Control Flow](/modern/control-flow/) and [Signal Forms](/modern/signal-forms/)
+3. [Version Upgrades](/migration/version-upgrade/) — bring existing apps up to Angular 22
